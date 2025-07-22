@@ -1,0 +1,22 @@
+# Fast generation configuration for testing and previews
+
+model_settings:
+  seed: 999
+  sampler: "unipc"
+  cfg_scale: 6.0
+  steps: 20
+  eta: 0.0
+  clip_skip: 2
+  model_id: "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"  # Hugging Face model ID
+
+video_settings:
+  width: 512
+  height: 512
+  fps: 15
+  duration: 2.0
+  frames: null
+
+videos_per_variation: 1
+output_dir: "outputs"
+batch_name: "test_batch"
+use_timestamp: true

@@ -1,0 +1,31 @@
+# Core dependencies
+PyYAML>=6.0
+argparse
+pathlib
+dataclasses; python_version<"3.7"
+
+# WAN Model Dependencies
+torch>=2.0.0
+torchvision>=0.15.0
+diffusers>=0.21.0
+transformers>=4.21.0
+accelerate>=0.20.0
+xformers>=0.0.20  # Optional but recommended for memory efficiency
+
+# Video and image processing
+opencv-python>=4.5.0         # Video I/O and processing
+pillow>=8.3.0                # Image handling
+numpy>=1.21.0                # Numerical operations
+imageio>=2.9.0               # Video I/O alternative
+moviepy>=1.0.3               # Video editing (optional)
+
+# Utility libraries
+tqdm>=4.60.0                 # Progress bars
+
+# Development and testing
+pytest>=6.2.0               # Testing framework
+black>=21.0.0                # Code formatting
+flake8>=3.9.0                # Linting
+
+# Logging and monitoring
+structlog>=21.0.0            # Structured logging

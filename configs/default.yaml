@@ -1,0 +1,25 @@
+# Default configuration for WAN 2.1 video generation
+
+# Model-specific settings
+model_settings:
+  seed: 999                    # Random seed for reproducibility
+  sampler: "unipc"           # Scheduler type (unipc recommended for WAN)
+  cfg_scale: 6.5             # Classifier-free guidance scale
+  steps: 25                  # Number of inference steps
+  eta: 0.0                   # Scheduler eta parameter
+  clip_skip: 1               # CLIP skip layers
+  model_id: "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"  # Hugging Face model ID
+
+# Video generation parameters
+video_settings:
+  width: 848                 # Video width (must be divisible by 8)
+  height: 480                # Video height (must be divisible by 8)
+  fps: 12                    # Frames per second
+  duration: 5.0              # Video duration in seconds
+  frames: null               # Total frames (calculated from fps * duration if null)
+
+# Batch settings
+videos_per_variation: 3      # Number of videos to generate per prompt variation
+output_dir: "outputs"        # Base output directory
+batch_name: null             # Optional batch name (timestamp used if null)
+use_timestamp: true          # Add timestamp to batch directory name

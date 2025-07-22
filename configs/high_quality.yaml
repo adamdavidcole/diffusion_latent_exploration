@@ -1,0 +1,22 @@
+# High-quality configuration for 720P WAN generation
+
+model_settings:
+  seed: 12345
+  sampler: "unipc"
+  cfg_scale: 8.5
+  steps: 75
+  eta: 0.3
+  clip_skip: 1
+  model_id: "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
+
+video_settings:
+  width: 1280                # 720P width
+  height: 720                # 720P height 
+  fps: 30                    # High frame rate
+  duration: 6.0              # Longer duration
+  frames: null
+
+videos_per_variation: 2
+output_dir: "outputs"
+batch_name: "high_quality_batch"
+use_timestamp: true
