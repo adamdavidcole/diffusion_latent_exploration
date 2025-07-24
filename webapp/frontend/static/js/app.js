@@ -8,6 +8,21 @@ class VideoMatrixApp {
         this.showLabels = true;
         this.sidebarCollapsed = true;
         
+        // Virtual scrolling properties
+        this.virtualRows = [];
+        this.visibleRowStart = 0;
+        this.visibleRowEnd = 0;
+        this.rowHeight = 0;
+        this.containerHeight = 0;
+        this.overscan = 5; // Number of rows to render outside viewport
+        
+        // Video loading queue
+        this.loadingQueue = new Set();
+        this.maxConcurrentLoads = 4;
+        this.loadedVideos = new Set();
+        this.cachedVideoSources = new Map(); // Cache video blob URLs
+        this.intersectionObserver = null;
+        
         this.init();
     }
     
@@ -21,6 +36,7 @@ class VideoMatrixApp {
             
             this.loadExperiments();
             this.setupEventListeners();
+            this.setupIntersectionObserver();
         });
     }
     
@@ -45,6 +61,128 @@ class VideoMatrixApp {
         if (window.innerWidth <= 900) {
             document.getElementById('sidebar').classList.add('collapsed');
         }
+    }
+    
+    setupIntersectionObserver() {
+        this.intersectionObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                const video = entry.target;
+                if (entry.isIntersecting) {
+                    this.loadVideoIfNeeded(video);
+                }
+            });
+        }, {
+            root: document.getElementById('video-grid'),
+            rootMargin: '100px',
+            threshold: 0.1
+        });
+    }
+    
+    loadVideoIfNeeded(video) {
+        if (video.hasAttribute('data-loaded') || this.loadingQueue.has(video)) return;
+        
+        // Check if we have a cached version
+        const source = video.querySelector('source');
+        if (source && this.cachedVideoSources.has(source.src)) {
+            const cachedUrl = this.cachedVideoSources.get(source.src);
+            video.src = cachedUrl;
+            video.setAttribute('data-loaded', 'true');
+            const videoCell = video.closest('.video-cell');
+            if (videoCell) videoCell.classList.add('loaded');
+            this.loadedVideos.add(video);
+            return;
+        }
+        
+        if (this.loadingQueue.size >= this.maxConcurrentLoads) {
+            // Add to waiting queue
+            setTimeout(() => this.loadVideoIfNeeded(video), 200);
+            return;
+        }
+        
+        this.loadingQueue.add(video);
+        this.loadVideo(video);
+    }
+    
+    async loadVideo(video) {
+        try {
+            const source = video.querySelector('source');
+            const videoCell = video.closest('.video-cell');
+            
+            if (source && source.src && !video.src) {
+                // Check cache first
+                if (this.cachedVideoSources.has(source.src)) {
+                    video.src = this.cachedVideoSources.get(source.src);
+                    video.setAttribute('data-loaded', 'true');
+                    if (videoCell) videoCell.classList.add('loaded');
+                    this.loadedVideos.add(video);
+                    return;
+                }
+                
+                // Fetch and cache the video
+                const response = await fetch(source.src);
+                if (!response.ok) throw new Error(`Failed to fetch video: ${response.status}`);
+                
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                
+                // Cache the blob URL
+                this.cachedVideoSources.set(source.src, blobUrl);
+                
+                video.src = blobUrl;
+                video.preload = 'metadata';
+                
+                // Wait for video to be loadable
+                await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => reject(new Error('Video load timeout')), 10000);
+                    
+                    video.addEventListener('loadedmetadata', () => {
+                        clearTimeout(timeout);
+                        if (videoCell) videoCell.classList.add('loaded');
+                        resolve();
+                    }, { once: true });
+                    
+                    video.addEventListener('error', () => {
+                        clearTimeout(timeout);
+                        reject(new Error('Video load error'));
+                    }, { once: true });
+                    
+                    video.load();
+                });
+                
+                video.setAttribute('data-loaded', 'true');
+                this.loadedVideos.add(video);
+            } else if (videoCell) {
+                // Video already has src or no source, mark as loaded
+                videoCell.classList.add('loaded');
+            }
+        } catch (error) {
+            console.warn('Failed to load video:', error);
+            const videoCell = video.closest('.video-cell');
+            if (videoCell) {
+                videoCell.classList.add('loaded'); // Remove spinner even on error
+            }
+            video.setAttribute('data-load-error', 'true');
+        } finally {
+            this.loadingQueue.delete(video);
+        }
+    }
+    
+    clearVideoCache() {
+        // Clean up blob URLs to prevent memory leaks
+        for (const [url, blobUrl] of this.cachedVideoSources) {
+            URL.revokeObjectURL(blobUrl);
+        }
+        this.cachedVideoSources.clear();
+        this.loadedVideos.clear();
+        console.log('Video cache cleared');
+    }
+    
+    getCacheStats() {
+        return {
+            cachedVideos: this.cachedVideoSources.size,
+            loadedVideos: this.loadedVideos.size,
+            loading: this.loadingQueue.size
+        };
     }
     
     async loadExperiments() {
@@ -144,6 +282,13 @@ class VideoMatrixApp {
     }
     
     renderExperiment(experiment) {
+        // Clear cache when switching experiments
+        if (this.currentExperiment && this.currentExperiment !== experiment) {
+            this.clearVideoCache();
+        }
+        
+        this.currentExperiment = experiment;
+        
         // Update header
         document.getElementById('experiment-title').textContent = experiment.name;
         document.getElementById('base-prompt').textContent = experiment.base_prompt;
@@ -154,10 +299,10 @@ class VideoMatrixApp {
             `<div class="seed-label" style="width: ${this.videoSize}px;">Seed ${seed}</div>`
         ).join('');
 
-        // Render video grid
+        // Render video grid directly (no virtual scrolling for now)
         const videoGrid = document.getElementById('video-grid');
-        videoGrid.innerHTML = experiment.video_grid.map(row => `
-            <div class="grid-row">
+        videoGrid.innerHTML = experiment.video_grid.map((row, rowIndex) => `
+            <div class="grid-row" data-row-index="${rowIndex}">
                 <div class="row-label ${this.showLabels ? '' : 'hidden'}">${row.variation}</div>
                 <div class="videos-row">
                     ${experiment.seeds.map(seed => {
@@ -167,7 +312,7 @@ class VideoMatrixApp {
                                 <div class="video-cell" onclick="app.playVideo(this)">
                                     <video class="video-element" 
                                            style="width: ${this.videoSize}px; height: ${Math.round(this.videoSize * 0.56)}px;"
-                                           muted loop preload="metadata">
+                                           muted loop preload="none">
                                         <source src="/api/video/${video.video_path}" type="video/mp4">
                                     </video>
                                     <div class="video-overlay">
@@ -190,10 +335,21 @@ class VideoMatrixApp {
             </div>
         `).join('');
 
-        // Store all video elements
+        // Store all video elements for later reference
         this.allVideos = Array.from(document.querySelectorAll('video'));
+        
+        // Setup intersection observer for all videos
+        this.allVideos.forEach(video => {
+            this.intersectionObserver.observe(video);
+            // If video is already in viewport and cached, load it immediately
+            const rect = video.getBoundingClientRect();
+            const containerRect = document.getElementById('video-grid').getBoundingClientRect();
+            if (rect.top < containerRect.bottom && rect.bottom > containerRect.top) {
+                setTimeout(() => this.loadVideoIfNeeded(video), 50);
+            }
+        });
 
-        // Setup hover to play
+        // Setup hover to play for videos
         this.setupVideoHoverPlay();
 
         // Update video sizes and gaps to match current slider value
@@ -297,7 +453,7 @@ ${truncatedPrompt}`;
         const gapSize = minGap + (maxGap - minGap) * ((this.videoSize - minSize) / (maxSize - minSize));
         const gapRem = Math.max(minGap, Math.min(maxGap, gapSize));
         
-        // Update all videos
+        // Update all currently rendered videos
         document.querySelectorAll('.video-element').forEach(video => {
             video.style.width = `${this.videoSize}px`;
             video.style.height = `${Math.round(this.videoSize * 0.56)}px`;
@@ -375,14 +531,40 @@ ${truncatedPrompt}`;
     }
     
     playAllVideos() {
+        // First pause ALL videos (including off-screen ones)
         this.allVideos.forEach(video => {
-            video.currentTime = 0;
-            video.play();
-            video.playing = true;
+            video.pause();
+            video.playing = false;
+        });
+        
+        // Then play only visible videos for performance
+        const videoGrid = document.getElementById('video-grid');
+        const gridRect = videoGrid.getBoundingClientRect();
+        
+        // Add some margin to include videos just outside viewport
+        const margin = 200;
+        
+        this.allVideos.forEach(video => {
+            const videoRect = video.getBoundingClientRect();
+            
+            // Check if video is in or near the viewport
+            const isVisible = (
+                videoRect.bottom > (gridRect.top - margin) &&
+                videoRect.top < (gridRect.bottom + margin) &&
+                videoRect.right > (gridRect.left - margin) &&
+                videoRect.left < (gridRect.right + margin)
+            );
+            
+            if (isVisible) {
+                video.currentTime = 0;
+                video.play();
+                video.playing = true;
+            }
         });
     }
     
     pauseAllVideos() {
+        // Pause ALL videos (including off-screen ones)
         this.allVideos.forEach(video => {
             video.pause();
             video.playing = false;
@@ -390,6 +572,7 @@ ${truncatedPrompt}`;
     }
     
     muteAllVideos() {
+        // Toggle mute on ALL videos (including off-screen ones)
         const anyUnmuted = this.allVideos.some(video => !video.muted);
         this.allVideos.forEach(video => {
             video.muted = anyUnmuted;

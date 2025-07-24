@@ -421,6 +421,8 @@ body {
     overflow: auto;
     scrollbar-width: thin;
     scrollbar-color: var(--accent) var(--bg-secondary);
+    flex: 1;
+    padding: 1rem;
 }
 
 .video-grid::-webkit-scrollbar {
@@ -487,6 +489,27 @@ body {
     cursor: pointer;
     background: var(--bg-secondary);
     flex-shrink: 0;
+}
+
+.video-cell::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid var(--border);
+    border-top: 2px solid var(--accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    z-index: 1;
+    opacity: 1;
+    transition: opacity 0.3s;
+}
+
+.video-cell.loaded::before {
+    opacity: 0;
 }
 
 .video-cell:hover {
@@ -618,6 +641,10 @@ body {
 
 .sync-controls .btn {
     padding: 0.6rem 1rem;
+}
+
+#mute-btn {
+    display: none;
 }
 
 /* Responsive Design */
