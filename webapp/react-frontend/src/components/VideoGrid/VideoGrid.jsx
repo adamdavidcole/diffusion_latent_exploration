@@ -4,22 +4,29 @@ import { useIntersectionObserver } from '../../hooks/useIntersectionObserver';
 import VideoCell from './VideoCell';
 
 const VideoGrid = () => {
-  const { state, actions } = useApp();
-  const { currentExperiment, videoSize, showLabels } = state;
-  const allVideosRef = useRef([]);
-  const videoGridRef = useRef(null);
-  
-  // Calculate proportional gap
-  const calculateGap = useCallback((size) => {
-    const minGap = 0.05;
-    const maxGap = 2;
-    const minSize = 25;
-    const maxSize = 1000;
-    const gapSize = minGap + (maxGap - minGap) * ((size - minSize) / (maxSize - minSize));
-    return Math.max(minGap, Math.min(maxGap, gapSize));
-  }, []);
+    const context = useApp();
 
-  const gapRem = calculateGap(videoSize);
+    // Guard against context not being ready
+    if (!context || !context.actions) {
+        return <div>Loading...</div>;
+    }
+
+    const { state, actions } = context;
+    const { currentExperiment, videoSize, showLabels } = state;
+    const allVideosRef = useRef([]);
+    const videoGridRef = useRef(null);
+
+    // Calculate proportional gap
+    const calculateGap = useCallback((size) => {
+        const minGap = 0.05;
+        const maxGap = 2;
+        const minSize = 25;
+        const maxSize = 1000;
+        const gapSize = minGap + (maxGap - minGap) * ((size - minSize) / (maxSize - minSize));
+        return Math.max(minGap, Math.min(maxGap, gapSize));
+    }, []);
+
+    const gapRem = calculateGap(videoSize);
 
     // Handle video loading via intersection observer
     const handleIntersection = useCallback((entries) => {
@@ -43,22 +50,22 @@ const VideoGrid = () => {
         if (videoElement && !allVideosRef.current.includes(videoElement)) {
             allVideosRef.current.push(videoElement);
             observe(videoElement);
-            console.log('VideoGrid: Video loaded, total videos:', allVideosRef.current.length);
+            // Removed console.log to reduce noise
         }
-    }, [observe]); // Only depend on observe which is stable
+    }, [observe]);
 
     // Handle video metadata loaded (for duration)
     const handleMetadataLoaded = useCallback((duration) => {
-        if (state.videoDuration === 0 && duration) {
+        if (state?.videoDuration === 0 && duration && actions && typeof actions.setVideoDuration === 'function') {
             actions.setVideoDuration(duration);
         }
-    }, [state.videoDuration, actions]);
+    }, [state?.videoDuration, actions]);
 
     // Clean up videos array when experiment changes
     useEffect(() => {
         allVideosRef.current = [];
         disconnect();
-        console.log('VideoGrid: Cleared videos for experiment change');
+        // Removed console.log to reduce noise
     }, [currentExperiment, disconnect]);
 
     if (!currentExperiment) {
