@@ -1,0 +1,52 @@
+# Optimized configuration for WAN 2.1 14B model with aggressive memory management
+
+# Model-specific settings
+model_settings:
+  seed: 999                    # Random seed for reproducibility
+  sampler: "unipc"           # Scheduler type (unipc recommended for WAN)
+  cfg_scale: 6.5             # Classifier-free guidance scale
+  steps: 20                  # Number of inference steps
+  eta: 0.0                   # Scheduler eta parameter
+  clip_skip: 1               # CLIP skip layers
+  model_id: "Wan-AI/Wan2.1-T2V-14B-Diffusers"  # Hugging Face model ID
+  device: "cuda:0"           # GPU device (cuda:0, cuda:1, etc. or "auto" for automatic selection)
+
+# Aggressive memory optimization settings for 14B model
+memory_settings:
+  enable_memory_optimization: true    # Enable all memory optimizations
+  clear_cache_between_videos: false   # Don't clear cache if we have sufficient memory
+  reload_model_for_large_models: false # Let the system decide based on available memory
+  use_gradient_checkpointing: true    # Keep this for memory savings during inference
+  enable_memory_efficient_attention: true  # Enable memory efficient attention configuration for WAN 2.1 14B model with aggressive memory management
+
+# Model-specific settings
+model_settings:
+  seed: 999                    # Random seed for reproducibility
+  sampler: "unipc"           # Scheduler type (unipc recommended for WAN)
+  cfg_scale: 6.5             # Classifier-free guidance scale
+  steps: 20                  # Number of inference steps
+  eta: 0.0                   # Scheduler eta parameter
+  clip_skip: 1               # CLIP skip layers
+  model_id: "Wan-AI/Wan2.1-T2V-14B-Diffusers"  # 14B model
+
+# Aggressive memory optimization settings for 14B model
+memory_settings:
+  enable_memory_optimization: true    # Enable all memory optimizations
+  clear_cache_between_videos: true    # Aggressively clear GPU cache between videos
+  reload_model_for_large_models: true # Reload model between videos to prevent memory accumulation
+  use_gradient_checkpointing: true    # Enable gradient checkpointing (saves ~30% memory)
+  enable_memory_efficient_attention: true  # Enable memory efficient attention if available
+
+# Video generation parameters (conservative settings for memory)
+video_settings:
+  width: 848                 # Video width (must be divisible by 8)
+  height: 480                # Video height (must be divisible by 8) - lower than 720p to save memory
+  fps: 12                    # Frames per second
+  duration: 5.0              # Video duration in seconds
+  frames: null               # Total frames (calculated from fps * duration if null)
+
+# Batch settings (smaller batches for memory management)
+videos_per_variation: 2      # Fewer videos per variation to reduce memory pressure
+output_dir: "outputs"        # Base output directory
+batch_name: null             # Optional batch name (timestamp used if null)
+use_timestamp: true          # Add timestamp to batch directory name

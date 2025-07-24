@@ -8,7 +8,16 @@ model_settings:
   steps: 25                  # Number of inference steps
   eta: 0.0                   # Scheduler eta parameter
   clip_skip: 1               # CLIP skip layers
-  model_id: "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"  # Hugging Face model ID
+  model_id: "Wan-AI/Wan2.1-T2V-14B-Diffusers"  # Hugging Face model ID
+  # Available models: Wan-AI/Wan2.1-T2V-14B-Diffusers, Wan-AI/Wan2.1-T2V-1.3B-Diffusers
+
+# Memory optimization settings (for large models)
+memory_settings:
+  enable_memory_optimization: true    # Enable memory optimizations for large models
+  clear_cache_between_videos: true    # Clear GPU cache between video generations
+  reload_model_for_large_models: true # Reload model between videos for 14B+ models
+  use_gradient_checkpointing: true    # Enable gradient checkpointing (slower but uses less memory)
+  enable_memory_efficient_attention: true  # Enable memory efficient attention if available
 
 # Video generation parameters
 video_settings:

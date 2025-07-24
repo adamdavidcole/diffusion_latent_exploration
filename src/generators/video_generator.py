@@ -5,6 +5,7 @@ Handles the actual video generation process with proper error handling and progr
 import os
 import time
 import logging
+import gc
 from typing import List, Optional, Dict, Any, Callable
 from pathlib import Path
 from dataclasses import dataclass
@@ -24,6 +25,60 @@ except ImportError as e:
     WAN_AVAILABLE = False
 
 
+def clear_gpu_memory(device=None):
+    """Clear GPU memory cache and run garbage collection."""
+    if torch.cuda.is_available():
+        if device is not None and isinstance(device, str) and device.startswith('cuda'):
+            # Clear memory for specific device
+            device_id = int(device.split(':')[1]) if ':' in device else 0
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize(device_id)
+        else:
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+    gc.collect()
+
+
+def get_gpu_memory_info(device=None):
+    """Get current GPU memory usage information for specified device."""
+    if torch.cuda.is_available():
+        device_id = 0  # default
+        if device is not None and isinstance(device, str) and device.startswith('cuda'):
+            device_id = int(device.split(':')[1]) if ':' in device else 0
+        elif device is not None and isinstance(device, int):
+            device_id = device
+            
+        allocated = torch.cuda.memory_allocated(device_id) / (1024**3)  # GB
+        reserved = torch.cuda.memory_reserved(device_id) / (1024**3)   # GB
+        total = torch.cuda.get_device_properties(device_id).total_memory / (1024**3)  # GB
+        free = total - allocated
+        return {
+            "device_id": device_id,
+            "allocated_gb": allocated,
+            "reserved_gb": reserved,
+            "total_gb": total,
+            "free_gb": free
+        }
+    return None
+
+
+def setup_memory_optimization():
+    """Set up PyTorch memory optimization for large models."""
+    # Set environment variable for expandable segments
+    os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+    
+    # Try to configure the memory allocator directly if possible
+    if torch.cuda.is_available():
+        try:
+            # Set memory allocator settings for better fragmentation handling
+            torch.cuda.memory._set_allocator_settings('expandable_segments:True')
+        except Exception as e:
+            # This may not be available in all PyTorch versions
+            logging.debug(f"Could not set allocator settings directly: {e}")
+    
+    logging.info("Memory optimization settings configured")
+
+
 @dataclass
 class GenerationResult:
     """Result of a single video generation."""
@@ -39,28 +94,109 @@ class GenerationResult:
 
 
 class WanVideoGenerator:
-    """Real WAN model implementation for video generation."""
+    """Real WAN model implementation for video generation with memory optimization."""
     
     def __init__(self, config):
         self.config = config
         self.model_id = config.model_settings.model_id  # Use model_id from config
         self.pipe = None
-        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        
+        # Device selection with fallback
+        if hasattr(config.model_settings, 'device'):
+            device_config = config.model_settings.device
+            if device_config == "auto":
+                # Auto-select best available GPU
+                self.device = self._select_best_gpu()
+            else:
+                # Use specified device
+                self.device = device_config if torch.cuda.is_available() else "cpu"
+        else:
+            # Fallback to cuda:0 or cpu
+            self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+            
+        logging.info(f"Using device: {self.device}")
+        
+        # Get memory optimization settings from config
+        self.memory_optimization = getattr(config, 'memory_settings', None) is not None
+        if self.memory_optimization:
+            self.memory_settings = config.memory_settings
+        else:
+            # Fallback defaults for backward compatibility
+            from src.config.config_manager import MemorySettings
+            self.memory_settings = MemorySettings()
+        
+        # Set up memory optimization early for large models
+        if self._is_large_model() and self.memory_settings.enable_memory_optimization:
+            setup_memory_optimization()
+    
+    def _select_best_gpu(self):
+        """Select the GPU with the most free memory."""
+        if not torch.cuda.is_available():
+            return "cpu"
+            
+        best_device = "cuda:0"
+        max_free_memory = 0
+        
+        for i in range(torch.cuda.device_count()):
+            device = f"cuda:{i}"
+            mem_info = get_gpu_memory_info(device)
+            if mem_info and mem_info['free_gb'] > max_free_memory:
+                max_free_memory = mem_info['free_gb']
+                best_device = device
+                
+        logging.info(f"Auto-selected device {best_device} with {max_free_memory:.1f}GB free memory")
+        return best_device
+        
+    def _is_large_model(self):
+        """Check if this is a large model that needs memory optimization."""
+        return "14B" in self.model_id or "13B" in self.model_id
+        
+    def _unload_model(self):
+        """Unload the model to free GPU memory."""
+        if self.pipe is not None:
+            # Move WAN components to CPU to free GPU memory
+            if hasattr(self.pipe, 'transformer'):
+                self.pipe.transformer.to('cpu')
+                logging.info("Moved transformer to CPU")
+            if hasattr(self.pipe, 'vae'):
+                self.pipe.vae.to('cpu')
+                logging.info("Moved VAE to CPU")
+            if hasattr(self.pipe, 'text_encoder'):
+                self.pipe.text_encoder.to('cpu')
+                logging.info("Moved text_encoder to CPU")
+            
+            # Delete the pipeline
+            del self.pipe
+            self.pipe = None
+            
+            # Clear GPU cache
+            clear_gpu_memory(self.device)
+            logging.info("Model unloaded and GPU memory cleared")
         
     def _load_model(self):
-        """Load the WAN model components."""
+        """Load the WAN model components with memory optimization."""
         if not WAN_AVAILABLE:
             raise RuntimeError("WAN model dependencies not available")
+            
+        # Clear any existing memory
+        clear_gpu_memory(self.device)
+        
+        # Log memory before loading
+        mem_info = get_gpu_memory_info(self.device)
+        if mem_info:
+            logging.info(f"GPU memory before loading on {self.device}: {mem_info['free_gb']:.1f}GB free of {mem_info['total_gb']:.1f}GB total")
             
         logging.info(f"Loading WAN model: {self.model_id}")
         logging.info(f"Using device: {self.device}")
         
         try:
-            # Load VAE
+            # Load VAE with memory optimization
+            logging.info("Loading VAE...")
             vae = AutoencoderKLWan.from_pretrained(
                 self.model_id, 
                 subfolder="vae", 
-                torch_dtype=torch.float32
+                torch_dtype=torch.float32,
+                low_cpu_mem_usage=True  # Enable low CPU memory usage
             )
             
             # Configure scheduler based on resolution
@@ -75,23 +211,72 @@ class WanVideoGenerator:
                 flow_shift=flow_shift
             )
             
-            # Load pipeline
+            # Load pipeline with memory optimization
+            logging.info("Loading pipeline...")
             self.pipe = WanPipeline.from_pretrained(
                 self.model_id,
                 vae=vae,
-                torch_dtype=torch.bfloat16
+                torch_dtype=torch.bfloat16,
+                low_cpu_mem_usage=True,  # Enable low CPU memory usage
+                use_safetensors=True     # Use safetensors for better memory handling
             )
             self.pipe.scheduler = scheduler
+            
+            # Enable memory efficient attention if available and configured
+            # WAN transformer uses different attention mechanism than UNet
+            if self.memory_settings.enable_memory_efficient_attention:
+                try:
+                    # Check if XFormers is available
+                    import xformers
+                    import xformers.ops
+                    
+                    # Try to enable on the pipeline first
+                    if hasattr(self.pipe, 'enable_xformers_memory_efficient_attention'):
+                        self.pipe.enable_xformers_memory_efficient_attention()
+                        logging.info("Enabled xformers memory efficient attention on pipeline")
+                    
+                    # Also try to enable on individual components for WAN transformer architecture
+                    elif hasattr(self.pipe, 'transformer') and hasattr(self.pipe.transformer, 'enable_xformers_memory_efficient_attention'):
+                        self.pipe.transformer.enable_xformers_memory_efficient_attention()
+                        logging.info("Enabled xformers memory efficient attention on transformer")
+                    
+                    # For VAE if it has the method
+                    if hasattr(self.pipe, 'vae') and hasattr(self.pipe.vae, 'enable_xformers_memory_efficient_attention'):
+                        self.pipe.vae.enable_xformers_memory_efficient_attention()
+                        logging.info("Enabled xformers memory efficient attention on VAE")
+                        
+                except ImportError:
+                    logging.warning("XFormers not available - cannot enable memory efficient attention")
+                except Exception as e:
+                    logging.warning(f"Could not enable xformers memory efficient attention: {e}")
+                    logging.info("This is normal for WAN transformer models - they may use different attention mechanisms")
+            
+            # Enable gradient checkpointing for large models if configured
+            # WAN transformer supports gradient checkpointing
+            if (self.memory_settings.use_gradient_checkpointing and 
+                self._is_large_model() and 
+                hasattr(self.pipe.transformer, 'enable_gradient_checkpointing')):
+                self.pipe.transformer.enable_gradient_checkpointing()
+                logging.info("Enabled gradient checkpointing for transformer")
+            
+            # Move to device
             self.pipe.to(self.device)
+            
+            # Log memory after loading
+            mem_info = get_gpu_memory_info(self.device)
+            if mem_info:
+                logging.info(f"GPU memory after loading on {self.device}: {mem_info['free_gb']:.1f}GB free, {mem_info['allocated_gb']:.1f}GB allocated")
             
             logging.info("WAN model loaded successfully")
             
         except Exception as e:
             logging.error(f"Failed to load WAN model: {e}")
+            # Try to clean up on failure
+            clear_gpu_memory(self.device)
             raise
     
     def generate(self, prompt: str, output_path: str, **kwargs) -> GenerationResult:
-        """Generate a video using the WAN model."""
+        """Generate a video using the WAN model with memory optimization."""
         start_time = time.time()
         
         try:
@@ -113,7 +298,16 @@ class WanVideoGenerator:
             logging.info(f"Prompt: {prompt}")
             logging.info(f"Seed: {generator_seed}")
             
-            # Generate video
+            # Log memory before generation
+            mem_info = get_gpu_memory_info(self.device)
+            if mem_info:
+                logging.info(f"GPU memory before generation on {self.device}: {mem_info['free_gb']:.1f}GB free")
+            
+            # Clear cache before generation if configured
+            if self.memory_settings.clear_cache_between_videos:
+                clear_gpu_memory(self.device)
+            
+            # Generate video with memory optimization
             with torch.no_grad():
                 video_frames = self.pipe(
                     prompt=prompt,
@@ -125,6 +319,11 @@ class WanVideoGenerator:
                     generator=generator
                 ).frames[0]
             
+            # Clear memory after generation but before video export if configured
+            if self._is_large_model() and self.memory_settings.clear_cache_between_videos:
+                clear_gpu_memory(self.device)
+                logging.info("Cleared GPU memory after video generation")
+            
             # Ensure output directory exists
             Path(output_path).parent.mkdir(parents=True, exist_ok=True)
             
@@ -133,9 +332,39 @@ class WanVideoGenerator:
             if not video_path.endswith(('.mp4', '.avi', '.mov')):
                 video_path += '.mp4'
             
-            export_to_video(video_frames, video_path, fps=self.config.video_settings.fps)
+            # Move video frames to CPU before export to free GPU memory
+            if torch.is_tensor(video_frames[0]):
+                video_frames = [frame.cpu() if hasattr(frame, 'cpu') else frame for frame in video_frames]
+            
+            # Clear GPU memory before export step for large models
+            if self._is_large_model():
+                clear_gpu_memory(self.device)
+                logging.info("Cleared GPU memory before video export")
+            
+            # Export video frames - this can be memory intensive
+            try:
+                export_to_video(video_frames, video_path, fps=self.config.video_settings.fps)
+            except Exception as e:
+                # If export fails due to memory, try with more aggressive cleanup
+                if "out of memory" in str(e).lower():
+                    logging.warning(f"Video export failed with memory error, trying with cleanup: {e}")
+                    clear_gpu_memory(self.device)
+                    gc.collect()  # Extra garbage collection
+                    time.sleep(1)  # Give system time to clean up
+                    export_to_video(video_frames, video_path, fps=self.config.video_settings.fps)
+                else:
+                    raise
+            
+            # Final memory cleanup if configured
+            if self._is_large_model() and self.memory_settings.clear_cache_between_videos:
+                clear_gpu_memory(self.device)
             
             generation_time = time.time() - start_time
+            
+            # Log memory after export
+            mem_info = get_gpu_memory_info(self.device)
+            if mem_info:
+                logging.info(f"GPU memory after export on {self.device}: {mem_info['free_gb']:.1f}GB free")
             
             return GenerationResult(
                 success=True,
@@ -157,6 +386,11 @@ class WanVideoGenerator:
         except Exception as e:
             generation_time = time.time() - start_time
             logging.error(f"WAN video generation failed: {e}")
+            
+            # Try to clean up memory on error if configured
+            if self._is_large_model() and self.memory_settings.clear_cache_between_videos:
+                clear_gpu_memory(self.device)
+                logging.info("Cleaned up GPU memory after error")
             
             return GenerationResult(
                 success=False,
@@ -255,12 +489,42 @@ class WAN13BVideoGenerator:
 
 
 class BatchVideoGenerator:
-    """Handles batch generation of videos with progress tracking."""
+    """Handles batch generation of videos with progress tracking and memory optimization."""
     
     def __init__(self, generator: WAN13BVideoGenerator):
         self.generator = generator
         self.progress_callback: Optional[Callable] = None
         self.logger = logging.getLogger(__name__)
+        # Enable model reloading for large models to prevent memory accumulation
+        self.reload_model_between_videos = self._should_reload_model()
+    
+    def _should_reload_model(self) -> bool:
+        """Determine if we should reload the model between videos for memory management."""
+        if hasattr(self.generator, 'model') and hasattr(self.generator.model, 'model_id'):
+            model_id = self.generator.model.model_id
+            device = getattr(self.generator.model, 'device', 'cuda:0')
+            
+            # Check current GPU memory availability
+            mem_info = get_gpu_memory_info(device)
+            if mem_info and mem_info['free_gb'] > 5.0:  # If we have >5GB free, no need to reload
+                self.logger.info(f"Sufficient GPU memory available on {device} ({mem_info['free_gb']:.1f}GB free), disabling model reloading")
+                return False
+            
+            # Check if model reloading is enabled in config
+            if (hasattr(self.generator.model, 'memory_settings') and 
+                hasattr(self.generator.model.memory_settings, 'reload_model_for_large_models')):
+                should_reload = (self.generator.model.memory_settings.reload_model_for_large_models and 
+                        "14B" in model_id)
+                if should_reload and mem_info:
+                    self.logger.info(f"Model reloading enabled for 14B model with {mem_info['free_gb']:.1f}GB free on {device}")
+                return should_reload
+            
+            # Fallback: only reload for very large models (14B+) when memory is tight
+            if "14B" in model_id and mem_info and mem_info['free_gb'] < 2.0:
+                self.logger.info(f"Enabling model reloading due to low memory ({mem_info['free_gb']:.1f}GB free on {device})")
+                return True
+                
+        return False
     
     def set_progress_callback(self, callback: Callable[[int, int, str], None]):
         """Set callback function for progress updates."""
@@ -330,6 +594,12 @@ class BatchVideoGenerator:
                 
                 self.logger.info(f"Generating video {current_video}/{total_videos}: {filename}")
                 self.logger.info(f"Using seed: {current_kwargs['seed']} (base: {base_seed} + video_num: {video_num})")
+                
+                # For large models, reload the model between videos to prevent memory accumulation
+                if self.reload_model_between_videos and current_video > 1:
+                    if hasattr(self.generator.model, '_unload_model'):
+                        self.logger.info("Unloading model to free memory...")
+                        self.generator.model._unload_model()
                 
                 # Generate video
                 result = self.generator.generate(

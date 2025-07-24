@@ -2,6 +2,12 @@
 Main entry point for WAN 1.3B video generation.
 Command-line interface for batch video generation with prompt variations.
 """
+import os
+# Suppress TensorFlow warnings before importing anything else
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress TF logging
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimizations
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'  # Suppress tokenizer fork warning
+
 import argparse
 import sys
 from pathlib import Path
@@ -96,6 +102,10 @@ Examples:
     parser.add_argument('--duration', type=float,
                        help='Override video duration (seconds)')
     
+    # GPU selection
+    parser.add_argument('--device', '-d', type=str,
+                       help='GPU device to use (e.g., "cuda:0", "cuda:1", or "auto" for automatic selection)')
+    
     # Verbose output
     parser.add_argument('--verbose', '-v', action='store_true',
                        help='Verbose output')
@@ -138,6 +148,9 @@ def load_or_create_config(config_path: str, args) -> GenerationConfig:
     
     if args.sampler:
         config.model_settings.sampler = args.sampler
+    
+    if args.device:
+        config.model_settings.device = args.device
     
     # Video setting overrides
     if args.width is not None:

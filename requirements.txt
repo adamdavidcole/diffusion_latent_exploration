@@ -29,3 +29,7 @@ flake8>=3.9.0                # Linting
 
 # Logging and monitoring
 structlog>=21.0.0            # Structured logging
+
+# Web interface
+Flask>=2.0.0                 # Web framework for video viewer
+PyYAML>=6.0                  # Already listed above, needed for config loading

@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  wan-video-viewer:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "5000:5000"
+    volumes:
+      - "../../../outputs:/app/outputs:ro"  # Mount outputs directory as read-only
+    environment:
+      - FLASK_ENV=production
+      - FLASK_DEBUG=0
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/experiments"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "./nginx.conf:/etc/nginx/conf.d/default.conf:ro"
+      - "../../../outputs:/var/www/videos:ro"  # Direct video serving
+    depends_on:
+      - wan-video-viewer
+    restart: unless-stopped

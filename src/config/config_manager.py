@@ -19,6 +19,17 @@ class ModelSettings:
     eta: float = 0.0
     clip_skip: int = 1
     model_id: str = "Wan-AI/Wan2.1-T2V-14B-Diffusers"
+    device: str = "auto"       # GPU device (cuda:0, cuda:1, etc. or "auto" for automatic selection)
+    
+
+@dataclass
+class MemorySettings:
+    """Memory optimization settings for large models."""
+    enable_memory_optimization: bool = True
+    clear_cache_between_videos: bool = True
+    reload_model_for_large_models: bool = True
+    use_gradient_checkpointing: bool = True
+    enable_memory_efficient_attention: bool = True
     
 
 @dataclass
@@ -35,6 +46,7 @@ class VideoSettings:
 class GenerationConfig:
     """Complete configuration for video generation batch."""
     model_settings: ModelSettings = field(default_factory=ModelSettings)
+    memory_settings: MemorySettings = field(default_factory=MemorySettings)
     video_settings: VideoSettings = field(default_factory=VideoSettings)
     videos_per_variation: int = 3
     output_dir: str = "outputs"
@@ -88,6 +100,7 @@ class ConfigManager:
     def _parse_config(self, config_data: Dict) -> GenerationConfig:
         """Parse dictionary data into GenerationConfig object."""
         model_data = config_data.get('model_settings', {})
+        memory_data = config_data.get('memory_settings', {})
         video_data = config_data.get('video_settings', {})
         
         model_settings = ModelSettings(
@@ -100,6 +113,14 @@ class ConfigManager:
             model_id=model_data.get('model_id', 'Wan-AI/Wan2.1-T2V-14B-Diffusers')
         )
         
+        memory_settings = MemorySettings(
+            enable_memory_optimization=memory_data.get('enable_memory_optimization', True),
+            clear_cache_between_videos=memory_data.get('clear_cache_between_videos', True),
+            reload_model_for_large_models=memory_data.get('reload_model_for_large_models', True),
+            use_gradient_checkpointing=memory_data.get('use_gradient_checkpointing', True),
+            enable_memory_efficient_attention=memory_data.get('enable_memory_efficient_attention', True)
+        )
+        
         video_settings = VideoSettings(
             width=video_data.get('width', 512),
             height=video_data.get('height', 512),
@@ -110,6 +131,7 @@ class ConfigManager:
         
         return GenerationConfig(
             model_settings=model_settings,
+            memory_settings=memory_settings,
             video_settings=video_settings,
             videos_per_variation=config_data.get('videos_per_variation', 3),
             output_dir=config_data.get('output_dir', 'outputs'),
@@ -128,6 +150,13 @@ class ConfigManager:
                 'eta': config.model_settings.eta,
                 'clip_skip': config.model_settings.clip_skip,
                 'model_id': config.model_settings.model_id
+            },
+            'memory_settings': {
+                'enable_memory_optimization': config.memory_settings.enable_memory_optimization,
+                'clear_cache_between_videos': config.memory_settings.clear_cache_between_videos,
+                'reload_model_for_large_models': config.memory_settings.reload_model_for_large_models,
+                'use_gradient_checkpointing': config.memory_settings.use_gradient_checkpointing,
+                'enable_memory_efficient_attention': config.memory_settings.enable_memory_efficient_attention
             },
             'video_settings': {
                 'width': config.video_settings.width,

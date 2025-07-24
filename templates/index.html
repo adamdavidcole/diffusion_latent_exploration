@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WAN Video Matrix Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0f0f0f;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #2d2d2d;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --text-muted: #666666;
+            --accent: #4a90e2;
+            --accent-hover: #357abd;
+            --border: #404040;
+            --border-light: #555555;
+            --success: #4caf50;
+            --warning: #ff9800;
+            --error: #f44336;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.5;
+            overflow-x: hidden;
+        }
+
+        .app-container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 320px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            transition: width 0.3s ease;
+        }
+
+        .sidebar.collapsed {
+            width: 60px;
+        }
+
+        .sidebar-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sidebar.collapsed .sidebar-header {
+            padding: 1rem;
+            justify-content: center;
+        }
+
+        .logo {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .sidebar.collapsed .logo {
+            display: none;
+        }
+
+        .collapse-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        .collapse-btn:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .experiments-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        .sidebar.collapsed .experiments-list {
+            display: none;
+        }
+
+        .experiment-item {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .experiment-item:hover {
+            border-color: var(--accent);
+            background: var(--bg-tertiary);
+        }
+
+        .experiment-item.active {
+            border-color: var(--accent);
+            background: linear-gradient(135deg, rgba(74, 144, 226, 0.1), rgba(74, 144, 226, 0.05));
+        }
+
+        .experiment-header {
+            padding: 1rem;
+        }
+
+        .experiment-name {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            font-size: 0.95rem;
+        }
+
+        .experiment-meta {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .experiment-prompt {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+            font-style: italic;
+            line-height: 1.3;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            min-height: 70px;
+        }
+
+        .experiment-info {
+            flex: 1;
+        }
+
+        .experiment-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .base-prompt {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .control-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        .slider {
+            width: 120px;
+            height: 4px;
+            border-radius: 2px;
+            background: var(--border);
+            outline: none;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .slider:hover {
+            opacity: 1;
+        }
+
+        .slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+        }
+
+        .slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn.secondary {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+        }
+
+        .btn.secondary:hover {
+            background: var(--border);
+        }
+
+        .toggle-btn {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+
+        .toggle-btn.active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        /* Video Grid */
+        .video-container {
+            flex: 1;
+            overflow: auto;
+            padding: 2rem;
+        }
+
+        .video-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            max-width: 100%;
+        }
+
+        .grid-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .row-label {
+            width: 120px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            text-align: right;
+            flex-shrink: 0;
+            font-weight: 500;
+        }
+
+        .row-label.hidden {
+            opacity: 0;
+        }
+
+        .videos-row {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .video-cell {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid var(--border);
+            transition: all 0.2s;
+            cursor: pointer;
+            background: var(--bg-secondary);
+        }
+
+        .video-cell:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        .video-element {
+            display: block;
+            object-fit: cover;
+            transition: transform 0.2s;
+        }
+
+        .video-cell:hover .video-element {
+            transform: scale(1.02);
+        }
+
+        .video-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+            color: white;
+            padding: 0.5rem;
+            font-size: 0.7rem;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .video-cell:hover .video-overlay {
+            opacity: 1;
+        }
+
+        .video-placeholder {
+            background: var(--bg-tertiary);
+            border: 2px dashed var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+
+        /* Seeds Header */
+        .seeds-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            padding-left: 140px;
+        }
+
+        .seed-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-align: center;
+            font-weight: 500;
+        }
+
+        /* Loading States */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 4rem;
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+        }
+
+        .loading-spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border);
+            border-top: 2px solid var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state h3 {
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .sidebar {
+                width: 280px;
+            }
+            
+            .header {
+                padding: 1rem;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+                min-height: auto;
+            }
+            
+            .header-controls {
+                width: 100%;
+                justify-content: space-between;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .sidebar {
+                position: absolute;
+                z-index: 100;
+                height: 100%;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+            
+            .sidebar.open {
+                transform: translateX(0);
+            }
+            
+            .main-content {
+                width: 100%;
+            }
+            
+            .grid-row {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+            
+            .row-label {
+                width: auto;
+                text-align: left;
+            }
+            
+            .seeds-header {
+                padding-left: 0;
+                justify-content: center;
+            }
+        }
+
+        /* Sync Controls */
+        .sync-controls {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            z-index: 50;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s ease;
+        }
+
+        .sync-controls.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .sync-controls .btn {
+            padding: 0.6rem 1rem;
+        }
+
+        /* Theme Toggle (optional for future) */
+        .theme-toggle {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h1 class="logo">🎬 WAN Viewer</h1>
+                <button class="collapse-btn" onclick="toggleSidebar()">
+                    <span id="collapse-icon">←</span>
+                </button>
+            </div>
+            
+            <div class="experiments-list" id="experiments-list">
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    Loading experiments...
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <div class="experiment-info">
+                    <h2 class="experiment-title" id="experiment-title">Select an experiment</h2>
+                    <p class="base-prompt" id="base-prompt"></p>
+                </div>
+                
+                <div class="header-controls">
+                    <div class="control-group">
+                        <label class="control-label">Size</label>
+                        <input type="range" class="slider" id="size-slider" 
+                               min="80" max="400" value="200" 
+                               oninput="updateVideoSize(this.value)">
+                    </div>
+                    
+                    <div class="control-group">
+                        <button class="toggle-btn" id="labels-toggle" onclick="toggleLabels()">
+                            Hide Labels
+                        </button>
+                    </div>
+                    
+                    <div class="control-group">
+                        <button class="btn" onclick="rescanExperiments()">
+                            🔄 Rescan
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Video Grid Container -->
+            <div class="video-container" id="video-container">
+                <div id="loading" class="loading">
+                    <div class="loading-spinner"></div>
+                    Select an experiment to view videos
+                </div>
+
+                <div id="video-grid-wrapper" style="display: none;">
+                    <!-- Seeds Header -->
+                    <div class="seeds-header" id="seeds-header"></div>
+                    
+                    <!-- Video Grid -->
+                    <div class="video-grid" id="video-grid"></div>
+                </div>
+
+                <div id="empty-state" class="empty-state" style="display: none;">
+                    <h3>No videos found</h3>
+                    <p>This experiment doesn't contain any videos yet.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Sync Controls -->
+    <div class="sync-controls" id="sync-controls">
+        <button class="btn" onclick="playAllVideos()">▶️ Play All</button>
+        <button class="btn secondary" onclick="pauseAllVideos()">⏸️ Pause All</button>
+        <button class="btn secondary" onclick="muteAllVideos()">🔇 Mute All</button>
+    </div>
+
+    <script>
+        // Global state
+        let currentExperiment = null;
+        let allVideos = [];
+        let videoSize = 200;
+        let showLabels = true;
+        let sidebarCollapsed = false;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            loadExperiments();
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            // Show sync controls when videos are loaded
+            const observer = new MutationObserver(function(mutations) {
+                const hasVideos = document.querySelectorAll('video').length > 0;
+                const syncControls = document.getElementById('sync-controls');
+                if (hasVideos) {
+                    syncControls.classList.add('visible');
+                } else {
+                    syncControls.classList.remove('visible');
+                }
+            });
+            
+            observer.observe(document.getElementById('video-grid'), {
+                childList: true,
+                subtree: true
+            });
+        }
+
+        async function loadExperiments() {
+            try {
+                const response = await fetch('/api/experiments');
+                const experiments = await response.json();
+                
+                renderExperimentsList(experiments);
+            } catch (error) {
+                console.error('Error loading experiments:', error);
+                document.getElementById('experiments-list').innerHTML = `
+                    <div class="empty-state">
+                        <h3>Error loading experiments</h3>
+                        <p>Check the server connection</p>
+                    </div>
+                `;
+            }
+        }
+
+        function renderExperimentsList(experiments) {
+            const container = document.getElementById('experiments-list');
+            
+            if (experiments.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No experiments found</h3>
+                        <p>Generate some videos first, then rescan.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = experiments.map(exp => `
+                <div class="experiment-item" onclick="selectExperiment('${exp.name}')">
+                    <div class="experiment-header">
+                        <div class="experiment-name">${exp.name}</div>
+                        <div class="experiment-meta">
+                            <span>${exp.videos_count} videos</span>
+                            <span>${exp.variations_count} variations</span>
+                            <span>${exp.seeds_count} seeds</span>
+                        </div>
+                        <div class="experiment-prompt">${exp.base_prompt}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function selectExperiment(experimentName) {
+            // Update active state
+            document.querySelectorAll('.experiment-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+
+            // Show loading
+            document.getElementById('loading').style.display = 'flex';
+            document.getElementById('video-grid-wrapper').style.display = 'none';
+            document.getElementById('empty-state').style.display = 'none';
+
+            try {
+                const response = await fetch(`/api/experiment/${experimentName}`);
+                const experiment = await response.json();
+                
+                if (experiment.error) {
+                    throw new Error(experiment.error);
+                }
+
+                currentExperiment = experiment;
+                renderExperiment(experiment);
+                
+            } catch (error) {
+                console.error('Error loading experiment:', error);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('empty-state').style.display = 'block';
+            }
+        }
+
+        function renderExperiment(experiment) {
+            // Update header
+            document.getElementById('experiment-title').textContent = experiment.name;
+            document.getElementById('base-prompt').textContent = experiment.base_prompt;
+
+            // Render seeds header
+            const seedsHeader = document.getElementById('seeds-header');
+            seedsHeader.innerHTML = experiment.seeds.map(seed => 
+                `<div class="seed-label" style="width: ${videoSize}px;">Seed ${seed}</div>`
+            ).join('');
+
+            // Render video grid
+            const videoGrid = document.getElementById('video-grid');
+            videoGrid.innerHTML = experiment.video_grid.map(row => `
+                <div class="grid-row">
+                    <div class="row-label ${showLabels ? '' : 'hidden'}">${row.variation}</div>
+                    <div class="videos-row">
+                        ${experiment.seeds.map(seed => {
+                            const video = row.videos.find(v => v && v.seed === seed);
+                            if (video) {
+                                return `
+                                    <div class="video-cell" onclick="playVideo(this)">
+                                        <video class="video-element" 
+                                               style="width: ${videoSize}px; height: ${Math.round(videoSize * 0.56)}px;"
+                                               muted loop preload="metadata">
+                                            <source src="/api/video/${video.video_path}" type="video/mp4">
+                                        </video>
+                                        <div class="video-overlay">
+                                            <div>Seed: ${video.seed}</div>
+                                            <div>${video.width}x${video.height}, ${video.num_frames}f</div>
+                                            <div>Steps: ${video.steps}, CFG: ${video.cfg_scale}</div>
+                                        </div>
+                                    </div>
+                                `;
+                            } else {
+                                return `
+                                    <div class="video-placeholder" 
+                                         style="width: ${videoSize}px; height: ${Math.round(videoSize * 0.56)}px;">
+                                        Missing
+                                    </div>
+                                `;
+                            }
+                        }).join('')}
+                    </div>
+                </div>
+            `).join('');
+
+            // Store all video elements
+            allVideos = Array.from(document.querySelectorAll('video'));
+
+            // Setup hover to play
+            setupVideoHoverPlay();
+
+            // Hide loading, show content
+            document.getElementById('loading').style.display = 'none';
+            if (experiment.video_grid.length > 0) {
+                document.getElementById('video-grid-wrapper').style.display = 'block';
+            } else {
+                document.getElementById('empty-state').style.display = 'block';
+            }
+        }
+
+        function setupVideoHoverPlay() {
+            allVideos.forEach(video => {
+                video.addEventListener('mouseenter', function() {
+                    if (!this.playing) {
+                        this.play();
+                    }
+                });
+                
+                video.addEventListener('mouseleave', function() {
+                    this.pause();
+                    this.currentTime = 0;
+                });
+            });
+        }
+
+        function updateVideoSize(size) {
+            videoSize = parseInt(size);
+            
+            // Update all videos
+            document.querySelectorAll('.video-element').forEach(video => {
+                video.style.width = `${videoSize}px`;
+                video.style.height = `${Math.round(videoSize * 0.56)}px`;
+            });
+            
+            // Update placeholders
+            document.querySelectorAll('.video-placeholder').forEach(placeholder => {
+                placeholder.style.width = `${videoSize}px`;
+                placeholder.style.height = `${Math.round(videoSize * 0.56)}px`;
+            });
+            
+            // Update seed labels
+            document.querySelectorAll('.seed-label').forEach(label => {
+                label.style.width = `${videoSize}px`;
+            });
+        }
+
+        function toggleLabels() {
+            showLabels = !showLabels;
+            const toggle = document.getElementById('labels-toggle');
+            const labels = document.querySelectorAll('.row-label');
+            
+            if (showLabels) {
+                toggle.textContent = 'Hide Labels';
+                toggle.classList.remove('active');
+                labels.forEach(label => label.classList.remove('hidden'));
+            } else {
+                toggle.textContent = 'Show Labels';
+                toggle.classList.add('active');
+                labels.forEach(label => label.classList.add('hidden'));
+            }
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const icon = document.getElementById('collapse-icon');
+            
+            sidebarCollapsed = !sidebarCollapsed;
+            
+            if (sidebarCollapsed) {
+                sidebar.classList.add('collapsed');
+                icon.textContent = '→';
+            } else {
+                sidebar.classList.remove('collapsed');
+                icon.textContent = '←';
+            }
+        }
+
+        function playVideo(videoCell) {
+            const video = videoCell.querySelector('video');
+            if (video.paused) {
+                video.play();
+                video.playing = true;
+            } else {
+                video.pause();
+                video.playing = false;
+            }
+        }
+
+        function playAllVideos() {
+            allVideos.forEach(video => {
+                video.currentTime = 0;
+                video.play();
+                video.playing = true;
+            });
+        }
+
+        function pauseAllVideos() {
+            allVideos.forEach(video => {
+                video.pause();
+                video.playing = false;
+            });
+        }
+
+        function muteAllVideos() {
+            const anyUnmuted = allVideos.some(video => !video.muted);
+            allVideos.forEach(video => {
+                video.muted = anyUnmuted;
+            });
+            
+            // Update button text
+            const button = event.currentTarget;
+            button.textContent = anyUnmuted ? '🔊 Unmute All' : '🔇 Mute All';
+        }
+
+        async function rescanExperiments() {
+            try {
+                await fetch('/api/scan');
+                await loadExperiments();
+            } catch (error) {
+                console.error('Error rescanning:', error);
+            }
+        }
+
+        // Mobile responsiveness
+        if (window.innerWidth <= 900) {
+            document.getElementById('sidebar').classList.add('collapsed');
+        }
+    </script>
+</body>
+</html>
