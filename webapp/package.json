@@ -3,20 +3,27 @@
   "version": "1.0.0",
   "description": "Frontend build tools for WAN Video Matrix Viewer",
   "scripts": {
-    "build": "npm run build:css && npm run build:js",
+    "build": "npm run build:css && npm run build:js && npm run build:dev-css && npm run build:dev-js",
     "build:css": "postcss frontend/static/css/main.css -o frontend/static/dist/main.min.css --use autoprefixer --use postcss-preset-env --use cssnano",
     "build:js": "webpack --mode production",
-    "dev": "npm run watch:css & npm run watch:js",
+    "build:dev-css": "postcss frontend/static/css/main.css -o frontend/static/dist/main.css --use autoprefixer --use postcss-preset-env",
+    "build:dev-js": "webpack --mode development",
+    "deploy": "./scripts/deploy.sh",
+    "dev": "concurrently \"npm run watch:css\" \"npm run watch:js\" \"npm run serve:dev\"",
     "watch:css": "postcss frontend/static/css/main.css -o frontend/static/dist/main.css --use autoprefixer --use postcss-preset-env --watch",
     "watch:js": "webpack --mode development --watch",
     "serve": "python backend/app.py",
-    "dev:full": "npm run dev & npm run serve"
+    "serve:dev": "browser-sync start --proxy 'localhost:5000' --files 'frontend/static/dist/**/*,frontend/templates/**/*' --port 3000 --no-open",
+    "start": "npm run build:dev-css && concurrently \"python backend/app.py\" \"npm run dev\"",
+    "start:clean": "concurrently \"python backend/app.py\" \"npm run dev\""
   },
   "devDependencies": {
     "@babel/core": "^7.22.0",
     "@babel/preset-env": "^7.22.0",
     "autoprefixer": "^10.4.0",
     "babel-loader": "^9.1.0",
+    "browser-sync": "^3.0.4",
+    "concurrently": "^9.2.0",
     "cssnano": "^6.0.0",
     "postcss": "^8.4.0",
     "postcss-cli": "^10.1.0",
@@ -24,7 +31,13 @@
     "webpack": "^5.88.0",
     "webpack-cli": "^5.1.0"
   },
-  "keywords": ["video", "matrix", "viewer", "wan", "ai"],
+  "keywords": [
+    "video",
+    "matrix",
+    "viewer",
+    "wan",
+    "ai"
+  ],
   "author": "WAN Video Analysis Team",
   "license": "MIT"
 }

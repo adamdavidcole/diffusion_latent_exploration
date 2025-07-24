@@ -4,7 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WAN Video Matrix Viewer</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') if config.ENV == 'development' else url_for('static', filename='main.min.css') }}">
+    {% if config.ENV == 'production' %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='main.min.css') }}">
+    {% else %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/main.css') }}">
+    {% endif %}
 </head>
 <body>
     <div class="app-container">
@@ -87,7 +91,12 @@
     </div>
 
     <!-- Scripts -->
-    <script src="{{ url_for('static', filename='js/app.js') if config.ENV == 'development' else url_for('static', filename='app.min.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/controls.js') if config.ENV == 'development' else url_for('static', filename='controls.min.js') }}"></script>
+    {% if config.ENV == 'production' %}
+    <script src="{{ url_for('static', filename='app.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='controls.min.js') }}"></script>
+    {% else %}
+    <script src="{{ url_for('static', filename='dist/app.js') }}"></script>
+    <script src="{{ url_for('static', filename='dist/controls.js') }}"></script>
+    {% endif %}
 </body>
 </html>
