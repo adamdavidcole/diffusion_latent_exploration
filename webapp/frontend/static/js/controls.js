@@ -4,40 +4,66 @@
 // These bridge the gap between the class-based app and inline event handlers
 
 function updateVideoSize(size) {
-    app.updateVideoSize(size);
+    if (window.app) {
+        window.app.updateVideoSize(size);
+    }
 }
 
 function toggleLabels() {
-    app.toggleLabels();
+    if (window.app) {
+        window.app.toggleLabels();
+    }
 }
 
 function toggleSidebar() {
-    app.toggleSidebar();
+    if (window.app) {
+        window.app.toggleSidebar();
+    }
 }
 
 function playVideo(videoCell) {
-    app.playVideo(videoCell);
+    if (window.app) {
+        window.app.playVideo(videoCell);
+    }
 }
 
 function playAllVideos() {
-    app.playAllVideos();
+    if (window.app) {
+        window.app.playAllVideos();
+    }
 }
 
 function pauseAllVideos() {
-    app.pauseAllVideos();
+    if (window.app) {
+        window.app.pauseAllVideos();
+    }
 }
 
 function muteAllVideos() {
-    const anyUnmuted = app.muteAllVideos();
-    
-    // Update button text
-    const button = event.currentTarget;
-    button.textContent = anyUnmuted ? '🔊 Unmute All' : '🔇 Mute All';
+    if (window.app) {
+        const anyUnmuted = window.app.muteAllVideos();
+        
+        // Update button text
+        const button = event.currentTarget;
+        button.textContent = anyUnmuted ? '🔊 Unmute All' : '🔇 Mute All';
+    }
 }
 
 function rescanExperiments() {
-    app.rescanExperiments();
+    if (window.app) {
+        window.app.rescanExperiments();
+    }
 }
+
+// Explicitly attach functions to window to ensure they're available globally after minification
+window.updateVideoSize = updateVideoSize;
+window.toggleLabels = toggleLabels;
+window.toggleSidebar = toggleSidebar;
+window.playVideo = playVideo;
+window.playAllVideos = playAllVideos;
+window.pauseAllVideos = pauseAllVideos;
+window.muteAllVideos = muteAllVideos;
+window.rescanExperiments = rescanExperiments;
 
 // Utility functions
 class UIUtils {

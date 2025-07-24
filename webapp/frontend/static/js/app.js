@@ -292,5 +292,5 @@ class VideoMatrixApp {
     }
 }
 
-// Initialize the application
-const app = new VideoMatrixApp();
+// Initialize the application and make it globally available
+window.app = new VideoMatrixApp();

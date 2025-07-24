@@ -186,15 +186,36 @@ class VideoAnalyzer:
 
 def create_app():
     """Create and configure the Flask application"""
+    # Determine if we're in production (dist) or development
+    current_dir = Path(__file__).parent
+    is_production = current_dir.name == 'backend' and current_dir.parent.name == 'dist'
+    
+    if is_production:
+        # Production paths (from dist/backend/)
+        template_folder = '../templates'
+        static_folder = '../static'
+        outputs_path = current_dir.parent.parent.parent / 'outputs'
+    else:
+        # Development paths (from webapp/backend/)
+        template_folder = '../frontend/templates'
+        static_folder = '../frontend/static'
+        outputs_path = current_dir.parent.parent / 'outputs'
+    
     app = Flask(__name__, 
-                template_folder='../frontend/templates',
-                static_folder='../frontend/static')
+                template_folder=template_folder,
+                static_folder=static_folder)
+    
+    # Set environment for template rendering
+    if is_production:
+        app.config['ENV'] = 'production'
+    else:
+        app.config['ENV'] = 'development'
     
     # Enable CORS for API endpoints (optional)
     # CORS(app, resources={r"/api/*": {"origins": "*"}})
     
     # Configuration
-    app.config['VIDEO_OUTPUTS_DIR'] = str(Path(__file__).parent.parent.parent / 'outputs')
+    app.config['VIDEO_OUTPUTS_DIR'] = str(outputs_path)
     
     # Initialize video analyzer
     analyzer = VideoAnalyzer(app.config['VIDEO_OUTPUTS_DIR'])
@@ -266,12 +287,6 @@ def create_app():
             return jsonify({'message': f'Scanned {len(experiments)} experiments'})
         except Exception as e:
             return jsonify({'error': str(e)}), 500
-    
-    # Static file serving for production
-    @app.route('/static/<path:filename>')
-    def serve_static(filename):
-        """Serve static files"""
-        return send_from_directory('../frontend/static', filename)
     
     return app
 

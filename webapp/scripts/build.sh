@@ -69,7 +69,10 @@ else
         cp frontend/static/css/*.css dist/static/css/
     fi
 fi
-cp -r frontend/templates dist/templates
+# Copy templates (fix nested templates issue)
+rm -rf dist/templates
+mkdir -p dist/templates
+cp frontend/templates/* dist/templates/
 
 # Create production server script
 cat > dist/server.py << 'EOF'

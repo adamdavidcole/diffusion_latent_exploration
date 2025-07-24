@@ -25,15 +25,8 @@ module.exports = {
     ]
   },
   optimization: {
-    splitChunks: {
-      chunks: 'all',
-      cacheGroups: {
-        vendor: {
-          test: /[\\/]node_modules[\\/]/,
-          name: 'vendors',
-          chunks: 'all'
-        }
-      }
-    }
+    splitChunks: false,
+    // Disable minification completely to preserve global function names
+    minimize: false
   }
 };
