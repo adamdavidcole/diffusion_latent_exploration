@@ -643,6 +643,53 @@ body {
     padding: 0.6rem 1rem;
 }
 
+.scrubber-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: 1rem;
+}
+
+.scrubber {
+    width: 200px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    outline: none;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+.scrubber:hover {
+    opacity: 1;
+}
+
+.scrubber::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+}
+
+.scrubber::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: none;
+}
+
+.scrubber-time {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-family: monospace;
+    min-width: 40px;
+    text-align: right;
+}
+
 #mute-btn {
     display: none;
 }

@@ -23,6 +23,10 @@ class VideoMatrixApp {
         this.cachedVideoSources = new Map(); // Cache video blob URLs
         this.intersectionObserver = null;
         
+        // Scrubber state
+        this.videoDuration = 0;
+        this.isScrubbingActive = false;
+        
         this.init();
     }
     
@@ -354,6 +358,10 @@ class VideoMatrixApp {
 
         // Update video sizes and gaps to match current slider value
         this.updateVideoSize(this.videoSize);
+        
+        // Reset scrubber for new experiment
+        this.videoDuration = 0;
+        this.resetScrubber();
 
         // Hide loading, show content
         document.getElementById('loading').style.display = 'none';
@@ -367,14 +375,24 @@ class VideoMatrixApp {
     setupVideoHoverPlay() {
         this.allVideos.forEach(video => {
             video.addEventListener('mouseenter', function() {
-                if (!this.playing) {
+                if (!this.playing && !app.isScrubbingActive) {
                     this.play();
                 }
             });
             
             video.addEventListener('mouseleave', function() {
-                this.pause();
-                this.currentTime = 0;
+                if (!app.isScrubbingActive) {
+                    this.pause();
+                    this.currentTime = 0;
+                }
+            });
+            
+            // Listen for video metadata to get duration
+            video.addEventListener('loadedmetadata', () => {
+                if (this.videoDuration === 0 && video.duration) {
+                    this.videoDuration = video.duration;
+                    this.updateScrubberTime(0);
+                }
             });
         });
     }
@@ -537,6 +555,9 @@ ${truncatedPrompt}`;
             video.playing = false;
         });
         
+        // Reset scrubber to beginning
+        this.resetScrubber();
+        
         // Then play only visible videos for performance
         const videoGrid = document.getElementById('video-grid');
         const gridRect = videoGrid.getBoundingClientRect();
@@ -581,6 +602,46 @@ ${truncatedPrompt}`;
         // Update button text - need to find the button from event context
         // This will be handled by the onclick handler
         return anyUnmuted;
+    }
+    
+    scrubAllVideos(percentage) {
+        if (this.videoDuration === 0) return;
+        
+        this.isScrubbingActive = true;
+        const targetTime = (percentage / 100) * this.videoDuration;
+        
+        // Update ALL loaded videos, not just visible ones
+        this.allVideos.forEach(video => {
+            if (video.duration && video.hasAttribute('data-loaded')) {
+                video.currentTime = targetTime;
+            }
+        });
+        
+        this.updateScrubberTime(targetTime);
+        
+        // Clear the scrubbing flag after a short delay
+        setTimeout(() => {
+            this.isScrubbingActive = false;
+        }, 100);
+    }
+    
+    updateScrubberTime(currentTime) {
+        const minutes = Math.floor(currentTime / 60);
+        const seconds = Math.floor(currentTime % 60);
+        const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        
+        const timeDisplay = document.getElementById('scrubber-time');
+        if (timeDisplay) {
+            timeDisplay.textContent = timeString;
+        }
+    }
+    
+    resetScrubber() {
+        const scrubber = document.getElementById('global-scrubber');
+        if (scrubber) {
+            scrubber.value = 0;
+            this.updateScrubberTime(0);
+        }
     }
     
     async rescanExperiments() {

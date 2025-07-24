@@ -88,6 +88,12 @@
         <button class="btn" onclick="playAllVideos()">▶️ Play All</button>
         <button class="btn secondary" onclick="pauseAllVideos()">⏸️ Pause All</button>
         <button id="mute-btn" class="btn secondary" onclick="muteAllVideos()">🔇 Mute All</button>
+        <div class="scrubber-container">
+            <input type="range" class="scrubber" id="global-scrubber" 
+                   min="0" max="100" value="0" step="0.1"
+                   oninput="app.scrubAllVideos(this.value)">
+            <span class="scrubber-time" id="scrubber-time">0:00</span>
+        </div>
     </div>
 
     <!-- Scripts -->
