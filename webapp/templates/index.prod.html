@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WAN Video Matrix Viewer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='main.min.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h1 class="logo">🎬 WAN Viewer</h1>
+                <button class="collapse-btn" onclick="toggleSidebar()">
+                    <span id="collapse-icon">←</span>
+                </button>
+            </div>
+            
+            <div class="experiments-list" id="experiments-list">
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    Loading experiments...
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <div class="experiment-info">
+                    <h2 class="experiment-title" id="experiment-title">Select an experiment</h2>
+                    <p class="base-prompt" id="base-prompt"></p>
+                </div>
+                
+                <div class="header-controls">
+                    <div class="control-group">
+                        <label class="control-label">Size</label>
+                        <input type="range" class="slider" id="size-slider" 
+                               min="80" max="400" value="200" 
+                               oninput="updateVideoSize(this.value)">
+                    </div>
+                    
+                    <div class="control-group">
+                        <button class="toggle-btn" id="labels-toggle" onclick="toggleLabels()">
+                            Hide Labels
+                        </button>
+                    </div>
+                    
+                    <div class="control-group">
+                        <button class="btn" onclick="rescanExperiments()">
+                            🔄 Rescan
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Video Grid Container -->
+            <div class="video-container" id="video-container">
+                <div id="loading" class="loading">
+                    <div class="loading-spinner"></div>
+                    Select an experiment to view videos
+                </div>
+
+                <div id="video-grid-wrapper" style="display: none;">
+                    <!-- Seeds Header -->
+                    <div class="seeds-header" id="seeds-header"></div>
+                    
+                    <!-- Video Grid -->
+                    <div class="video-grid" id="video-grid"></div>
+                </div>
+
+                <div id="empty-state" class="empty-state" style="display: none;">
+                    <h3>No videos found</h3>
+                    <p>This experiment doesn't contain any videos yet.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Sync Controls -->
+    <div class="sync-controls" id="sync-controls">
+        <button class="btn" onclick="playAllVideos()">▶️ Play All</button>
+        <button class="btn secondary" onclick="pauseAllVideos()">⏸️ Pause All</button>
+        <button class="btn secondary" onclick="muteAllVideos()">🔇 Mute All</button>
+    </div>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='app.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='controls.min.js') }}"></script>
+</body>
+</html>
