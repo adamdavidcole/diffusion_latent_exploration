@@ -44,8 +44,9 @@ yarn.lock
 .pnp.*
 
 # Web build artifacts
-webapp/dist/
-webapp/frontend/static/dist/
+webapp/react-frontend/dist/
+webapp/react-frontend/node_modules/
+webapp/node_modules/
 *.min.js
 *.min.css
 *.map

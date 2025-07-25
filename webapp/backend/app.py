@@ -197,8 +197,8 @@ def create_app():
         outputs_path = current_dir.parent.parent.parent / 'outputs'
     else:
         # Development paths (from webapp/backend/)
-        template_folder = '../frontend/templates'
-        static_folder = '../frontend/static'
+        template_folder = '../react-frontend/dist'
+        static_folder = '../react-frontend/dist'
         outputs_path = current_dir.parent.parent / 'outputs'
     
     app = Flask(__name__, 
@@ -223,8 +223,16 @@ def create_app():
     # Routes
     @app.route('/')
     def index():
-        """Serve the main application page"""
-        return render_template('index.html')
+        """Serve the React application"""
+        try:
+            return send_from_directory(app.template_folder, 'index.html')
+        except FileNotFoundError:
+            # If React build doesn't exist, show development message
+            return '''
+            <h1>WAN Video Viewer</h1>
+            <p>React build not found. Run <code>npm run build</code> to build the frontend.</p>
+            <p>For development, use <code>npm run dev</code> to run the Vite dev server.</p>
+            ''', 404
     
     @app.route('/api/experiments')
     def get_experiments():
@@ -287,6 +295,41 @@ def create_app():
             return jsonify({'message': f'Scanned {len(experiments)} experiments'})
         except Exception as e:
             return jsonify({'error': str(e)}), 500
+    
+    # Explicit static file route for React assets
+    @app.route('/assets/<path:filename>')
+    def serve_assets(filename):
+        """Serve React build assets (JS, CSS, etc.)"""
+        try:
+            return send_from_directory(os.path.join(app.static_folder, 'assets'), filename)
+        except FileNotFoundError:
+            return jsonify({'error': 'Asset not found'}), 404
+    
+    # Catch-all route for React Router (SPA)
+    @app.route('/<path:path>')
+    def catch_all(path):
+        """Serve React app for all non-API routes (SPA routing)"""
+        # Don't serve React for API routes
+        if path.startswith('api/'):
+            return jsonify({'error': 'API endpoint not found'}), 404
+        
+        # Don't interfere with assets route
+        if path.startswith('assets/'):
+            return jsonify({'error': 'Asset not found'}), 404
+        
+        # Try to serve static files first (CSS, JS, images, etc.)
+        try:
+            return send_from_directory(app.static_folder, path)
+        except FileNotFoundError:
+            # If it's not a static file, serve the React app
+            try:
+                return send_from_directory(app.template_folder, 'index.html')
+            except FileNotFoundError:
+                return '''
+                <h1>WAN Video Viewer</h1>
+                <p>React build not found. Run <code>npm run build</code> to build the frontend.</p>
+                <p>For development, use <code>npm run dev</code> to run the Vite dev server.</p>
+                ''', 404
     
     return app
 

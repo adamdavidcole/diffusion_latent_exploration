@@ -1,6 +1,6 @@
 # WAN Video Matrix Viewer
 
-A modern web application for viewing and comparing WAN AI-generated video experiments in a matrix layout.
+A modern React-based web application for viewing and comparing WAN AI-generated video experiments in a matrix layout.
 
 ## Features
 
@@ -8,26 +8,29 @@ A modern web application for viewing and comparing WAN AI-generated video experi
 - 🎮 **Interactive Controls**: Hover to play, synchronized controls
 - 📱 **Responsive Design**: Works on desktop and mobile
 - 🔄 **Real-time Updates**: Automatic experiment scanning
-- 🎨 **Professional UI**: Dark theme with smooth animations
+- 🎨 **Modern UI**: React with dark theme and smooth animations
+- ⚡ **Fast Development**: Hot Module Replacement with Vite
 
 ## Architecture
 
-This application follows modern web development practices with a clean separation of concerns:
+This application follows modern full-stack development practices:
 
 ```
 webapp/
-├── backend/           # Flask API server
-│   ├── app.py        # Main application
-│   └── requirements.txt
-├── frontend/         # Static assets
-│   ├── static/
-│   │   ├── css/      # Stylesheets
-│   │   ├── js/       # JavaScript modules
-│   │   └── dist/     # Built assets
-│   └── templates/    # HTML templates
-├── docker/           # Container deployment
-├── scripts/          # Build and deployment
-└── package.json      # Frontend build tools
+├── backend/              # Flask API server
+│   ├── app.py           # Main Flask application
+│   └── requirements.txt # Python dependencies
+├── react-frontend/       # React application
+│   ├── src/             # React source code
+│   │   ├── components/  # React components
+│   │   ├── context/     # React context
+│   │   ├── hooks/       # Custom hooks
+│   │   └── services/    # API services
+│   ├── dist/            # Built React app
+│   └── package.json     # Frontend dependencies
+├── docker/              # Container deployment
+├── scripts/             # Build and deployment
+└── package.json         # Root package.json with scripts
 ```
 
 ## Quick Start
@@ -36,16 +39,34 @@ webapp/
 
 ```bash
 cd webapp
-./scripts/dev.sh
+
+# Install all dependencies
+npm run install:all
+
+# Start both backend and frontend
+npm run dev
 ```
 
 This will:
-1. Create a Python virtual environment
-2. Install all dependencies
-3. Build frontend assets
-4. Start the development server
+1. Start the Flask backend on `http://localhost:5000`
+2. Start the Vite dev server on `http://localhost:3001`
+3. Set up API proxying from frontend to backend
 
-Access the app at `http://localhost:5000`
+Access the app at `http://localhost:3001` for development.
+
+### Production Build
+
+```bash
+cd webapp
+
+# Build the React frontend
+npm run build
+
+# Start the backend (serves the built React app)
+npm run serve
+```
+
+Access the production app at `http://localhost:5000`.
 
 ### Manual Setup
 
