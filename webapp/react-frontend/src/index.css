@@ -64,8 +64,8 @@
 
 .video-cell:not(.loaded) .loading-spinner {
   position: absolute;
-  top: 50%;
-  left: 50%;
+  top: calc(50% - 10px);
+  left: calc(50% - 10px);
   transform: translate(-50%, -50%);
   width: 20px;
   height: 20px;

@@ -1,9 +1,9 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
 import ExperimentItem from './ExperimentItem';
 
-const ExperimentList = () => {
+const ExperimentList = ({ onRescan }) => {
     const { state, actions } = useApp();
     const { experiments, currentExperiment, isLoading, error } = state;
     const hasLoadedRef = useRef(false);
@@ -58,7 +58,7 @@ const ExperimentList = () => {
         }
     }, []); // Empty dependency array - only run on mount
 
-    const handleRescan = async () => {
+    const handleRescan = useCallback(async () => {
         try {
             actions.setLoading(true);
             await api.scanExperiments();
@@ -70,7 +70,14 @@ const ExperimentList = () => {
         } finally {
             actions.setLoading(false);
         }
-    };
+    }, [actions]);
+
+    // Expose handleRescan to parent
+    useEffect(() => {
+        if (onRescan) {
+            onRescan(handleRescan);
+        }
+    }, [onRescan, handleRescan]);
 
     if (error && experiments.length === 0) {
         return (
@@ -106,16 +113,6 @@ const ExperimentList = () => {
                     onSelect={handleSelectExperiment}
                 />
             ))}
-
-            <div className="rescan-section">
-                <button
-                    className="rescan-button"
-                    onClick={handleRescan}
-                    disabled={isLoading}
-                >
-                    {isLoading ? 'Rescanning...' : 'Rescan Experiments'}
-                </button>
-            </div>
         </div>
     );
 };

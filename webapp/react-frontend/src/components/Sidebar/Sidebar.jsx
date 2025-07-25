@@ -1,15 +1,20 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { useApp } from '../../context/AppContext';
 import ExperimentList from './ExperimentList';
 
 const Sidebar = () => {
     const { state, actions } = useApp();
-    const { sidebarCollapsed } = state;
+    const { sidebarCollapsed, isLoading } = state;
+    const [rescanFn, setRescanFn] = useState(null);
+
+    const handleRescanRef = useCallback((rescanFunction) => {
+        setRescanFn(() => rescanFunction);
+    }, []);
 
     return (
         <div className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
             <div className="sidebar-header">
-                <h1>WAN Video Matrix</h1>
+                {!sidebarCollapsed && <h1>WAN Video Matrix</h1>}
                 <button
                     className="collapse-btn"
                     onClick={actions.toggleSidebar}
@@ -22,7 +27,18 @@ const Sidebar = () => {
             </div>
 
             <div className="sidebar-content">
-                <ExperimentList />
+                <ExperimentList onRescan={handleRescanRef} />
+            </div>
+
+            <div className="rescan-section">
+                <button
+                    className="rescan-button control-btn"
+                    onClick={rescanFn}
+                    disabled={isLoading || !rescanFn}
+                    title="Rescan for new experiments"
+                >
+                    {isLoading ? '...' : '🔄'}
+                </button>
             </div>
         </div>
     );

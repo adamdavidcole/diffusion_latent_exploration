@@ -96,13 +96,14 @@ const SyncControls = () => {
 
     return (
         <div className={`sync-controls ${hasVideos ? 'visible' : ''}`}>
-            <div className="controls-group">
+            {/* First row: Play/Pause and Labels buttons */}
+            <div className="controls-row">
                 <button
                     className="control-btn"
                     onClick={handlePlayAll}
                     disabled={!hasVideos}
                 >
-                    Play All
+                    ▶️ Play All
                 </button>
 
                 <button
@@ -110,45 +111,21 @@ const SyncControls = () => {
                     onClick={pauseAllVideos}
                     disabled={!hasVideos}
                 >
-                    Pause All
+                    ⏸️ Pause All
                 </button>
 
-                <button
-                    className="control-btn"
-                    onClick={handleMuteToggle}
-                    disabled={!hasVideos}
-                >
-                    {isMuted ? 'Unmute All' : 'Mute All'}
-                </button>
-            </div>
-
-            <div className="controls-group">
                 <button
                     className="control-btn"
                     onClick={actions.toggleLabels}
                 >
-                    {state.showLabels ? 'Hide Labels' : 'Show Labels'}
+                    {state.showLabels ? '🏷️ Hide Labels' : '🏷️ Show Labels'}
                 </button>
-
-                <div className="size-control">
-                    <label htmlFor="size-slider">Video Size:</label>
-                    <input
-                        id="size-slider"
-                        type="range"
-                        min="25"
-                        max="1000"
-                        value={state.videoSize}
-                        onChange={handleVideoSizeChange}
-                        className="size-slider"
-                    />
-                    <span className="size-value">{state.videoSize}px</span>
-                </div>
             </div>
 
-            {/* Global Scrubber */}
+            {/* Second row: Video Scrubber */}
             {videoDuration > 0 && (
-                <div className="scrubber-container">
-                    <label htmlFor="global-scrubber">Scrub All Videos:</label>
+                <div className="scrubber-row">
+                    <label htmlFor="global-scrubber">Video Time:</label>
                     <input
                         id="global-scrubber"
                         type="range"
@@ -162,6 +139,21 @@ const SyncControls = () => {
                     <span className="scrubber-time">{scrubberTime}</span>
                 </div>
             )}
+
+            {/* Third row: Video Size */}
+            <div className="size-row">
+                <label htmlFor="size-slider">Video Size:</label>
+                <input
+                    id="size-slider"
+                    type="range"
+                    min="25"
+                    max="1000"
+                    value={state.videoSize}
+                    onChange={handleVideoSizeChange}
+                    className="size-slider"
+                />
+                <span className="size-value">{state.videoSize}px</span>
+            </div>
         </div>
     );
 };

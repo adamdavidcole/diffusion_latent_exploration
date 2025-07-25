@@ -3,10 +3,34 @@ import { useApp } from '../../context/AppContext';
 
 const ExperimentItem = ({ experiment, isActive, onSelect }) => {
     const [showTooltip, setShowTooltip] = useState(false);
+    const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
     const { state } = useApp();
 
-    const handleMouseEnter = useCallback(() => {
+    const handleMouseEnter = useCallback((e) => {
         if (state.sidebarCollapsed) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const tooltipWidth = 350; // max-width from CSS
+            const tooltipHeight = 200; // estimated height
+
+            let x = rect.right + 10;
+            let y = rect.top + rect.height / 2;
+
+            // Ensure tooltip doesn't go off right edge of screen
+            if (x + tooltipWidth > window.innerWidth) {
+                x = rect.left - tooltipWidth - 10;
+            }
+
+            // Ensure tooltip doesn't go off bottom edge of screen
+            if (y + tooltipHeight / 2 > window.innerHeight) {
+                y = window.innerHeight - tooltipHeight / 2 - 20;
+            }
+
+            // Ensure tooltip doesn't go off top edge of screen
+            if (y - tooltipHeight / 2 < 20) {
+                y = tooltipHeight / 2 + 20;
+            }
+
+            setTooltipPosition({ x, y });
             setShowTooltip(true);
         }
     }, [state.sidebarCollapsed]);
@@ -44,7 +68,14 @@ const ExperimentItem = ({ experiment, isActive, onSelect }) => {
 
             {/* Tooltip */}
             {showTooltip && state.sidebarCollapsed && (
-                <div className="tooltip show">
+                <div
+                    className="tooltip show"
+                    style={{
+                        left: tooltipPosition.x,
+                        top: tooltipPosition.y,
+                        transform: 'translateY(-50%)'
+                    }}
+                >
                     <strong>{truncatedName}</strong>
                     <br /><br />
                     <strong>Statistics:</strong>
