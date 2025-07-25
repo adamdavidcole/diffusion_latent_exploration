@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 
 # Add src directory to path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from config.config_manager import ConfigManager
 from generators.video_generator import WAN13BVideoGenerator, get_gpu_memory_info, clear_gpu_memory

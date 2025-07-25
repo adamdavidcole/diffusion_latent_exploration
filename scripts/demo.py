@@ -10,14 +10,16 @@ from pathlib import Path
 import time
 
 
-def run_command(command, description):
+def run_command(command, description, cwd=None):
     """Run a command and display results."""
     print(f"\n{'='*60}")
     print(f"🎬 {description}")
     print(f"Command: {command}")
+    if cwd:
+        print(f"Working directory: {cwd}")
     print(f"{'='*60}")
     
-    result = subprocess.run(command, shell=True, capture_output=True, text=True)
+    result = subprocess.run(command, shell=True, capture_output=True, text=True, cwd=cwd)
     
     if result.stdout:
         print(result.stdout)
@@ -34,42 +36,48 @@ def main():
     print("This demo showcases the capabilities of the video generation system.")
     
     # Change to project directory
-    project_dir = Path(__file__).parent
+    project_dir = Path(__file__).parent.parent
     
     # Demo 1: Create example templates
     run_command(
         "python main.py --create-examples",
-        "Creating Example Template Files"
+        "Creating Example Template Files",
+        cwd=project_dir
     )
     
     # Demo 2: Analyze template complexity
     run_command(
         'python main.py --analyze --template "a [beautiful|serene|dramatic] [sunset|sunrise|storm] over [mountains|ocean|forest|desert]"',
-        "Analyzing Template Complexity"
+        "Analyzing Template Complexity",
+        cwd=project_dir
     )
     
     # Demo 3: Preview a batch
     run_command(
         'python main.py --preview --template "a romantic kiss between [two people|two men|two women|a man and a woman]"',
-        "Previewing Batch Generation"
+        "Previewing Batch Generation",
+        cwd=project_dir
     )
     
     # Demo 4: Generate a small test batch
     run_command(
         'python main.py --config configs/fast_test.yaml --template "a [happy|sad] [cat|dog]" --videos-per-variation 2 --batch-name "demo_batch"',
-        "Generating Test Batch (4 variations × 2 videos = 8 total)"
+        "Generating Test Batch (4 variations × 2 videos = 8 total)",
+        cwd=project_dir
     )
     
     # Demo 5: Validate setup
     run_command(
         "python main.py --validate",
-        "Validating System Setup"
+        "Validating System Setup",
+        cwd=project_dir
     )
     
     # Demo 6: Preview high-complexity template with limitations
     run_command(
         'python main.py --preview --template "a [fast|slow] [red|blue|green] [car|truck|bike] on [highway|street|track]" --max-variations 10',
-        "Preview with Variation Limit (36 total, showing 10)"
+        "Preview with Variation Limit (36 total, showing 10)",
+        cwd=project_dir
     )
     
     print(f"\n{'='*60}")

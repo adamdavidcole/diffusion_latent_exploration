@@ -24,6 +24,8 @@ A comprehensive tool for generating video sets using WAN video models (1.3B and 
 ├── configs/               # Configuration files
 ├── outputs/               # Generated videos (organized by batch)
 ├── logs/                  # Generation logs
+├── scripts/               # Auxiliary scripts and utilities
+├── webapp/                # Web interface for experiment management
 ├── requirements.txt       # Python dependencies
 └── main.py               # Main entry point
 ```
