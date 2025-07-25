@@ -25,39 +25,32 @@ except ImportError as e:
     WAN_AVAILABLE = False
 
 
-def clear_gpu_memory(device=None):
+def clear_gpu_memory():
     """Clear GPU memory cache and run garbage collection."""
     if torch.cuda.is_available():
-        if device is not None and isinstance(device, str) and device.startswith('cuda'):
-            # Clear memory for specific device
-            device_id = int(device.split(':')[1]) if ':' in device else 0
-            torch.cuda.empty_cache()
-            torch.cuda.synchronize(device_id)
-        else:
-            torch.cuda.empty_cache()
-            torch.cuda.synchronize()
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
     gc.collect()
 
 
-def get_gpu_memory_info(device=None):
+def get_gpu_memory_info(device_id=None):
     """Get current GPU memory usage information for specified device."""
     if torch.cuda.is_available():
-        device_id = 0  # default
-        if device is not None and isinstance(device, str) and device.startswith('cuda'):
-            device_id = int(device.split(':')[1]) if ':' in device else 0
-        elif device is not None and isinstance(device, int):
-            device_id = device
-            
+        if device_id is None:
+            device_id = torch.cuda.current_device()
+        elif isinstance(device_id, str) and device_id.startswith('cuda:'):
+            device_id = int(device_id.split(':')[1])
+        
         allocated = torch.cuda.memory_allocated(device_id) / (1024**3)  # GB
         reserved = torch.cuda.memory_reserved(device_id) / (1024**3)   # GB
         total = torch.cuda.get_device_properties(device_id).total_memory / (1024**3)  # GB
         free = total - allocated
         return {
-            "device_id": device_id,
             "allocated_gb": allocated,
             "reserved_gb": reserved,
             "total_gb": total,
-            "free_gb": free
+            "free_gb": free,
+            "device_id": device_id
         }
     return None
 
@@ -101,20 +94,42 @@ class WanVideoGenerator:
         self.model_id = config.model_settings.model_id  # Use model_id from config
         self.pipe = None
         
-        # Device selection with fallback
-        if hasattr(config.model_settings, 'device'):
-            device_config = config.model_settings.device
-            if device_config == "auto":
-                # Auto-select best available GPU
-                self.device = self._select_best_gpu()
-            else:
-                # Use specified device
-                self.device = device_config if torch.cuda.is_available() else "cpu"
-        else:
-            # Fallback to cuda:0 or cpu
+        # Set device from config with fallback logic
+        config_device = getattr(config.model_settings, 'device', 'auto')
+        logging.info(f"Device configuration: {config_device}")
+        
+        if config_device == 'auto':
             self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
-            
-        logging.info(f"Using device: {self.device}")
+            logging.info(f"Auto-selected device: {self.device}")
+        else:
+            # Validate the specified device
+            if config_device.startswith('cuda:') and torch.cuda.is_available():
+                device_id = int(config_device.split(':')[1])
+                if device_id < torch.cuda.device_count():
+                    self.device = config_device
+                    logging.info(f"Using specified device: {self.device}")
+                else:
+                    logging.warning(f"GPU {config_device} not available (only {torch.cuda.device_count()} GPUs found), falling back to cuda:0")
+                    self.device = "cuda:0"
+            elif config_device == 'cpu':
+                self.device = "cpu"
+                logging.info(f"Using CPU as specified: {self.device}")
+            elif config_device.startswith('cuda:') and not torch.cuda.is_available():
+                logging.warning(f"CUDA not available, falling back to CPU despite config specifying {config_device}")
+                self.device = "cpu"
+            else:
+                logging.warning(f"Invalid device '{config_device}', falling back to auto selection")
+                self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        
+        logging.info(f"Final device selection: {self.device}")
+        
+        # Set the current CUDA device for this thread
+        if self.device.startswith('cuda:'):
+            device_id = int(self.device.split(':')[1])
+            torch.cuda.set_device(device_id)
+            logging.info(f"Set current CUDA device to: {device_id}")
+            logging.info(f"PyTorch current device: {torch.cuda.current_device()}")
+            logging.info(f"Available CUDA devices: {torch.cuda.device_count()}")
         
         # Get memory optimization settings from config
         self.memory_optimization = getattr(config, 'memory_settings', None) is not None
@@ -128,24 +143,6 @@ class WanVideoGenerator:
         # Set up memory optimization early for large models
         if self._is_large_model() and self.memory_settings.enable_memory_optimization:
             setup_memory_optimization()
-    
-    def _select_best_gpu(self):
-        """Select the GPU with the most free memory."""
-        if not torch.cuda.is_available():
-            return "cpu"
-            
-        best_device = "cuda:0"
-        max_free_memory = 0
-        
-        for i in range(torch.cuda.device_count()):
-            device = f"cuda:{i}"
-            mem_info = get_gpu_memory_info(device)
-            if mem_info and mem_info['free_gb'] > max_free_memory:
-                max_free_memory = mem_info['free_gb']
-                best_device = device
-                
-        logging.info(f"Auto-selected device {best_device} with {max_free_memory:.1f}GB free memory")
-        return best_device
         
     def _is_large_model(self):
         """Check if this is a large model that needs memory optimization."""
@@ -170,7 +167,7 @@ class WanVideoGenerator:
             self.pipe = None
             
             # Clear GPU cache
-            clear_gpu_memory(self.device)
+            clear_gpu_memory()
             logging.info("Model unloaded and GPU memory cleared")
         
     def _load_model(self):
@@ -179,12 +176,12 @@ class WanVideoGenerator:
             raise RuntimeError("WAN model dependencies not available")
             
         # Clear any existing memory
-        clear_gpu_memory(self.device)
+        clear_gpu_memory()
         
         # Log memory before loading
         mem_info = get_gpu_memory_info(self.device)
         if mem_info:
-            logging.info(f"GPU memory before loading on {self.device}: {mem_info['free_gb']:.1f}GB free of {mem_info['total_gb']:.1f}GB total")
+            logging.info(f"GPU memory before loading: {mem_info['free_gb']:.1f}GB free of {mem_info['total_gb']:.1f}GB total on {self.device}")
             
         logging.info(f"Loading WAN model: {self.model_id}")
         logging.info(f"Using device: {self.device}")
@@ -259,20 +256,30 @@ class WanVideoGenerator:
                 self.pipe.transformer.enable_gradient_checkpointing()
                 logging.info("Enabled gradient checkpointing for transformer")
             
-            # Move to device
+            # Move to device and verify
             self.pipe.to(self.device)
+            
+            # Verify the model is actually on the correct device
+            if hasattr(self.pipe, 'transformer') and hasattr(self.pipe.transformer, 'device'):
+                actual_device = str(self.pipe.transformer.device)
+                logging.info(f"Model transformer is on device: {actual_device}")
+            if hasattr(self.pipe, 'vae') and hasattr(self.pipe.vae, 'device'):
+                actual_device = str(next(self.pipe.vae.parameters()).device)
+                logging.info(f"Model VAE is on device: {actual_device}")
+            
+            logging.info(f"PyTorch current device: {torch.cuda.current_device()}")
             
             # Log memory after loading
             mem_info = get_gpu_memory_info(self.device)
             if mem_info:
-                logging.info(f"GPU memory after loading on {self.device}: {mem_info['free_gb']:.1f}GB free, {mem_info['allocated_gb']:.1f}GB allocated")
+                logging.info(f"GPU memory after loading: {mem_info['free_gb']:.1f}GB free, {mem_info['allocated_gb']:.1f}GB allocated on {self.device}")
             
             logging.info("WAN model loaded successfully")
             
         except Exception as e:
             logging.error(f"Failed to load WAN model: {e}")
             # Try to clean up on failure
-            clear_gpu_memory(self.device)
+            clear_gpu_memory()
             raise
     
     def generate(self, prompt: str, output_path: str, **kwargs) -> GenerationResult:
@@ -301,11 +308,11 @@ class WanVideoGenerator:
             # Log memory before generation
             mem_info = get_gpu_memory_info(self.device)
             if mem_info:
-                logging.info(f"GPU memory before generation on {self.device}: {mem_info['free_gb']:.1f}GB free")
+                logging.info(f"GPU memory before generation: {mem_info['free_gb']:.1f}GB free on {self.device}")
             
             # Clear cache before generation if configured
             if self.memory_settings.clear_cache_between_videos:
-                clear_gpu_memory(self.device)
+                clear_gpu_memory()
             
             # Generate video with memory optimization
             with torch.no_grad():
@@ -319,9 +326,19 @@ class WanVideoGenerator:
                     generator=generator
                 ).frames[0]
             
+            # Debug video frames structure
+            logging.info(f"Video frames type: {type(video_frames)}")
+            if hasattr(video_frames, '__len__'):
+                logging.info(f"Video frames length: {len(video_frames)}")
+                if len(video_frames) > 0:
+                    logging.info(f"First frame type: {type(video_frames[0])}")
+                    if torch.is_tensor(video_frames[0]):
+                        logging.info(f"First frame device: {video_frames[0].device}")
+                        logging.info(f"First frame dtype: {video_frames[0].dtype}")
+            
             # Clear memory after generation but before video export if configured
             if self._is_large_model() and self.memory_settings.clear_cache_between_videos:
-                clear_gpu_memory(self.device)
+                clear_gpu_memory()
                 logging.info("Cleared GPU memory after video generation")
             
             # Ensure output directory exists
@@ -333,38 +350,76 @@ class WanVideoGenerator:
                 video_path += '.mp4'
             
             # Move video frames to CPU before export to free GPU memory
-            if torch.is_tensor(video_frames[0]):
-                video_frames = [frame.cpu() if hasattr(frame, 'cpu') else frame for frame in video_frames]
+            # Handle different possible structures of video_frames
+            def move_to_cpu(obj):
+                """Recursively move tensors to CPU."""
+                if torch.is_tensor(obj):
+                    return obj.detach().cpu()
+                elif isinstance(obj, (list, tuple)):
+                    return type(obj)(move_to_cpu(item) for item in obj)
+                elif isinstance(obj, dict):
+                    return {key: move_to_cpu(value) for key, value in obj.items()}
+                else:
+                    return obj
+            
+            # Convert all video frames to CPU
+            video_frames = move_to_cpu(video_frames)
+            logging.info("Moved all video frames to CPU for export")
             
             # Clear GPU memory before export step for large models
             if self._is_large_model():
-                clear_gpu_memory(self.device)
+                clear_gpu_memory()
                 logging.info("Cleared GPU memory before video export")
             
             # Export video frames - this can be memory intensive
             try:
+                logging.info(f"Exporting video frames to: {video_path}")
                 export_to_video(video_frames, video_path, fps=self.config.video_settings.fps)
+                logging.info("Video export completed successfully")
             except Exception as e:
+                # Check if it's a tensor conversion error
+                if "cuda" in str(e).lower() and "numpy" in str(e).lower():
+                    logging.error(f"Tensor conversion error during export: {e}")
+                    logging.info("Attempting to force CPU conversion of remaining tensors...")
+                    
+                    # Try more aggressive CPU conversion
+                    def force_cpu_conversion(obj):
+                        if torch.is_tensor(obj):
+                            return obj.detach().cpu().numpy()
+                        elif hasattr(obj, 'cpu') and hasattr(obj, 'numpy'):
+                            return obj.cpu().numpy()
+                        elif isinstance(obj, (list, tuple)):
+                            return type(obj)(force_cpu_conversion(item) for item in obj)
+                        elif isinstance(obj, dict):
+                            return {key: force_cpu_conversion(value) for key, value in obj.items()}
+                        else:
+                            return obj
+                    
+                    video_frames = force_cpu_conversion(video_frames)
+                    logging.info("Forced CPU conversion completed, retrying export...")
+                    export_to_video(video_frames, video_path, fps=self.config.video_settings.fps)
+                    
                 # If export fails due to memory, try with more aggressive cleanup
-                if "out of memory" in str(e).lower():
+                elif "out of memory" in str(e).lower():
                     logging.warning(f"Video export failed with memory error, trying with cleanup: {e}")
-                    clear_gpu_memory(self.device)
+                    clear_gpu_memory()
                     gc.collect()  # Extra garbage collection
                     time.sleep(1)  # Give system time to clean up
                     export_to_video(video_frames, video_path, fps=self.config.video_settings.fps)
                 else:
+                    logging.error(f"Unexpected error during video export: {e}")
                     raise
             
             # Final memory cleanup if configured
             if self._is_large_model() and self.memory_settings.clear_cache_between_videos:
-                clear_gpu_memory(self.device)
+                clear_gpu_memory()
             
             generation_time = time.time() - start_time
             
             # Log memory after export
             mem_info = get_gpu_memory_info(self.device)
             if mem_info:
-                logging.info(f"GPU memory after export on {self.device}: {mem_info['free_gb']:.1f}GB free")
+                logging.info(f"GPU memory after export: {mem_info['free_gb']:.1f}GB free on device {mem_info['device_id']}")
             
             return GenerationResult(
                 success=True,
@@ -389,7 +444,7 @@ class WanVideoGenerator:
             
             # Try to clean up memory on error if configured
             if self._is_large_model() and self.memory_settings.clear_cache_between_videos:
-                clear_gpu_memory(self.device)
+                clear_gpu_memory()
                 logging.info("Cleaned up GPU memory after error")
             
             return GenerationResult(
@@ -502,12 +557,12 @@ class BatchVideoGenerator:
         """Determine if we should reload the model between videos for memory management."""
         if hasattr(self.generator, 'model') and hasattr(self.generator.model, 'model_id'):
             model_id = self.generator.model.model_id
-            device = getattr(self.generator.model, 'device', 'cuda:0')
             
             # Check current GPU memory availability
+            device = getattr(self.generator.model, 'device', None)
             mem_info = get_gpu_memory_info(device)
             if mem_info and mem_info['free_gb'] > 5.0:  # If we have >5GB free, no need to reload
-                self.logger.info(f"Sufficient GPU memory available on {device} ({mem_info['free_gb']:.1f}GB free), disabling model reloading")
+                self.logger.info(f"Sufficient GPU memory available ({mem_info['free_gb']:.1f}GB free on device {mem_info['device_id']}), disabling model reloading")
                 return False
             
             # Check if model reloading is enabled in config
@@ -516,12 +571,12 @@ class BatchVideoGenerator:
                 should_reload = (self.generator.model.memory_settings.reload_model_for_large_models and 
                         "14B" in model_id)
                 if should_reload and mem_info:
-                    self.logger.info(f"Model reloading enabled for 14B model with {mem_info['free_gb']:.1f}GB free on {device}")
+                    self.logger.info(f"Model reloading enabled for 14B model with {mem_info['free_gb']:.1f}GB free on device {mem_info['device_id']}")
                 return should_reload
             
             # Fallback: only reload for very large models (14B+) when memory is tight
             if "14B" in model_id and mem_info and mem_info['free_gb'] < 2.0:
-                self.logger.info(f"Enabling model reloading due to low memory ({mem_info['free_gb']:.1f}GB free on {device})")
+                self.logger.info(f"Enabling model reloading due to low memory ({mem_info['free_gb']:.1f}GB free on device {mem_info['device_id']})")
                 return True
                 
         return False

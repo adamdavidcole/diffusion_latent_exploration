@@ -9,6 +9,7 @@ model_settings:
   eta: 0.0                   # Scheduler eta parameter
   clip_skip: 1               # CLIP skip layers
   model_id: "Wan-AI/Wan2.1-T2V-14B-Diffusers"  # Hugging Face model ID
+  device: "cuda:1"             # Device to use: "auto", "cuda:0", "cuda:1", "cpu", etc.
   # Available models: Wan-AI/Wan2.1-T2V-14B-Diffusers, Wan-AI/Wan2.1-T2V-1.3B-Diffusers
 
 # Memory optimization settings (for large models)

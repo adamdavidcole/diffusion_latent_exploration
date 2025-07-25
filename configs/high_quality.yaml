@@ -1,13 +1,14 @@
 # High-quality configuration for 720P WAN generation
 
 model_settings:
-  seed: 12345
+  seed: 999
   sampler: "unipc"
   cfg_scale: 8.5
   steps: 75
   eta: 0.3
   clip_skip: 1
   model_id: "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
+  device: "auto"               # Device to use: "auto", "cuda:0", "cuda:1", "cpu", etc.
 
 video_settings:
   width: 1280                # 720P width

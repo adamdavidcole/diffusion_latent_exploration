@@ -8,6 +8,7 @@ model_settings:
   eta: 0.0
   clip_skip: 2
   model_id: "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"  # Hugging Face model ID
+  device: "auto"               # Device to use: "auto", "cuda:0", "cuda:1", "cpu", etc.
 
 video_settings:
   width: 512

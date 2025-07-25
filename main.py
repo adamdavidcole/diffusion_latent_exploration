@@ -77,6 +77,9 @@ Examples:
                        help='Validate configuration and setup')
     
     # Model settings overrides
+    parser.add_argument('--device', type=str,
+                       help='Override device (auto, cuda:0, cuda:1, cpu, etc.)')
+    
     parser.add_argument('--seed', type=int,
                        help='Override seed value')
     
@@ -101,10 +104,6 @@ Examples:
     
     parser.add_argument('--duration', type=float,
                        help='Override video duration (seconds)')
-    
-    # GPU selection
-    parser.add_argument('--device', '-d', type=str,
-                       help='GPU device to use (e.g., "cuda:0", "cuda:1", or "auto" for automatic selection)')
     
     # Verbose output
     parser.add_argument('--verbose', '-v', action='store_true',
@@ -137,6 +136,9 @@ def load_or_create_config(config_path: str, args) -> GenerationConfig:
         config.batch_name = args.batch_name
     
     # Model setting overrides
+    if args.device is not None:
+        config.model_settings.device = args.device
+    
     if args.seed is not None:
         config.model_settings.seed = args.seed
     
@@ -148,9 +150,6 @@ def load_or_create_config(config_path: str, args) -> GenerationConfig:
     
     if args.sampler:
         config.model_settings.sampler = args.sampler
-    
-    if args.device:
-        config.model_settings.device = args.device
     
     # Video setting overrides
     if args.width is not None:

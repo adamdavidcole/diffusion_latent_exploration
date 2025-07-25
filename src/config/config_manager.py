@@ -19,7 +19,7 @@ class ModelSettings:
     eta: float = 0.0
     clip_skip: int = 1
     model_id: str = "Wan-AI/Wan2.1-T2V-14B-Diffusers"
-    device: str = "auto"       # GPU device (cuda:0, cuda:1, etc. or "auto" for automatic selection)
+    device: str = "auto"  # Device to use: "auto", "cuda:0", "cuda:1", "cpu", etc.
     
 
 @dataclass
