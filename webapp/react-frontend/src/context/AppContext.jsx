@@ -9,7 +9,7 @@ const initialState = {
     sidebarCollapsed: true,
     videoDuration: 0,
     isScrubbingActive: false,
-    isLoading: false,
+    isLoading: true, // Start with loading true for initial skeleton
     error: null
 };
 

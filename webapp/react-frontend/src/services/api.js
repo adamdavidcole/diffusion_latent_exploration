@@ -2,11 +2,21 @@
 
 const API_BASE = '';
 
+// Helper function to add timeout to fetch requests
+const fetchWithTimeout = (url, options = {}, timeout = 10000) => {
+  return Promise.race([
+    fetch(url, options),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Request timeout')), timeout)
+    )
+  ]);
+};
+
 export const api = {
   async getExperiments() {
     console.log('API: Fetching experiments...');
     try {
-      const response = await fetch(`${API_BASE}/api/experiments`);
+      const response = await fetchWithTimeout(`${API_BASE}/api/experiments`);
       console.log('API: Experiments response status:', response.status);
       if (!response.ok) {
         throw new Error(`Failed to fetch experiments: ${response.status}`);

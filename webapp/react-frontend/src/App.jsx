@@ -11,6 +11,11 @@ const AppContent = () => {
   const { state } = useApp();
   const { clearCache } = useVideoCache();
 
+  // Hide the initial loader once React is mounted
+  useEffect(() => {
+    document.body.classList.add('app-loaded');
+  }, []);
+
   // Set up mobile responsiveness
   useEffect(() => {
     const handleResize = () => {
@@ -40,10 +45,31 @@ const AppContent = () => {
 
       <div className="main-content">
         <div id="video-grid-wrapper">
-          {state.isLoading && (
+          {state.isLoading && state.experiments.length === 0 && (
+            <div className="skeleton-content">
+              <div className="skeleton-header">
+                <div className="skeleton-title"></div>
+                <div className="skeleton-subtitle"></div>
+              </div>
+              <div className="skeleton-grid">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="skeleton-video-item">
+                    <div className="skeleton-video"></div>
+                    <div className="skeleton-label"></div>
+                  </div>
+                ))}
+              </div>
+              <div className="loading-text">
+                <div className="loading-spinner"></div>
+                <p>Loading experiments from server...</p>
+              </div>
+            </div>
+          )}
+
+          {state.isLoading && state.experiments.length > 0 && (
             <div className="loading">
               <div className="loading-spinner"></div>
-              <p>Loading...</p>
+              <p>Loading experiment data...</p>
             </div>
           )}
 

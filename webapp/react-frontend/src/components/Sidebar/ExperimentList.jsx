@@ -91,6 +91,21 @@ const ExperimentList = ({ onRescan }) => {
         );
     }
 
+    if (experiments.length === 0 && isLoading) {
+        return (
+            <div className="experiments-list">
+                <div className="sidebar-skeleton">
+                    {[...Array(4)].map((_, i) => (
+                        <div key={i} className="skeleton-experiment-item">
+                            <div className="skeleton-experiment-name"></div>
+                            <div className="skeleton-experiment-details"></div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
     if (experiments.length === 0 && !isLoading) {
         return (
             <div className="empty-state">
