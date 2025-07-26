@@ -51,20 +51,27 @@ class VideoAnalyzer:
     def _analyze_experiment(self, exp_dir):
         """Analyze a single experiment directory"""
         try:
+            # Get creation timestamp from filesystem
+            creation_time = exp_dir.stat().st_ctime
+            creation_datetime = datetime.fromtimestamp(creation_time)
+            
             # Try to load base prompt from prompt_template.txt first
             prompt_template_path = exp_dir / 'configs' / 'prompt_template.txt'
             base_prompt = "Unknown prompt"
+            model_id = "Unknown model"
             
             if prompt_template_path.exists():
                 with open(prompt_template_path, 'r') as f:
                     base_prompt = f.read().strip()
-            else:
-                # Fallback to YAML config
-                config_path = exp_dir / 'configs' / 'generation_config.yaml'
-                if config_path.exists():
-                    with open(config_path, 'r') as f:
-                        config = yaml.safe_load(f)
+            
+            # Load model info and other config from YAML
+            config_path = exp_dir / 'configs' / 'generation_config.yaml'
+            if config_path.exists():
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+                    if not prompt_template_path.exists():
                         base_prompt = config.get('base_prompt', 'Unknown prompt')
+                    model_id = config.get('model_settings', {}).get('model_id', 'Unknown model')
             
             # Load prompt variations to get actual variation names
             variations_data = {}
@@ -110,6 +117,7 @@ class VideoAnalyzer:
             return {
                 'name': exp_dir.name,
                 'base_prompt': base_prompt,
+                'model_id': model_id,
                 'videos': videos,
                 'video_grid': video_grid,
                 'seeds': seeds,
@@ -117,7 +125,9 @@ class VideoAnalyzer:
                 'videos_count': len(videos),
                 'variations_count': len(variations),
                 'seeds_count': len(seeds),
-                'path': str(exp_dir)
+                'path': str(exp_dir),
+                'created_at': creation_datetime.isoformat(),
+                'created_timestamp': creation_time
             }
             
         except Exception as e:
@@ -246,13 +256,16 @@ def create_app():
                 experiment_list.append({
                     'name': name,
                     'base_prompt': data['base_prompt'],
+                    'model_id': data['model_id'],
                     'videos_count': data['videos_count'],
                     'variations_count': data['variations_count'],
-                    'seeds_count': data['seeds_count']
+                    'seeds_count': data['seeds_count'],
+                    'created_at': data['created_at'],
+                    'created_timestamp': data['created_timestamp']
                 })
             
-            # Sort by name (most recent first if they have timestamps)
-            experiment_list.sort(key=lambda x: x['name'], reverse=True)
+            # Sort by creation timestamp (most recent first)
+            experiment_list.sort(key=lambda x: x['created_timestamp'], reverse=True)
             
             return jsonify(experiment_list)
             

@@ -47,6 +47,26 @@ const ExperimentItem = ({ experiment, isActive, onSelect }) => {
         ? experiment.base_prompt.substring(0, 100) + '...'
         : experiment.base_prompt;
 
+    // Extract a shorter model name for display
+    const getModelDisplayName = (modelId) => {
+        if (!modelId || modelId === 'Unknown model') return 'Unknown';
+
+        // Extract just the model name from full paths like "Wan-AI/Wan2.1-T2V-14B-Diffusers"
+        if (modelId.includes('/')) {
+            const parts = modelId.split('/');
+            const modelName = parts[parts.length - 1];
+            // Further simplify by removing common suffixes
+            return modelName
+                .replace('-Diffusers', '')
+                .replace('Wan2.1-T2V-', '')
+                // .replace('WAN-', '')
+                || modelId;
+        }
+        return modelId;
+    };
+
+    const modelDisplayName = getModelDisplayName(experiment.model_id);
+
     return (
         <>
             <div
@@ -57,6 +77,7 @@ const ExperimentItem = ({ experiment, isActive, onSelect }) => {
             >
                 <div className="experiment-header">
                     <div className="experiment-name">{experiment.name}</div>
+                    <div className="experiment-model">{modelDisplayName}</div>
                     <div className="experiment-meta">
                         <span>{experiment.videos_count} videos</span>
                         <span>{experiment.variations_count} variations</span>
@@ -79,6 +100,7 @@ const ExperimentItem = ({ experiment, isActive, onSelect }) => {
                     <strong>{truncatedName}</strong>
                     <br /><br />
                     <strong>Statistics:</strong>
+                    <br />• {modelDisplayName} model
                     <br />• {experiment.videos_count} videos
                     <br />• {experiment.variations_count} variations
                     <br />• {experiment.seeds_count} seeds

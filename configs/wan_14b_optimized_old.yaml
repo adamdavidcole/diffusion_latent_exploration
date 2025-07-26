@@ -49,3 +49,13 @@ videos_per_variation: 2      # Fewer videos per variation to reduce memory press
 output_dir: "outputs"        # Base output directory
 batch_name: null             # Optional batch name (timestamp used if null)
 use_timestamp: true          # Add timestamp to batch directory name
+
+# Prompt weighting configuration - ENABLE WEIGHTED EMBEDDINGS
+prompt_settings:
+  enable_weighting: true                    # Enable prompt weighting
+  variation_weight: 1.8                     # Weight for variation text (when auto-weighting)
+  base_weight: 1.0                          # Standard weight for base prompt
+  
+  # Advanced weighted embeddings (WORKING SYSTEM)
+  use_weighted_embeddings: true             # Enable WAN-specific weighted embeddings
+  embedding_method: "multiply"              # "multiply", "interpolation", or "norm_preserving"

@@ -120,14 +120,24 @@ const ExperimentList = ({ onRescan }) => {
 
     return (
         <div className="experiments-list">
-            {experiments.map(experiment => (
-                <ExperimentItem
-                    key={experiment.name}
-                    experiment={experiment}
-                    isActive={currentExperiment?.name === experiment.name}
-                    onSelect={handleSelectExperiment}
-                />
-            ))}
+            {experiments
+                .sort((a, b) => {
+                    // Sort by creation timestamp, newest first
+                    // Use the created_timestamp field from the API (Unix timestamp)
+                    const timestampA = a.created_timestamp || 0;
+                    const timestampB = b.created_timestamp || 0;
+                    
+                    return timestampB - timestampA; // Newest first (descending)
+                })
+                .map(experiment => (
+                    <ExperimentItem
+                        key={experiment.name}
+                        experiment={experiment}
+                        isActive={currentExperiment?.name === experiment.name}
+                        onSelect={handleSelectExperiment}
+                    />
+                ))
+            }
         </div>
     );
 };

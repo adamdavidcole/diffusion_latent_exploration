@@ -91,6 +91,14 @@ const VideoGrid = () => {
             {/* Header */}
             <div className="experiment-header">
                 <h2 id="experiment-title">{currentExperiment.name}</h2>
+                <div className="experiment-stats">
+                    {currentExperiment.model_id && (
+                        <span className="stat-item">{currentExperiment.model_id.split('/').pop().replace('-Diffusers', '').replace('Wan2.1-T2V-', '')}</span>
+                    )}
+                    <span className="stat-item">{currentExperiment.videos_count} videos</span>
+                    <span className="stat-item">{currentExperiment.variations_count} variations</span>
+                    <span className="stat-item">{currentExperiment.seeds_count} seeds</span>
+                </div>
                 <p
                     id="base-prompt"
                     className="base-prompt"

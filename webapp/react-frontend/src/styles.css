@@ -164,8 +164,26 @@ body {
 
 .experiment-name {
     font-weight: 600;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
     font-size: 0.95rem;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.experiment-stats {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.experiment-model {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+    font-style: italic;
     text-overflow: ellipsis;
     overflow: hidden;
 }
@@ -174,13 +192,23 @@ body {
     display: -webkit-box;
     font-size: .6rem;
     line-height: 1.2;
-    margin-bottom: .25rem;
+    margin-bottom: .15rem;
     -webkit-line-clamp: 2;
     line-clamp: 2;
     -webkit-box-orient: vertical;
-    height: 3.4em;
+    height: 2.4em;
     overflow: hidden;
     word-wrap: break-word;
+}
+
+.sidebar.collapsed .experiment-model {
+    font-size: 0.5rem;
+    line-height: 1.1;
+    margin-bottom: .2rem;
+    color: var(--text-muted);
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
 }
 
 .experiment-meta {
@@ -345,6 +373,24 @@ body {
     font-size: 1.1rem;
     font-weight: 600;
     margin-bottom: 0.25rem;
+}
+
+.experiment-stats {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+
+.experiment-stats .stat-item {
+    display: flex;
+    align-items: center;
+}
+
+.experiment-stats .stat-item:first-child {
+    font-weight: 500;
+    color: var(--text-secondary);
 }
 
 .base-prompt {

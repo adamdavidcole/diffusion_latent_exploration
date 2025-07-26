@@ -1,0 +1,6 @@
+nohup: ignoring input
+🚀 Starting sequential batch generation at Sat 26 Jul 02:35:21 BST 2025
+▶️  Starting first batch: run_weighted_generation_fixed.sh
+✅ First batch completed successfully at Sat 26 Jul 06:58:52 BST 2025
+▶️  Starting second batch: run_weighted_generation_fixed_v2.sh
+❌ Second batch failed at Sat 26 Jul 08:46:34 BST 2025
