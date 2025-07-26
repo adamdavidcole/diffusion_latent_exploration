@@ -1,62 +1,18 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
 import ExperimentItem from './ExperimentItem';
 
 const ExperimentList = ({ onRescan }) => {
+    const navigate = useNavigate();
     const { state, actions } = useApp();
     const { experiments, currentExperiment, isLoading, error } = state;
-    const hasLoadedRef = useRef(false);
 
-    const handleSelectExperiment = async (experimentName) => {
-        try {
-            actions.setLoading(true);
-            actions.clearError();
-
-            const experiment = await api.getExperiment(experimentName);
-            actions.setCurrentExperiment(experiment);
-        } catch (error) {
-            console.error('Error loading experiment:', error);
-            actions.setError(`Failed to load experiment: ${experimentName}`);
-        } finally {
-            actions.setLoading(false);
-        }
-    };
-
-    // Load experiments on mount
-    useEffect(() => {
-        const loadExperiments = async () => {
-            console.log('ExperimentList: Loading experiments...');
-            try {
-                actions.setLoading(true);
-                const experimentsData = await api.getExperiments();
-                console.log('ExperimentList: Got experiments:', experimentsData);
-                actions.setExperiments(experimentsData);
-
-                // Auto-select first experiment if none selected (only on first load)
-                if (experimentsData.length > 0 && !currentExperiment && !hasLoadedRef.current) {
-                    console.log('ExperimentList: Auto-selecting first experiment:', experimentsData[0].name);
-                    hasLoadedRef.current = true;
-                    setTimeout(() => {
-                        handleSelectExperiment(experimentsData[0].name);
-                    }, 100);
-                }
-            } catch (error) {
-                console.error('ExperimentList: Error loading experiments:', error);
-                actions.setError('Failed to load experiments. Check the server connection.');
-            } finally {
-                actions.setLoading(false);
-            }
-        };
-
-        // Only load experiments if we don't have any yet and haven't loaded before
-        if (experiments.length === 0 && !hasLoadedRef.current) {
-            console.log('ExperimentList: No experiments in state, loading...');
-            loadExperiments();
-        } else {
-            console.log('ExperimentList: Already have experiments:', experiments.length);
-        }
-    }, []); // Empty dependency array - only run on mount
+    const handleSelectExperiment = useCallback((experimentName) => {
+        // Navigate to the experiment URL instead of loading directly
+        navigate(`/experiment/${experimentName}`);
+    }, [navigate]);
 
     const handleRescan = useCallback(async () => {
         try {
