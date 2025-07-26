@@ -126,7 +126,7 @@ const ExperimentList = ({ onRescan }) => {
                     // Use the created_timestamp field from the API (Unix timestamp)
                     const timestampA = a.created_timestamp || 0;
                     const timestampB = b.created_timestamp || 0;
-                    
+
                     return timestampB - timestampA; // Newest first (descending)
                 })
                 .map(experiment => (
