@@ -19,7 +19,7 @@ const VideoGrid = () => {
     const videoGridRef = useRef(null);
     const [lightboxVideo, setLightboxVideo] = useState(null);
     const currentExperimentNameRef = useRef(null);
-    
+
     // Use video cache hook
     const { cancelInflightRequests, getCacheStats } = useVideoCache();
 
@@ -82,23 +82,23 @@ const VideoGrid = () => {
         // Check if experiment actually changed
         const newExperimentName = currentExperiment?.name;
         const hasExperimentChanged = currentExperimentNameRef.current !== newExperimentName;
-        
+
         if (hasExperimentChanged) {
             console.log('Experiment changed, cancelling inflight video requests');
-            
+
             // Cancel inflight requests but keep cache intact
             cancelInflightRequests();
-            
+
             // Clear local state
             allVideosRef.current = [];
             disconnect();
-            
+
             // Close lightbox if open
             setLightboxVideo(null);
-            
+
             // Update current experiment reference
             currentExperimentNameRef.current = newExperimentName;
-            
+
             // Log cache stats for debugging
             const stats = getCacheStats();
             console.log('Cache stats after cleanup:', stats);

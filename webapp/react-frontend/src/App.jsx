@@ -27,7 +27,7 @@ const ExperimentRoute = () => {
         if (state.experiments.length === 0) {
           const experimentsData = await api.getExperiments();
           actions.setExperiments(experimentsData);
-          
+
           // Check if experiment exists in the newly loaded experiments
           const experiment = experimentsData.find(exp => exp.name === experimentId);
           if (!experiment) {
@@ -35,7 +35,7 @@ const ExperimentRoute = () => {
             navigate('/', { replace: true });
             return;
           }
-          
+
           // Load experiment details
           const experimentData = await api.getExperiment(experimentId);
           actions.setCurrentExperiment(experimentData);
