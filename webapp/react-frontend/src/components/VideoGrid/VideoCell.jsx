@@ -2,25 +2,18 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useVideoCache } from '../../hooks/useVideoCache';
 
-const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded }) => {
+const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLightbox }) => {
     const videoRef = useRef(null);
     const [isLoaded, setIsLoaded] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
     const { state } = useApp();
     const { loadVideo } = useVideoCache();
 
-    const handlePlay = useCallback(() => {
-        const videoElement = videoRef.current;
-        if (!videoElement) return;
-
-        if (videoElement.paused) {
-            videoElement.play();
-            setIsPlaying(true);
-        } else {
-            videoElement.pause();
-            setIsPlaying(false);
+    const handleClick = useCallback(() => {
+        if (onOpenLightbox && video) {
+            onOpenLightbox(video);
         }
-    }, []);
+    }, [onOpenLightbox, video]);
 
     const handleMouseEnter = useCallback(() => {
         const videoElement = videoRef.current;
@@ -93,7 +86,7 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded }) => {
     return (
         <div
             className={`video-cell ${isLoaded ? 'loaded' : ''}`}
-            onClick={handlePlay}
+            onClick={handleClick}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
         >

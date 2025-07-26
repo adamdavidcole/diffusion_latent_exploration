@@ -1,7 +1,8 @@
-import React, { useCallback, useRef, useEffect } from 'react';
+import React, { useCallback, useRef, useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useIntersectionObserver } from '../../hooks/useIntersectionObserver';
 import VideoCell from './VideoCell';
+import VideoLightbox from './VideoLightbox';
 
 const VideoGrid = () => {
     const context = useApp();
@@ -15,6 +16,16 @@ const VideoGrid = () => {
     const { currentExperiment, videoSize, showLabels } = state;
     const allVideosRef = useRef([]);
     const videoGridRef = useRef(null);
+    const [lightboxVideo, setLightboxVideo] = useState(null);
+
+    // Handle lightbox open/close
+    const handleOpenLightbox = useCallback((video) => {
+        setLightboxVideo(video);
+    }, []);
+
+    const handleCloseLightbox = useCallback(() => {
+        setLightboxVideo(null);
+    }, []);
 
     // Calculate proportional gap
     const calculateGap = useCallback((size) => {
@@ -156,6 +167,7 @@ const VideoGrid = () => {
                                         videoSize={videoSize}
                                         onVideoLoaded={handleVideoLoaded}
                                         onMetadataLoaded={handleMetadataLoaded}
+                                        onOpenLightbox={handleOpenLightbox}
                                     />
                                 );
                             })}
@@ -163,6 +175,13 @@ const VideoGrid = () => {
                     </div>
                 ))}
             </div>
+
+            {/* Video Lightbox */}
+            <VideoLightbox
+                video={lightboxVideo}
+                isOpen={!!lightboxVideo}
+                onClose={handleCloseLightbox}
+            />
         </>
     );
 };
