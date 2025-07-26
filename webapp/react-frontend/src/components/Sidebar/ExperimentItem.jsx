@@ -39,8 +39,8 @@ const ExperimentItem = ({ experiment, isActive, onSelect }) => {
         setShowTooltip(false);
     }, []);
 
-    const truncatedName = experiment.name.length > 40
-        ? experiment.name.substring(0, 40) + '...'
+    const truncatedName = experiment.name.length > 30
+        ? experiment.name.substring(0, 30) + '...'
         : experiment.name;
 
     const truncatedPrompt = experiment.base_prompt.length > 100

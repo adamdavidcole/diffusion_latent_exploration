@@ -54,8 +54,9 @@ export const api = {
     return `${API_BASE}/api/video/${videoPath}`;
   },
 
-  async fetchVideoBlob(videoPath) {
-    const response = await fetch(this.getVideoUrl(videoPath));
+  async fetchVideoBlob(videoPath, signal = null) {
+    const options = signal ? { signal } : {};
+    const response = await fetch(this.getVideoUrl(videoPath), options);
     if (!response.ok) {
       throw new Error(`Failed to fetch video: ${response.status}`);
     }

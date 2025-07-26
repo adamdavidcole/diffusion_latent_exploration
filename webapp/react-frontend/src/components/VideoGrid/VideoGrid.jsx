@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useIntersectionObserver } from '../../hooks/useIntersectionObserver';
+import { useVideoCache } from '../../hooks/useVideoCache';
 import VideoCell from './VideoCell';
 import VideoLightbox from './VideoLightbox';
 
@@ -17,6 +18,10 @@ const VideoGrid = () => {
     const allVideosRef = useRef([]);
     const videoGridRef = useRef(null);
     const [lightboxVideo, setLightboxVideo] = useState(null);
+    const currentExperimentNameRef = useRef(null);
+    
+    // Use video cache hook
+    const { cancelInflightRequests, getCacheStats } = useVideoCache();
 
     // Handle lightbox open/close
     const handleOpenLightbox = useCallback((video) => {
@@ -74,10 +79,31 @@ const VideoGrid = () => {
 
     // Clean up videos array when experiment changes
     useEffect(() => {
-        allVideosRef.current = [];
-        disconnect();
-        // Removed console.log to reduce noise
-    }, [currentExperiment, disconnect]);
+        // Check if experiment actually changed
+        const newExperimentName = currentExperiment?.name;
+        const hasExperimentChanged = currentExperimentNameRef.current !== newExperimentName;
+        
+        if (hasExperimentChanged) {
+            console.log('Experiment changed, cancelling inflight video requests');
+            
+            // Cancel inflight requests but keep cache intact
+            cancelInflightRequests();
+            
+            // Clear local state
+            allVideosRef.current = [];
+            disconnect();
+            
+            // Close lightbox if open
+            setLightboxVideo(null);
+            
+            // Update current experiment reference
+            currentExperimentNameRef.current = newExperimentName;
+            
+            // Log cache stats for debugging
+            const stats = getCacheStats();
+            console.log('Cache stats after cleanup:', stats);
+        }
+    }, [currentExperiment?.name, disconnect, cancelInflightRequests, getCacheStats]);
 
     if (!currentExperiment) {
         return (
