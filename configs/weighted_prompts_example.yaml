@@ -1,0 +1,49 @@
+# WAN Video Generation Configuration with Prompt Weighting
+# This configuration demonstrates the new prompt weighting feature
+
+model_settings:
+  model_id: "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
+  seed: 999
+  steps: 20
+  cfg_scale: 6.5
+  sampler: "unipc"
+  device: "cuda:1"
+
+video_settings:
+  width: 848                 # Video width (must be divisible by 8)
+  height: 480                # Video height (must be divisible by 8) - lower than 720p to save memory
+  fps: 12                    # Frames per second
+  duration: 2              # Video duration in seconds
+  frames: null               # Total frames (calculated from fps * duration if null)
+
+# Prompt weighting configuration (NEW FEATURE)
+prompt_settings:
+  enable_weighting: true
+  variation_weight: 1.8  # Emphasize variation text more strongly
+  base_weight: 1.0       # Standard weight for base prompt
+  
+  # Advanced weighted embeddings (EXPERIMENTAL)
+  use_weighted_embeddings: true  # Enable WAN-specific weighted embeddings
+  embedding_method: "multiply"  # "multiply", "interpolation", or "norm_preserving"
+  
+# Memory settings for optimal performance
+memory_settings:
+  enable_memory_optimization: true
+  clear_cache_between_videos: true
+  use_gradient_checkpointing: false  # Disable for 1.3B model
+  enable_memory_efficient_attention: false  # WAN has its own attention
+  reload_model_for_large_models: false  # Not needed for 1.3B
+
+# Output organization
+output_settings:
+  create_subfolders: true
+  include_config: true
+  include_prompt_file: true
+  
+# Example templates with prompt weighting
+# The weighting will automatically emphasize the variation text
+# Template: "a romantic kiss between [two people|two men|two women|a man and a woman]"
+# With weighting enabled, this becomes:
+# - "a romantic kiss between (two men:1.8)" for the two men variation
+# - "a romantic kiss between (two women:1.8)" for the two women variation
+# This helps the model focus more strongly on the specific variation

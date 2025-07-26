@@ -15,14 +15,24 @@ class PromptVariation:
     text: str
     variation_id: str
     variables: Dict[str, str]
+    weighted_text: Optional[str] = None  # For prompt weighting version
+    
+
+@dataclass 
+class WeightingConfig:
+    """Configuration for prompt weighting."""
+    enable_weighting: bool = False
+    variation_weight: float = 1.5
+    base_weight: float = 1.0
     
 
 class PromptTemplate:
     """Handles prompt templates with variable sections."""
     
-    def __init__(self, template: str):
+    def __init__(self, template: str, weighting_config: Optional[WeightingConfig] = None):
         self.template = template
         self.variables = self._extract_variables()
+        self.weighting_config = weighting_config or WeightingConfig()
     
     def _extract_variables(self) -> Dict[str, List[str]]:
         """Extract variable sections from template."""
@@ -37,6 +47,37 @@ class PromptTemplate:
             variables[var_name] = options
         
         return variables
+    
+    def _create_weighted_prompt(self, text: str, selected_variation: str) -> str:
+        """Create a weighted version of the prompt emphasizing the variation."""
+        if not self.weighting_config.enable_weighting:
+            return text
+            
+        # Apply weighting to the selected variation
+        if selected_variation in text:
+            weighted_variation = f"({selected_variation}:{self.weighting_config.variation_weight})"
+            weighted_text = text.replace(selected_variation, weighted_variation)
+            
+            # Optionally weight the base parts too
+            if self.weighting_config.base_weight != 1.0:
+                # Split text around the weighted variation and apply base weight
+                parts = weighted_text.split(weighted_variation)
+                if len(parts) == 2:
+                    before = parts[0].strip()
+                    after = parts[1].strip()
+                    weighted_parts = []
+                    
+                    if before:
+                        weighted_parts.append(f"({before}:{self.weighting_config.base_weight})")
+                    weighted_parts.append(weighted_variation)
+                    if after:
+                        weighted_parts.append(f"({after}:{self.weighting_config.base_weight})")
+                        
+                    weighted_text = " ".join(weighted_parts)
+            
+            return weighted_text
+        
+        return text
     
     def generate_variations(self) -> List[PromptVariation]:
         """Generate all possible prompt variations."""
@@ -59,13 +100,23 @@ class PromptTemplate:
             # Replace variables in template
             text = self.template
             pattern = r'\[([^\]]+)\]'
+            selected_variations = []  # Track what variations were selected
             
             def replace_func(match):
                 options = [opt.strip() for opt in match.group(1).split('|')]
                 var_key = f"var_{len([m for m in re.finditer(pattern, self.template[:match.start()])])}"
-                return var_map.get(var_key, options[0])
+                selected = var_map.get(var_key, options[0])
+                selected_variations.append(selected)
+                return selected
             
             text = re.sub(pattern, replace_func, text)
+            
+            # Create weighted version if enabled
+            weighted_text = None
+            if self.weighting_config.enable_weighting and selected_variations:
+                # Use the first selected variation as the main one to weight
+                main_variation = selected_variations[0]
+                weighted_text = self._create_weighted_prompt(text, main_variation)
             
             # Create variation ID
             variation_id = "_".join([
@@ -75,7 +126,8 @@ class PromptTemplate:
             variations.append(PromptVariation(
                 text=text,
                 variation_id=variation_id,
-                variables=var_map
+                variables=var_map,
+                weighted_text=weighted_text
             ))
         
         return variations
@@ -101,9 +153,9 @@ class PromptManager:
         self.templates = {}
         self.current_template = None
     
-    def load_template(self, template: str, name: Optional[str] = None) -> PromptTemplate:
-        """Load a prompt template."""
-        prompt_template = PromptTemplate(template)
+    def load_template(self, template: str, weighting_config: Optional[WeightingConfig] = None, name: Optional[str] = None) -> PromptTemplate:
+        """Load a prompt template with optional weighting configuration."""
+        prompt_template = PromptTemplate(template, weighting_config)
         
         if name:
             self.templates[name] = prompt_template
@@ -111,12 +163,12 @@ class PromptManager:
         
         return prompt_template
     
-    def load_template_from_file(self, file_path: str, name: Optional[str] = None) -> PromptTemplate:
-        """Load prompt template from file."""
+    def load_template_from_file(self, file_path: str, weighting_config: Optional[WeightingConfig] = None, name: Optional[str] = None) -> PromptTemplate:
+        """Load prompt template from file with optional weighting configuration."""
         with open(file_path, 'r', encoding='utf-8') as f:
             template = f.read().strip()
         
-        return self.load_template(template, name)
+        return self.load_template(template, weighting_config, name)
     
     def save_template(self, template: PromptTemplate, file_path: str):
         """Save template to file."""

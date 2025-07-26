@@ -8,7 +8,7 @@ from pathlib import Path
 import json
 
 from src.config import ConfigManager, GenerationConfig
-from src.prompts import PromptManager, PromptTemplate, PromptVariation
+from src.prompts import PromptManager, PromptTemplate, PromptVariation, WeightingConfig
 from src.generators import WAN13BVideoGenerator, BatchVideoGenerator
 from src.utils import FileManager, LogManager, ProgressTracker, MetadataManager
 
@@ -20,7 +20,7 @@ class VideoGenerationOrchestrator:
     
     def __init__(self, config: GenerationConfig):
         self.config = config
-        self.logger = None
+        self.logger = logging.getLogger(__name__)  # Initialize logger immediately
         self.batch_dirs = None
         
         # Initialize components
@@ -52,11 +52,14 @@ class VideoGenerationOrchestrator:
             use_timestamp=self.config.use_timestamp
         )
         
-        # Setup logging
-        self.logger = LogManager.setup_logging(
+        # Setup enhanced logging for batch operations (but keep existing logger)
+        batch_logger = LogManager.setup_logging(
             log_dir=str(self.batch_dirs["logs"]),
             log_level="INFO"
         )
+        # Update our logger to use the batch logger if it's different
+        if batch_logger != self.logger:
+            self.logger = batch_logger
         
         # Save configuration to batch
         config_file = self.batch_dirs["configs"] / "generation_config.yaml"
@@ -72,8 +75,18 @@ class VideoGenerationOrchestrator:
         """Process prompt template and generate variations."""
         self.logger.info(f"Processing prompt template: {template}")
         
-        # Load and validate template
-        prompt_template = self.prompt_manager.load_template(template)
+        # Create weighting config from settings
+        weighting_config = None
+        if hasattr(self.config, 'prompt_settings') and self.config.prompt_settings.enable_weighting:
+            weighting_config = WeightingConfig(
+                enable_weighting=True,
+                variation_weight=self.config.prompt_settings.variation_weight,
+                base_weight=self.config.prompt_settings.base_weight
+            )
+            self.logger.info(f"Prompt weighting enabled: variation_weight={weighting_config.variation_weight}")
+        
+        # Load and validate template with weighting config
+        prompt_template = self.prompt_manager.load_template(template, weighting_config)
         
         # Generate variations
         variations = prompt_template.generate_variations()
@@ -83,6 +96,9 @@ class VideoGenerationOrchestrator:
             variations = variations[:max_variations]
         
         self.logger.info(f"Generated {len(variations)} prompt variations")
+        if weighting_config and weighting_config.enable_weighting:
+            weighted_count = sum(1 for var in variations if var.weighted_text)
+            self.logger.info(f"Created {weighted_count} weighted prompt variations")
         
         # Save template and variations info
         if self.batch_dirs:
@@ -124,7 +140,19 @@ class VideoGenerationOrchestrator:
         )
         
         # Prepare prompts for batch generation
-        prompts = [var.text for var in variations]
+        # Use weighted prompts if available and enabled
+        use_weighted = (hasattr(self.config, 'prompt_settings') and 
+                       self.config.prompt_settings.enable_prompt_weighting)
+        
+        prompts = []
+        for var in variations:
+            if use_weighted and var.weighted_text:
+                prompts.append(var.weighted_text)
+                self.logger.debug(f"Using weighted prompt: {var.weighted_text}")
+            else:
+                prompts.append(var.text)
+        
+        self.logger.info(f"Using {'weighted' if use_weighted else 'standard'} prompts for generation")
         
         # Generate videos
         results = self.batch_generator.generate_batch(

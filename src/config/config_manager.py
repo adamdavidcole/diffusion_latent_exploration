@@ -33,6 +33,19 @@ class MemorySettings:
     
 
 @dataclass
+class PromptSettings:
+    """Prompt weighting and processing settings."""
+    enable_weighting: bool = False
+    variation_weight: float = 1.5
+    base_weight: float = 1.0
+    enable_prompt_weighting: bool = True  # Allow disabling globally
+    
+    # Advanced weighted embeddings (experimental)
+    use_weighted_embeddings: bool = False
+    embedding_method: str = "norm_preserving"  # "multiply", "interpolation", or "norm_preserving"
+
+
+@dataclass
 class VideoSettings:
     """Video generation parameters."""
     width: int = 512
@@ -48,6 +61,7 @@ class GenerationConfig:
     model_settings: ModelSettings = field(default_factory=ModelSettings)
     memory_settings: MemorySettings = field(default_factory=MemorySettings)
     video_settings: VideoSettings = field(default_factory=VideoSettings)
+    prompt_settings: PromptSettings = field(default_factory=PromptSettings)
     videos_per_variation: int = 3
     output_dir: str = "outputs"
     batch_name: Optional[str] = None
@@ -102,6 +116,7 @@ class ConfigManager:
         model_data = config_data.get('model_settings', {})
         memory_data = config_data.get('memory_settings', {})
         video_data = config_data.get('video_settings', {})
+        prompt_data = config_data.get('prompt_settings', {})
         
         model_settings = ModelSettings(
             seed=model_data.get('seed', 42),
@@ -110,7 +125,8 @@ class ConfigManager:
             steps=model_data.get('steps', 50),
             eta=model_data.get('eta', 0.0),
             clip_skip=model_data.get('clip_skip', 1),
-            model_id=model_data.get('model_id', 'Wan-AI/Wan2.1-T2V-14B-Diffusers')
+            model_id=model_data.get('model_id', 'Wan-AI/Wan2.1-T2V-14B-Diffusers'),
+            device=model_data.get('device', 'auto')
         )
         
         memory_settings = MemorySettings(
@@ -129,10 +145,20 @@ class ConfigManager:
             frames=video_data.get('frames')
         )
         
+        prompt_settings = PromptSettings(
+            enable_weighting=prompt_data.get('enable_weighting', False),
+            variation_weight=prompt_data.get('variation_weight', 1.5),
+            base_weight=prompt_data.get('base_weight', 1.0),
+            enable_prompt_weighting=prompt_data.get('enable_prompt_weighting', True),
+            use_weighted_embeddings=prompt_data.get('use_weighted_embeddings', False),
+            embedding_method=prompt_data.get('embedding_method', 'norm_preserving')
+        )
+        
         return GenerationConfig(
             model_settings=model_settings,
             memory_settings=memory_settings,
             video_settings=video_settings,
+            prompt_settings=prompt_settings,
             videos_per_variation=config_data.get('videos_per_variation', 3),
             output_dir=config_data.get('output_dir', 'outputs'),
             batch_name=config_data.get('batch_name'),
@@ -164,6 +190,14 @@ class ConfigManager:
                 'fps': config.video_settings.fps,
                 'duration': config.video_settings.duration,
                 'frames': config.video_settings.frames
+            },
+            'prompt_settings': {
+                'enable_weighting': config.prompt_settings.enable_weighting,
+                'variation_weight': config.prompt_settings.variation_weight,
+                'base_weight': config.prompt_settings.base_weight,
+                'enable_prompt_weighting': config.prompt_settings.enable_prompt_weighting,
+                'use_weighted_embeddings': config.prompt_settings.use_weighted_embeddings,
+                'embedding_method': config.prompt_settings.embedding_method
             },
             'videos_per_variation': config.videos_per_variation,
             'output_dir': config.output_dir,

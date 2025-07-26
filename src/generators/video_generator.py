@@ -6,14 +6,16 @@ import os
 import time
 import logging
 import gc
-from typing import List, Optional, Dict, Any, Callable
+from typing import List, Optional, Dict, Any, Callable, Union, Tuple
 from pathlib import Path
 from dataclasses import dataclass
 import json
+import re
 
 # WAN model imports
 try:
     import torch
+    import torch.nn.functional as F
     from diffusers import AutoencoderKLWan, WanPipeline
     from diffusers.schedulers.scheduling_unipc_multistep import UniPCMultistepScheduler
     from diffusers.utils import export_to_video
@@ -23,6 +25,15 @@ try:
 except ImportError as e:
     logging.warning(f"WAN model dependencies not available: {e}. Using mock implementation.")
     WAN_AVAILABLE = False
+
+# Import our prompt weighting module
+from src.prompts.prompt_weighting import (
+    PromptWeightingProcessor, 
+    create_clean_processor,
+    create_repetition_processor,
+    create_enhanced_language_processor
+)
+from src.prompts.wan_weighted_embeddings_fixed import create_wan_weighted_embeddings
 
 
 def clear_gpu_memory():
@@ -72,6 +83,166 @@ def setup_memory_optimization():
     logging.info("Memory optimization settings configured")
 
 
+def parse_weighted_prompt(prompt: str) -> List[Tuple[str, float]]:
+    """
+    Parse a prompt with weight syntax like (text:weight) into segments.
+    
+    Examples:
+        "a beautiful (landscape:1.2)" -> [("a beautiful ", 1.0), ("landscape", 1.2)]
+        "(romantic:1.5) kiss between (two people:0.8)" -> [("romantic", 1.5), (" kiss between ", 1.0), ("two people", 0.8)]
+    
+    Returns:
+        List of (text, weight) tuples
+    """
+    # Pattern to match (text:weight) syntax
+    pattern = r'\(([^:)]+):([0-9]*\.?[0-9]+)\)'
+    
+    segments = []
+    last_end = 0
+    
+    for match in re.finditer(pattern, prompt):
+        # Add text before this match with weight 1.0
+        if match.start() > last_end:
+            text_before = prompt[last_end:match.start()]
+            if text_before.strip():
+                segments.append((text_before, 1.0))
+        
+        # Add the weighted segment
+        text = match.group(1)
+        weight = float(match.group(2))
+        segments.append((text, weight))
+        
+        last_end = match.end()
+    
+    # Add remaining text with weight 1.0
+    if last_end < len(prompt):
+        remaining_text = prompt[last_end:]
+        if remaining_text.strip():
+            segments.append((remaining_text, 1.0))
+    
+    return segments
+
+
+def create_weighted_embeddings(pipe, prompt: str, device: str) -> torch.Tensor:
+    """
+    Create weighted text embeddings from a prompt with weight syntax.
+    This implements attention re-weighting rather than direct embedding scaling.
+    
+    Args:
+        pipe: The WAN pipeline with text encoder
+        prompt: Prompt string that may contain (text:weight) syntax
+        device: Device to create tensors on
+        
+    Returns:
+        Weighted text embeddings tensor
+    """
+    if not hasattr(pipe, 'text_encoder') or not hasattr(pipe, 'tokenizer'):
+        raise ValueError("Pipeline must have text_encoder and tokenizer for weighted prompts")
+    
+    # Parse the weighted prompt
+    segments = parse_weighted_prompt(prompt)
+    
+    if len(segments) == 1 and segments[0][1] == 1.0:
+        # No weighting needed, use regular embedding
+        try:
+            # Use a safe max_length to avoid tokenizer issues
+            max_length = min(77, getattr(pipe.tokenizer, 'model_max_length', 77))
+            
+            text_inputs = pipe.tokenizer(
+                prompt,
+                padding="max_length",
+                max_length=max_length,
+                truncation=True,
+                return_tensors="pt"
+            )
+            text_embeddings = pipe.text_encoder(text_inputs.input_ids.to(device))[0]
+            return text_embeddings
+        except Exception as e:
+            logging.error(f"Error creating regular embeddings: {e}")
+            raise
+    
+    # For weighted prompts, use token-level attention weighting
+    logging.info(f"Creating weighted embeddings for {len(segments)} segments")
+    
+    try:
+        # Create the base prompt without weight syntax
+        clean_prompt = "".join(text for text, _ in segments)
+        
+        # Use safe tokenization parameters
+        max_length = min(77, getattr(pipe.tokenizer, 'model_max_length', 77))
+        
+        # Tokenize the clean prompt
+        text_inputs = pipe.tokenizer(
+            clean_prompt,
+            padding="max_length",
+            max_length=max_length,
+            truncation=True,
+            return_tensors="pt"
+        )
+        
+        # Get base embeddings
+        input_ids = text_inputs.input_ids.to(device)
+        base_embeddings = pipe.text_encoder(input_ids)[0]
+        
+        # Create attention mask for weighted tokens
+        attention_weights = torch.ones_like(text_inputs.attention_mask, dtype=torch.float32)
+        
+        # Find tokens that need weighting
+        for text, weight in segments:
+            if weight != 1.0 and text.strip():
+                # Tokenize this segment to find its token positions
+                segment_tokens = pipe.tokenizer.encode(text.strip(), add_special_tokens=False)
+                
+                # Find positions of these tokens in the full tokenization
+                full_tokens = text_inputs.input_ids[0].cpu().tolist()
+                
+                # Simple approach: apply weight to any matching tokens
+                for token_id in segment_tokens:
+                    for i, full_token in enumerate(full_tokens):
+                        if full_token == token_id:
+                            attention_weights[0, i] = weight
+        
+        # Apply attention weighting by interpolating between original and weighted
+        # This is much more stable than direct scaling
+        weight_factor = attention_weights.mean().item()
+        if weight_factor != 1.0:
+            # Use a gentler approach - interpolate between original and emphasized
+            emphasis_strength = min((weight_factor - 1.0) * 0.3, 0.3)  # Cap at 30% adjustment
+            
+            # Create a slightly emphasized version by adjusting the embedding norm
+            embedding_norm = torch.norm(base_embeddings, dim=-1, keepdim=True)
+            normalized_embeddings = base_embeddings / (embedding_norm + 1e-8)
+            
+            # Apply gentle emphasis
+            emphasized_embeddings = normalized_embeddings * (1.0 + emphasis_strength)
+            weighted_embeddings = emphasized_embeddings * embedding_norm
+            
+            logging.info(f"Applied gentle emphasis: {emphasis_strength:.3f} (from weight factor {weight_factor:.2f})")
+        else:
+            weighted_embeddings = base_embeddings
+        
+        logging.info(f"Created weighted embeddings with shape {weighted_embeddings.shape}")
+        return weighted_embeddings
+        
+    except Exception as e:
+        logging.error(f"Error in weighted embedding creation: {e}")
+        logging.info("Falling back to regular prompt processing")
+        
+        # Fallback: use regular tokenization without weights
+        clean_prompt = "".join(text for text, _ in segments)
+        max_length = min(77, getattr(pipe.tokenizer, 'model_max_length', 77))
+        
+        text_inputs = pipe.tokenizer(
+            clean_prompt,
+            padding="max_length",
+            max_length=max_length,
+            truncation=True,
+            return_tensors="pt"
+        )
+        text_embeddings = pipe.text_encoder(text_inputs.input_ids.to(device))[0]
+        return text_embeddings
+
+
 @dataclass
 class GenerationResult:
     """Result of a single video generation."""
@@ -93,6 +264,18 @@ class WanVideoGenerator:
         self.config = config
         self.model_id = config.model_settings.model_id  # Use model_id from config
         self.pipe = None
+        
+        # Initialize prompt weighting processor based on config
+        weighting_method = getattr(config.prompt_settings, 'weighting_method', 'clean')
+        if weighting_method == 'repetition':
+            self.prompt_processor = create_repetition_processor(max_repetitions=3)
+            logging.info("Using repetition-based prompt weighting")
+        elif weighting_method == 'enhanced_language':
+            self.prompt_processor = create_enhanced_language_processor()
+            logging.info("Using enhanced language prompt weighting")
+        else:
+            self.prompt_processor = create_clean_processor()
+            logging.info("Using clean prompt processing (weights removed)")
         
         # Set device from config with fallback logic
         config_device = getattr(config.model_settings, 'device', 'auto')
@@ -147,6 +330,37 @@ class WanVideoGenerator:
     def _is_large_model(self):
         """Check if this is a large model that needs memory optimization."""
         return "14B" in self.model_id or "13B" in self.model_id
+    
+    def create_variation_weighted_prompt(self, base_prompt: str, variation_text: str, variation_weight: float = 1.5) -> str:
+        """
+        Create a prompt with weighted variation text for emphasizing variations.
+        
+        Args:
+            base_prompt: The base prompt text
+            variation_text: The variation text to emphasize (e.g., "two men", "two women")
+            variation_weight: Weight for the variation text (default 1.5 for stronger emphasis)
+            
+        Returns:
+            Formatted prompt with weight syntax
+            
+        Example:
+            create_variation_weighted_prompt(
+                "a romantic kiss between two people", 
+                "two men", 
+                1.8
+            ) -> "a romantic kiss between (two men:1.8)"
+        """
+        # Replace the variation text with weighted version
+        if variation_text in base_prompt:
+            weighted_variation = f"({variation_text}:{variation_weight})"
+            weighted_prompt = base_prompt.replace(variation_text, weighted_variation)
+            logging.debug(f"Created weighted prompt: {weighted_prompt}")
+            return weighted_prompt
+        else:
+            # If variation text not found exactly, append it with weight
+            weighted_prompt = f"{base_prompt} ({variation_text}:{variation_weight})"
+            logging.debug(f"Appended weighted variation: {weighted_prompt}")
+            return weighted_prompt
         
     def _unload_model(self):
         """Unload the model to free GPU memory."""
@@ -314,17 +528,78 @@ class WanVideoGenerator:
             if self.memory_settings.clear_cache_between_videos:
                 clear_gpu_memory()
             
+            # Process prompt using the configured weighting strategy
+            processed_prompt = self.prompt_processor.process_prompt(prompt)
+            
+            # Check if we should use WAN weighted embeddings
+            use_weighted_embeddings = (
+                getattr(self.config.prompt_settings, 'use_weighted_embeddings', False) and
+                self.prompt_processor.has_weights(prompt)
+            )
+            
+            # Log prompt processing if weights were detected
+            if self.prompt_processor.has_weights(prompt):
+                weight_summary = self.prompt_processor.get_weight_summary(prompt)
+                logging.info(f"Prompt weights detected: {weight_summary}")
+                logging.info(f"Original prompt: {prompt}")
+                logging.info(f"Processed prompt: {processed_prompt}")
+                
+                if use_weighted_embeddings:
+                    logging.info("Using WAN weighted embeddings for generation")
+                else:
+                    logging.info("Using prompt processing (no weighted embeddings)")
+            
             # Generate video with memory optimization
             with torch.no_grad():
-                video_frames = self.pipe(
-                    prompt=prompt,
-                    width=width,
-                    height=height,
-                    num_frames=num_frames,
-                    num_inference_steps=num_inference_steps,
-                    guidance_scale=guidance_scale,
-                    generator=generator
-                ).frames[0]
+                if use_weighted_embeddings:
+                    try:
+                        # Create weighted embeddings using configured method
+                        embedding_method = getattr(self.config.prompt_settings, 'embedding_method', 'multiply')
+                        prompt_embeds = create_wan_weighted_embeddings(
+                            pipe=self.pipe,
+                            prompt=prompt,  # Use original prompt with weight syntax
+                            max_sequence_length=512,
+                            weighting_method=embedding_method
+                        )
+                        
+                        # Generate using prompt_embeds
+                        video_frames = self.pipe(
+                            prompt_embeds=prompt_embeds,
+                            width=width,
+                            height=height,
+                            num_frames=num_frames,
+                            num_inference_steps=num_inference_steps,
+                            guidance_scale=guidance_scale,
+                            generator=generator
+                        ).frames[0]
+                        
+                        logging.info("Successfully generated video using weighted embeddings")
+                        
+                    except Exception as e:
+                        logging.error(f"Weighted embeddings generation failed: {e}")
+                        logging.info("Falling back to processed prompt generation")
+                        
+                        # Fallback to processed prompt
+                        video_frames = self.pipe(
+                            prompt=processed_prompt,
+                            width=width,
+                            height=height,
+                            num_frames=num_frames,
+                            num_inference_steps=num_inference_steps,
+                            guidance_scale=guidance_scale,
+                            generator=generator
+                        ).frames[0]
+                else:
+                    # Use processed prompt (repetition, enhanced language, or clean)
+                    video_frames = self.pipe(
+                        prompt=processed_prompt,
+                        width=width,
+                        height=height,
+                        num_frames=num_frames,
+                        num_inference_steps=num_inference_steps,
+                        guidance_scale=guidance_scale,
+                        generator=generator
+                    ).frames[0]
             
             # Debug video frames structure
             logging.info(f"Video frames type: {type(video_frames)}")
