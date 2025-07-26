@@ -58,11 +58,31 @@ class FileManager:
         return output_dir
     
     @staticmethod
+    def sanitize_batch_name(batch_name: Optional[str]) -> Optional[str]:
+        """Sanitize batch name by replacing problematic characters."""
+        if not batch_name:
+            return batch_name
+        
+        # Replace dots with underscores to avoid URL routing issues
+        sanitized = batch_name.replace('.', '_')
+        
+        # Replace other potentially problematic characters
+        sanitized = sanitized.replace(' ', '_')
+        sanitized = sanitized.replace('/', '_')
+        sanitized = sanitized.replace('\\', '_')
+        
+        return sanitized
+    
+    @staticmethod
     def create_batch_structure(base_dir: str, 
                               batch_name: Optional[str] = None,
                               use_timestamp: bool = True) -> Dict[str, Path]:
         """Create organized directory structure for a batch."""
         base_path = Path(base_dir)
+        
+        # Sanitize batch name to avoid problematic characters
+        if batch_name:
+            batch_name = FileManager.sanitize_batch_name(batch_name)
         
         if use_timestamp:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
