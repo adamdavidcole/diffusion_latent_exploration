@@ -228,7 +228,7 @@ def create_app():
                 "http://localhost:5174",  # Development
                 "http://localhost:3000",  # Alternative dev port
                 "https://*.netlify.app",  # Netlify deploy previews
-                "https://diffusion-exploration.netlify.app/"  # Your actual Netlify domain
+                "https://diffusion-exploration.netlify.app"  # Your actual Netlify domain
             ]
         }
     })

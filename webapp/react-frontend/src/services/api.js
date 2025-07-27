@@ -8,7 +8,7 @@ const getApiBase = () => {
   }
   
   // Production - use environment variable or default to your university server
-  return import.meta.env.VITE_API_BASE_URL || 'http://acole9.pythonanywhere.com:5000/';
+  return import.meta.env.VITE_API_BASE_URL || 'http://acole9.pythonanywhere.com';
 };
 
 const API_BASE = getApiBase();
