@@ -1,6 +1,17 @@
 // API service for WAN Video Matrix Viewer
 
-const API_BASE = '';
+// Environment-aware API base URL
+const getApiBase = () => {
+  // Check if we're in development (Vite dev server)
+  if (import.meta.env.DEV) {
+    return ''; // Use proxy in development
+  }
+  
+  // Production - use environment variable or default to your university server
+  return import.meta.env.VITE_API_BASE_URL || 'http://acole9.pythonanywhere.com:5000/';
+};
+
+const API_BASE = getApiBase();
 
 // Helper function to add timeout to fetch requests
 const fetchWithTimeout = (url, options = {}, timeout = 10000) => {
