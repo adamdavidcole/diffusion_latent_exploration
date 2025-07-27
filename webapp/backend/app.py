@@ -11,7 +11,7 @@ import yaml
 from pathlib import Path
 from datetime import datetime
 from flask import Flask, jsonify, send_file, render_template, send_from_directory
-# from flask_cors import CORS  # Optional - install with: pip install flask-cors
+from flask_cors import CORS  # Install with: pip install flask-cors
 
 # Import utilities (simplified - remove if not needed)
 # from utils.file_utils import safe_filename
@@ -221,8 +221,17 @@ def create_app():
     else:
         app.config['ENV'] = 'development'
     
-    # Enable CORS for API endpoints (optional)
-    # CORS(app, resources={r"/api/*": {"origins": "*"}})
+    # Enable CORS for API endpoints - allow frontend domain
+    CORS(app, resources={
+        r"/api/*": {
+            "origins": [
+                "http://localhost:5174",  # Development
+                "http://localhost:3000",  # Alternative dev port
+                "https://*.netlify.app",  # Netlify deploy previews
+                "https://diffusion-exploration.netlify.app/"  # Your actual Netlify domain
+            ]
+        }
+    })
     
     # Configuration
     app.config['VIDEO_OUTPUTS_DIR'] = str(outputs_path)
