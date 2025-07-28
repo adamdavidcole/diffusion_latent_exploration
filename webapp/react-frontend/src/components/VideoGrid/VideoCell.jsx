@@ -7,6 +7,8 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
     const [isLoaded, setIsLoaded] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
     const [isLoadingOnHover, setIsLoadingOnHover] = useState(false);
+    const [preloadMode, setPreloadMode] = useState('none'); // Track preload state
+    const [showPoster, setShowPoster] = useState(true); // Track poster visibility
     const { state } = useApp();
     // const { loadVideo } = useVideoCache(); // Commented out to preserve thumbnail performance
 
@@ -23,13 +25,74 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
         }
     }, []);
 
-    // Simple function to ensure video can be played (for programmatic play all/scrubber)
-    const loadVideoSource = useCallback(() => {
-        // Since src is set on render and preload="none", just return resolved promise
-        return Promise.resolve();
-    }, []);
+    // Function to preload video metadata (for programmatic play all)
+    const loadVideoMetadata = useCallback(() => {
+        const videoElement = videoRef.current;
+        if (!videoElement || !video?.video_path) return Promise.resolve();
 
-    const handleClick = useCallback(() => {
+        // If video already has metadata loaded, resolve immediately
+        if (videoElement.readyState >= 1) { // HAVE_METADATA or higher
+            return Promise.resolve();
+        }
+
+        return new Promise((resolve, reject) => {
+            const handleLoadedMetadata = () => {
+                videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
+                videoElement.removeEventListener('error', handleError);
+                resolve();
+            };
+
+            const handleError = (error) => {
+                videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
+                videoElement.removeEventListener('error', handleError);
+                console.warn('Failed to preload video metadata:', error);
+                reject(error);
+            };
+
+            videoElement.addEventListener('loadedmetadata', handleLoadedMetadata);
+            videoElement.addEventListener('error', handleError);
+
+            // Set preload to metadata for basic playback
+            setPreloadMode('metadata');
+            videoElement.load(); // Trigger loading
+        });
+    }, [video?.video_path]);
+
+    // Function to fully load video data (for scrubbing)
+    const loadVideoSource = useCallback(() => {
+        const videoElement = videoRef.current;
+        if (!videoElement || !video?.video_path) return Promise.resolve();
+
+        // If video is already fully loaded, resolve immediately
+        if (videoElement.readyState >= 3) { // HAVE_FUTURE_DATA or higher
+            return Promise.resolve();
+        }
+
+        return new Promise((resolve, reject) => {
+            const handleCanPlayThrough = () => {
+                videoElement.removeEventListener('canplaythrough', handleCanPlayThrough);
+                videoElement.removeEventListener('error', handleError);
+                console.log('Video fully loaded for scrubbing:', video.video_path);
+                resolve();
+            };
+
+            const handleError = (error) => {
+                videoElement.removeEventListener('canplaythrough', handleCanPlayThrough);
+                videoElement.removeEventListener('error', handleError);
+                console.warn('Failed to fully load video for scrubbing:', error);
+                reject(error);
+            };
+
+            videoElement.addEventListener('canplaythrough', handleCanPlayThrough);
+            videoElement.addEventListener('error', handleError);
+
+            // Set preload to auto to fully load video data for scrubbing
+            console.log('Fully loading video for scrubbing:', video.video_path);
+            setPreloadMode('auto');
+            setShowPoster(false); // Hide poster when fully loading
+            videoElement.load(); // Trigger loading
+        });
+    }, [video?.video_path]); const handleClick = useCallback(() => {
         if (onOpenLightbox && video) {
             onOpenLightbox(video);
         }
@@ -68,11 +131,14 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
         const videoElement = videoRef.current;
         if (!videoElement) return;
 
-        setIsLoaded(true);
-        if (onMetadataLoaded && videoElement.duration) {
-            onMetadataLoaded(videoElement.duration);
+        // Only set loaded state once to avoid multiple calls
+        if (!isLoaded) {
+            setIsLoaded(true);
+            if (onMetadataLoaded && videoElement.duration) {
+                onMetadataLoaded(videoElement.duration);
+            }
         }
-    }, [onMetadataLoaded]);
+    }, [onMetadataLoaded, isLoaded]);
 
     // Load video when component mounts and when video prop changes
     // COMMENTED OUT: This was preloading all videos and defeating thumbnail performance
@@ -95,13 +161,17 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
         };
     }, [handleLoadedMetadata]);
 
-    // Expose loadVideoSource to parent components for play all and scrubber functionality
+    // Expose functions to parent components for play all and scrubber functionality
     useEffect(() => {
         const videoElement = videoRef.current;
         if (videoElement) {
-            videoElement.loadVideoSource = loadVideoSource;
+            videoElement.loadVideoMetadata = loadVideoMetadata; // For play all
+            videoElement.loadVideoSource = loadVideoSource;     // For scrubbing (full load)
+            // Expose poster control functions for scrubbing
+            videoElement.hidePoster = () => setShowPoster(false);
+            videoElement.showPoster = () => setShowPoster(true);
         }
-    }, [loadVideoSource]);
+    }, [loadVideoMetadata, loadVideoSource]);
 
     // Notify parent when loaded
     useEffect(() => {
@@ -141,10 +211,10 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
                 src={`/api/video/${video.video_path}`}
                 muted
                 loop
-                preload="none"
-                poster={getThumbnailPath(video.video_path)}
+                preload={preloadMode}
+                poster={showPoster ? getThumbnailPath(video.video_path) : ''}
             />
-                        <div className="video-overlay">
+            <div className="video-overlay">
                 <div>Seed: {video.seed}</div>
                 <div>{video.width}x{video.height}, {video.num_frames}f</div>
                 <div>Steps: {video.steps}, CFG: {video.cfg_scale}</div>
@@ -158,10 +228,10 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
 const areEqual = (prevProps, nextProps) => {
     // Only re-render if video object reference or essential props change
     return prevProps.video?.video_path === nextProps.video?.video_path &&
-           prevProps.videoSize === nextProps.videoSize &&
-           prevProps.onVideoLoaded === nextProps.onVideoLoaded &&
-           prevProps.onMetadataLoaded === nextProps.onMetadataLoaded &&
-           prevProps.onOpenLightbox === nextProps.onOpenLightbox;
+        prevProps.videoSize === nextProps.videoSize &&
+        prevProps.onVideoLoaded === nextProps.onVideoLoaded &&
+        prevProps.onMetadataLoaded === nextProps.onMetadataLoaded &&
+        prevProps.onOpenLightbox === nextProps.onOpenLightbox;
 };
 
 export default React.memo(VideoCell, areEqual);

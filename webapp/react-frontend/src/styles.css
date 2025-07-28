@@ -1108,6 +1108,10 @@ p#base-prompt:hover {
     opacity: 0.85;
 }
 
+.control-btn.loading {
+    min-height: auto;
+}
+
 .control-btn:hover {
     background: rgba(74, 144, 226, 0.25);
     border-color: rgba(74, 144, 226, 0.5);

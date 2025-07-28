@@ -4,69 +4,82 @@ import { useApp } from '../context/AppContext';
 export const useVideoControls = () => {
   const { state, actions } = useApp();
 
-  const playAllVideos = useCallback(() => {
-    // Get videos directly from the DOM instead of relying on context
+  const playAllVideos = useCallback(async (onLoadingChange) => {
     const videos = Array.from(document.querySelectorAll('video'));
-    console.log('useVideoControls: playAllVideos called, videos:', videos.length);
+    console.log('Play all videos called, found:', videos.length);
     
-    // First pause ALL videos
+    // Notify about loading start
+    onLoadingChange && onLoadingChange(true);
+    
+    // First pause all videos and reset scrubber
     videos.forEach(video => {
       video.pause();
-      video.playing = false;
+      video.currentTime = 0;
     });
-
-    // Reset scrubber to beginning
+    
     document.dispatchEvent(new CustomEvent('resetScrubber'));
 
-    // Then play only visible videos for performance
+    // Get visible videos only for performance
     const videoGrid = document.querySelector('#video-grid');
     if (!videoGrid) {
-      console.log('useVideoControls: No video grid found');
+      onLoadingChange && onLoadingChange(false);
       return;
     }
 
     const gridRect = videoGrid.getBoundingClientRect();
     const margin = 200;
 
-    videos.forEach(async (video) => {
-      const videoRect = video.getBoundingClientRect();
-
-      // Check if video is in or near the viewport
-      const isVisible = (
-        videoRect.bottom > (gridRect.top - margin) &&
-        videoRect.top < (gridRect.bottom + margin) &&
-        videoRect.right > (gridRect.left - margin) &&
-        videoRect.left < (gridRect.right + margin)
+    const visibleVideos = videos.filter(video => {
+      const rect = video.getBoundingClientRect();
+      return (
+        rect.bottom > (gridRect.top - margin) &&
+        rect.top < (gridRect.bottom + margin) &&
+        rect.right > (gridRect.left - margin) &&
+        rect.left < (gridRect.right + margin)
       );
+    });
 
-      if (isVisible) {
-        console.log('useVideoControls: Loading and playing visible video');
-        
-        // Load video source if not already loaded (for lazy loading support)
-        if (!video.src && video.loadVideoSource) {
-          try {
-            await video.loadVideoSource();
-          } catch (error) {
-            console.warn('Failed to load video source for play all:', error);
-            return;
-          }
+    console.log('Visible videos for play all:', visibleVideos.length);
+
+    // Load all visible videos that need loading (don't play yet)
+    const loadPromises = visibleVideos.map(async (video) => {
+      // If video doesn't have metadata, try to load it
+      if (video.loadVideoMetadata && video.readyState < 1) { // Less than HAVE_METADATA
+        try {
+          console.log('Loading video for play all:', video.src);
+          await video.loadVideoMetadata();
+        } catch (error) {
+          console.warn('Failed to load video for play all:', error);
+          return null;
         }
-        
+      }
+      return video;
+    });
+
+    // Wait for ALL videos to finish loading
+    const loadedVideos = await Promise.all(loadPromises);
+    console.log('All videos loaded, starting synchronized playback');
+
+    // Now play all loaded videos simultaneously
+    loadedVideos.forEach(video => {
+      if (video && video.duration && !isNaN(video.duration)) {
         video.currentTime = 0;
         video.play().catch(err => {
-          console.warn('Failed to play video in play all:', err);
+          console.warn('Play failed:', err);
         });
-        video.playing = true;
       }
     });
+
+    // Notify about loading end
+    onLoadingChange && onLoadingChange(false);
   }, []);
 
   const pauseAllVideos = useCallback(() => {
     const videos = Array.from(document.querySelectorAll('video'));
-    console.log('useVideoControls: pauseAllVideos called, videos:', videos.length);
+    console.log('Pause all videos called, found:', videos.length);
     videos.forEach(video => {
       video.pause();
-      video.playing = false;
+      video.currentTime = 0;
     });
   }, []);
 
@@ -80,38 +93,80 @@ export const useVideoControls = () => {
   }, []);
 
   const scrubAllVideos = useCallback(async (percentage) => {
-    if (state.videoDuration === 0) return;
+    console.log('Scrub all videos called with percentage:', percentage);
+    
+    if (state.videoDuration === 0) {
+      console.log('No video duration set, skipping scrub');
+      return;
+    }
 
-    actions.setScrubbingActive(true);
+    // Don't set scrubbing active to avoid re-renders
+    // actions.setScrubbingActive(true);
     const targetTime = (percentage / 100) * state.videoDuration;
 
-    // Get videos directly from DOM
+    // Get all videos and find visible ones
     const videos = Array.from(document.querySelectorAll('video'));
-    
-    // Load videos that aren't already loaded before scrubbing
-    const loadPromises = videos.map(async (video) => {
-      if (!video.src && video.loadVideoSource) {
+    const videoGrid = document.querySelector('#video-grid');
+    if (!videoGrid) {
+      return;
+    }
+
+    const gridRect = videoGrid.getBoundingClientRect();
+    const margin = 200;
+
+    const visibleVideos = videos.filter(video => {
+      const rect = video.getBoundingClientRect();
+      return (
+        rect.bottom > (gridRect.top - margin) &&
+        rect.top < (gridRect.bottom + margin) &&
+        rect.right > (gridRect.left - margin) &&
+        rect.left < (gridRect.right + margin)
+      );
+    });
+
+    console.log('Scrubbing visible videos:', visibleVideos.length, 'to time:', targetTime);
+
+    // Load all visible videos that aren't already loaded
+    const loadPromises = visibleVideos.map(async (video) => {
+      // If video doesn't have duration metadata, try to load it
+      if (video.loadVideoSource && video.readyState < 1) { // Less than HAVE_METADATA
         try {
+          console.log('Loading video for scrubbing:', video.src);
           await video.loadVideoSource();
         } catch (error) {
-          console.warn('Failed to load video source for scrubbing:', error);
+          console.warn('Failed to load video for scrubbing:', error);
+          return null;
         }
       }
+      return video;
     });
-    
+
     // Wait for all videos to load, then scrub
-    await Promise.all(loadPromises);
+    const loadedVideos = await Promise.all(loadPromises);
     
-    videos.forEach(video => {
-      if (video.duration && video.src) {
-        video.currentTime = targetTime;
+    // Now scrub all loaded videos
+    loadedVideos.forEach(video => {
+      if (video && video.duration && !isNaN(video.duration)) {
+        const clampedTime = Math.min(Math.max(targetTime, 0), video.duration);
+        console.log(`Scrubbing video to ${clampedTime}s (duration: ${video.duration}s)`);
+        video.currentTime = clampedTime;
+        video.pause(); // Make sure video is paused at the scrubbed position
       }
     });
 
-    // Clear the scrubbing flag after a short delay
-    setTimeout(() => {
-      actions.setScrubbingActive(false);
-    }, 100);
+    // Only set duration if it's not already set to avoid re-renders
+    if (state.videoDuration === 0) {
+      const firstVideoWithDuration = loadedVideos.find(v => v && v.duration && !isNaN(v.duration));
+      if (firstVideoWithDuration) {
+        console.log('Setting video duration from first video:', firstVideoWithDuration.duration);
+        // actions.setVideoDuration(firstVideoWithDuration.duration);
+      }
+    }
+
+    // Don't clear scrubbing flag since we're not setting it
+    // setTimeout(() => {
+    //   actions.setScrubbingActive(false);
+    // }, 50);
 
     return targetTime;
   }, [state.videoDuration, actions]);

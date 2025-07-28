@@ -10,6 +10,7 @@ const SyncControls = () => {
     const [isMuted, setIsMuted] = useState(true);
     const [scrubberValue, setScrubberValue] = useState(0);
     const [scrubberTime, setScrubberTime] = useState('0:00');
+    const [isPlayAllLoading, setIsPlayAllLoading] = useState(false);
     const sizeSliderTimeoutRef = useRef(null);
 
     // Throttled video size update
@@ -47,7 +48,7 @@ const SyncControls = () => {
     // Handle play all
     const handlePlayAll = useCallback(() => {
         console.log('SyncControls: Play All clicked');
-        playAllVideos();
+        playAllVideos(setIsPlayAllLoading);
         setScrubberValue(0);
         updateScrubberTime(0);
     }, [playAllVideos, updateScrubberTime]);
@@ -99,11 +100,11 @@ const SyncControls = () => {
             {/* First row: Play/Pause and Labels buttons */}
             <div className="controls-row">
                 <button
-                    className="control-btn"
+                    className={`control-btn ${isPlayAllLoading ? 'loading' : ''}`}
                     onClick={handlePlayAll}
-                    disabled={!hasVideos}
+                    disabled={!hasVideos || isPlayAllLoading}
                 >
-                    ▶️ Play All
+                    {isPlayAllLoading ? '⏳ Loading...' : '▶️ Play All'}
                 </button>
 
                 <button

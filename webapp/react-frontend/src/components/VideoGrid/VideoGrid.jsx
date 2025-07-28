@@ -228,9 +228,9 @@ const VideoGrid = () => {
 
     // Handle video metadata loaded (for duration)
     const handleMetadataLoaded = useCallback((duration) => {
-        if (state?.videoDuration === 0 && duration && actions && typeof actions.setVideoDuration === 'function') {
-            actions.setVideoDuration(duration);
-        }
+        // if (state?.videoDuration === 0 && duration && actions && typeof actions.setVideoDuration === 'function') {
+        //     actions.setVideoDuration(duration);
+        // }
     }, [state?.videoDuration, actions]);
 
     // Clean up videos array when experiment changes
