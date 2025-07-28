@@ -73,6 +73,21 @@
   z-index: 2;
 }
 
+/* Hover loading spinner - consistent size regardless of loaded state */
+.hover-loading-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #007acc;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  z-index: 2;
+}
+
 /* Tooltip positioning for React */
 .tooltip {
   position: fixed;

@@ -28,7 +28,7 @@ export const useVideoControls = () => {
     const gridRect = videoGrid.getBoundingClientRect();
     const margin = 200;
 
-    videos.forEach(video => {
+    videos.forEach(async (video) => {
       const videoRect = video.getBoundingClientRect();
 
       // Check if video is in or near the viewport
@@ -40,9 +40,22 @@ export const useVideoControls = () => {
       );
 
       if (isVisible) {
-        console.log('useVideoControls: Playing visible video');
+        console.log('useVideoControls: Loading and playing visible video');
+        
+        // Load video source if not already loaded (for lazy loading support)
+        if (!video.src && video.loadVideoSource) {
+          try {
+            await video.loadVideoSource();
+          } catch (error) {
+            console.warn('Failed to load video source for play all:', error);
+            return;
+          }
+        }
+        
         video.currentTime = 0;
-        video.play();
+        video.play().catch(err => {
+          console.warn('Failed to play video in play all:', err);
+        });
         video.playing = true;
       }
     });
@@ -66,7 +79,7 @@ export const useVideoControls = () => {
     return anyUnmuted;
   }, []);
 
-  const scrubAllVideos = useCallback((percentage) => {
+  const scrubAllVideos = useCallback(async (percentage) => {
     if (state.videoDuration === 0) return;
 
     actions.setScrubbingActive(true);
@@ -74,8 +87,23 @@ export const useVideoControls = () => {
 
     // Get videos directly from DOM
     const videos = Array.from(document.querySelectorAll('video'));
+    
+    // Load videos that aren't already loaded before scrubbing
+    const loadPromises = videos.map(async (video) => {
+      if (!video.src && video.loadVideoSource) {
+        try {
+          await video.loadVideoSource();
+        } catch (error) {
+          console.warn('Failed to load video source for scrubbing:', error);
+        }
+      }
+    });
+    
+    // Wait for all videos to load, then scrub
+    await Promise.all(loadPromises);
+    
     videos.forEach(video => {
-      if (video.duration && video.hasAttribute('data-loaded')) {
+      if (video.duration && video.src) {
         video.currentTime = targetTime;
       }
     });

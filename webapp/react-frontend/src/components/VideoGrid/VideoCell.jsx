@@ -6,6 +6,7 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
     const videoRef = useRef(null);
     const [isLoaded, setIsLoaded] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
+    const [isLoadingOnHover, setIsLoadingOnHover] = useState(false);
     const { state } = useApp();
     // const { loadVideo } = useVideoCache(); // Commented out to preserve thumbnail performance
 
@@ -22,6 +23,12 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
         }
     }, []);
 
+    // Simple function to ensure video can be played (for programmatic play all/scrubber)
+    const loadVideoSource = useCallback(() => {
+        // Since src is set on render and preload="none", just return resolved promise
+        return Promise.resolve();
+    }, []);
+
     const handleClick = useCallback(() => {
         if (onOpenLightbox && video) {
             onOpenLightbox(video);
@@ -29,49 +36,41 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
     }, [onOpenLightbox, video]);
 
     const handleMouseEnter = useCallback(() => {
-        try {
-            const videoElement = videoRef.current;
-            if (!videoElement || isPlaying || state.isScrubbingActive) return;
+        const videoElement = videoRef.current;
+        if (!videoElement || isPlaying || state.isScrubbingActive) return;
 
-            // Load the video source if not already loaded
-            if (!videoElement.src && video?.video_path) {
-                videoElement.src = `/api/video/${video.video_path}`;
-            }
+        // Show loading spinner immediately
+        setIsLoadingOnHover(true);
 
-            // Play the video (will load first if needed)
-            videoElement.play().catch(err => {
-                console.warn('Failed to play video on hover:', err);
-            });
+        // Simply play the video - src is already set, preload="none" means it loads on demand
+        videoElement.play().then(() => {
+            // Hide loading spinner when playback starts
+            setIsLoadingOnHover(false);
             setIsPlaying(true);
-        } catch (error) {
-            console.error('Error in handleMouseEnter:', error);
-        }
-    }, [isPlaying, state.isScrubbingActive, video?.video_path]);
+        }).catch(err => {
+            console.warn('Failed to play video on hover:', err);
+            setIsLoadingOnHover(false);
+        });
+    }, [isPlaying, state.isScrubbingActive]);
 
     const handleMouseLeave = useCallback(() => {
-        try {
-            const videoElement = videoRef.current;
-            if (!videoElement || state.isScrubbingActive) return;
+        const videoElement = videoRef.current;
+        if (!videoElement || state.isScrubbingActive) return;
 
-            videoElement.pause();
-            videoElement.currentTime = 0;
-            setIsPlaying(false);
-        } catch (error) {
-            console.error('Error in handleMouseLeave:', error);
-        }
+        // Clear loading state and stop playback
+        setIsLoadingOnHover(false);
+        videoElement.pause();
+        videoElement.currentTime = 0;
+        setIsPlaying(false);
     }, [state.isScrubbingActive]);
 
     const handleLoadedMetadata = useCallback(() => {
-        try {
-            const videoElement = videoRef.current;
-            if (!videoElement) return;
+        const videoElement = videoRef.current;
+        if (!videoElement) return;
 
-            setIsLoaded(true);
-            if (onMetadataLoaded && videoElement.duration) {
-                onMetadataLoaded(videoElement.duration);
-            }
-        } catch (error) {
-            console.error('Error in handleLoadedMetadata:', error);
+        setIsLoaded(true);
+        if (onMetadataLoaded && videoElement.duration) {
+            onMetadataLoaded(videoElement.duration);
         }
     }, [onMetadataLoaded]);
 
@@ -95,6 +94,14 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
             videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
         };
     }, [handleLoadedMetadata]);
+
+    // Expose loadVideoSource to parent components for play all and scrubber functionality
+    useEffect(() => {
+        const videoElement = videoRef.current;
+        if (videoElement) {
+            videoElement.loadVideoSource = loadVideoSource;
+        }
+    }, [loadVideoSource]);
 
     // Notify parent when loaded
     useEffect(() => {
@@ -131,6 +138,7 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
                     width: `${videoSize}px`,
                     height: `${Math.round(videoSize * 0.56)}px`
                 }}
+                src={`/api/video/${video.video_path}`}
                 muted
                 loop
                 preload="none"
@@ -141,10 +149,19 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
                 <div>{video.width}x{video.height}, {video.num_frames}f</div>
                 <div>Steps: {video.steps}, CFG: {video.cfg_scale}</div>
             </div>
-            {/* Loading spinner hidden for thumbnail-based loading */}
-            {/* {!isLoaded && <div className="loading-spinner" />} */}
+            {isLoadingOnHover && <div className="hover-loading-spinner" />}
         </div>
     );
 };
 
-export default React.memo(VideoCell);
+// Custom comparison function to prevent unnecessary re-renders
+const areEqual = (prevProps, nextProps) => {
+    // Only re-render if video object reference or essential props change
+    return prevProps.video?.video_path === nextProps.video?.video_path &&
+           prevProps.videoSize === nextProps.videoSize &&
+           prevProps.onVideoLoaded === nextProps.onVideoLoaded &&
+           prevProps.onMetadataLoaded === nextProps.onMetadataLoaded &&
+           prevProps.onOpenLightbox === nextProps.onOpenLightbox;
+};
+
+export default React.memo(VideoCell, areEqual);
