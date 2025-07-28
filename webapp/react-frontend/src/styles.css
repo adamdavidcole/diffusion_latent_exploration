@@ -667,6 +667,92 @@ p#base-prompt:hover {
     border-color: var(--accent);
 }
 
+/* Drag and Drop Styles */
+.experiment-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-bottom: 0.25rem;
+}
+
+#experiment-title {
+    margin: 0;
+}
+
+.reset-order-btn {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 500;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.reset-order-btn:hover {
+    background: var(--border);
+    color: var(--text-primary);
+}
+
+.drag-handle {
+    width: 24px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 14px;
+    cursor: grab;
+    user-select: none;
+    transition: color 0.2s;
+}
+
+.drag-handle:hover {
+    color: var(--text-secondary);
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+.drag-handle-spacer {
+    width: 24px;
+    flex-shrink: 0;
+}
+
+.grid-row.dragging {
+    opacity: 0.8;
+    transform: rotate(2deg);
+    z-index: 1000;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.5rem;
+}
+
+.grid-row.drag-over {
+    background: rgba(74, 144, 226, 0.05);
+}
+
+.grid-row.drag-over-top {
+    border-top: 2px solid var(--accent);
+}
+
+.grid-row.drag-over-bottom {
+    border-bottom: 2px solid var(--accent);
+}
+
+/* Ensure drag handle is always visible */
+.seeds-header .drag-handle-spacer,
+.grid-row .drag-handle {
+    display: flex;
+}
+
 /* Video Grid */
 .video-container {
     width: 100%;

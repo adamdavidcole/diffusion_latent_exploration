@@ -40,7 +40,7 @@ const ExperimentList = ({ onRescan }) => {
     // Filter experiments based on search term and model filter
     const filteredExperiments = useMemo(() => {
         let filtered = experiments;
-        
+
         // Apply model filter
         if (modelFilter !== 'all') {
             filtered = filtered.filter(experiment => {
@@ -53,7 +53,7 @@ const ExperimentList = ({ onRescan }) => {
                 return true;
             });
         }
-        
+
         // Apply search filter
         if (searchTerm.trim()) {
             const term = searchTerm.toLowerCase();
@@ -63,7 +63,7 @@ const ExperimentList = ({ onRescan }) => {
                 experiment.model_id.toLowerCase().includes(term)
             );
         }
-        
+
         return filtered;
     }, [experiments, searchTerm, modelFilter]);
 
@@ -140,7 +140,7 @@ const ExperimentList = ({ onRescan }) => {
                         </button>
                     )}
                 </div>
-                
+
                 {/* Model Filter Toggles */}
                 <div className="model-filter-container">
                     <button
@@ -162,7 +162,7 @@ const ExperimentList = ({ onRescan }) => {
                         1.3B
                     </button>
                 </div>
-                
+
                 {(searchTerm || modelFilter !== 'all') && (
                     <div className="search-results-info">
                         {filteredExperiments.length} of {experiments.length} experiments
@@ -176,7 +176,7 @@ const ExperimentList = ({ onRescan }) => {
                 <div className="empty-state">
                     <h3>No experiments found</h3>
                     <p>
-                        No experiments match 
+                        No experiments match
                         {searchTerm && ` "${searchTerm}"`}
                         {searchTerm && modelFilter !== 'all' && ' and'}
                         {modelFilter !== 'all' && ` ${modelFilter.toUpperCase()} model`}
@@ -188,8 +188,8 @@ const ExperimentList = ({ onRescan }) => {
                             </button>
                         )}
                         {modelFilter !== 'all' && (
-                            <button 
-                                onClick={() => handleModelFilterChange('all')} 
+                            <button
+                                onClick={() => handleModelFilterChange('all')}
                                 className="clear-search-btn-large"
                             >
                                 Show all models

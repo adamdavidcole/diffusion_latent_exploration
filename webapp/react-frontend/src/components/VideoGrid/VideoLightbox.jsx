@@ -14,7 +14,7 @@ const VideoLightbox = ({ video, isOpen, onClose, onNavigate, getPreviewInfo }) =
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (!isOpen) return;
-            
+
             switch (e.key) {
                 case 'Escape':
                     onClose();

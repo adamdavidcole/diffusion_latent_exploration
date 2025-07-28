@@ -4,6 +4,9 @@ import { useIntersectionObserver } from '../../hooks/useIntersectionObserver';
 import { useVideoCache } from '../../hooks/useVideoCache';
 import VideoCell from './VideoCell';
 import VideoLightbox from './VideoLightbox';
+import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
+import { extractClosestEdge, attachClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 
 const VideoGrid = () => {
     const context = useApp();
@@ -20,8 +23,28 @@ const VideoGrid = () => {
     const [lightboxVideo, setLightboxVideo] = useState(null);
     const currentExperimentNameRef = useRef(null);
 
+    // Drag and drop state
+    const [reorderedVideoGrid, setReorderedVideoGrid] = useState(null);
+    const [dragState, setDragState] = useState({ isDragging: false, draggedRowIndex: null });
+
     // Use video cache hook
     const { cancelInflightRequests, getCacheStats } = useVideoCache();
+
+    // Get the video grid to render (reordered or original)
+    const videoGridToRender = reorderedVideoGrid || currentExperiment?.video_grid || [];
+
+    // Reset reordered grid when experiment changes
+    const resetRowOrder = useCallback(() => {
+        setReorderedVideoGrid(null);
+    }, []);
+
+    // Handle drag and drop
+    const handleReorderRows = useCallback((startIndex, finishIndex) => {
+        const items = Array.from(videoGridToRender);
+        const [reorderedItem] = items.splice(startIndex, 1);
+        items.splice(finishIndex, 0, reorderedItem);
+        setReorderedVideoGrid(items);
+    }, [videoGridToRender]);
 
     // Handle lightbox open/close
     const handleOpenLightbox = useCallback((video) => {
@@ -34,15 +57,15 @@ const VideoGrid = () => {
 
     // Handle navigation in lightbox
     const handleLightboxNavigation = useCallback((direction) => {
-        if (!lightboxVideo || !currentExperiment?.video_grid) return;
-        
-        const grid = currentExperiment.video_grid;
+        if (!lightboxVideo || !videoGridToRender.length) return;
+
+        const grid = videoGridToRender;
         let currentRowIndex = -1;
         let currentVideoIndex = -1;
-        
+
         // Find current video position in grid
         for (let rowIndex = 0; rowIndex < grid.length; rowIndex++) {
-            const videoIndex = grid[rowIndex].videos.findIndex(v => 
+            const videoIndex = grid[rowIndex].videos.findIndex(v =>
                 v.video_path === lightboxVideo.video_path
             );
             if (videoIndex !== -1) {
@@ -51,12 +74,12 @@ const VideoGrid = () => {
                 break;
             }
         }
-        
+
         if (currentRowIndex === -1) return;
-        
+
         let newRowIndex = currentRowIndex;
         let newVideoIndex = currentVideoIndex;
-        
+
         switch (direction) {
             case 'left':
                 newVideoIndex = currentVideoIndex - 1;
@@ -93,24 +116,24 @@ const VideoGrid = () => {
             default:
                 return;
         }
-        
+
         const newVideo = grid[newRowIndex].videos[newVideoIndex];
         if (newVideo) {
             setLightboxVideo(newVideo);
         }
-    }, [lightboxVideo, currentExperiment?.video_grid]);
+    }, [lightboxVideo, videoGridToRender]);
 
     // Get preview information for navigation
     const getNavigationPreview = useCallback((direction) => {
-        if (!lightboxVideo || !currentExperiment?.video_grid) return null;
-        
-        const grid = currentExperiment.video_grid;
+        if (!lightboxVideo || !videoGridToRender.length) return null;
+
+        const grid = videoGridToRender;
         let currentRowIndex = -1;
         let currentVideoIndex = -1;
-        
+
         // Find current video position in grid
         for (let rowIndex = 0; rowIndex < grid.length; rowIndex++) {
-            const videoIndex = grid[rowIndex].videos.findIndex(v => 
+            const videoIndex = grid[rowIndex].videos.findIndex(v =>
                 v.video_path === lightboxVideo.video_path
             );
             if (videoIndex !== -1) {
@@ -119,12 +142,12 @@ const VideoGrid = () => {
                 break;
             }
         }
-        
+
         if (currentRowIndex === -1) return null;
-        
+
         let newRowIndex = currentRowIndex;
         let newVideoIndex = currentVideoIndex;
-        
+
         switch (direction) {
             case 'left':
                 newVideoIndex = currentVideoIndex - 1;
@@ -146,7 +169,7 @@ const VideoGrid = () => {
                 if (newVideoIndex >= grid[newRowIndex].videos.length) {
                     newVideoIndex = grid[newRowIndex].videos.length - 1;
                 }
-                return grid[newRowIndex].variation.length > 40 
+                return grid[newRowIndex].variation.length > 40
                     ? grid[newRowIndex].variation.substring(0, 40) + '...'
                     : grid[newRowIndex].variation;
             case 'down':
@@ -157,13 +180,13 @@ const VideoGrid = () => {
                 if (newVideoIndex >= grid[newRowIndex].videos.length) {
                     newVideoIndex = grid[newRowIndex].videos.length - 1;
                 }
-                return grid[newRowIndex].variation.length > 40 
+                return grid[newRowIndex].variation.length > 40
                     ? grid[newRowIndex].variation.substring(0, 40) + '...'
                     : grid[newRowIndex].variation;
             default:
                 return null;
         }
-    }, [lightboxVideo, currentExperiment?.video_grid]);
+    }, [lightboxVideo, videoGridToRender]);
 
     // Calculate proportional gap
     const calculateGap = useCallback((size) => {
@@ -229,6 +252,10 @@ const VideoGrid = () => {
             // Close lightbox if open
             setLightboxVideo(null);
 
+            // Reset row reordering
+            setReorderedVideoGrid(null);
+            setDragState({ isDragging: false, draggedRowIndex: null });
+
             // Update current experiment reference
             currentExperimentNameRef.current = newExperimentName;
 
@@ -237,6 +264,130 @@ const VideoGrid = () => {
             console.log('Cache stats after cleanup:', stats);
         }
     }, [currentExperiment?.name, disconnect, cancelInflightRequests, getCacheStats]);
+
+    // Draggable Row Component
+    const DraggableRow = ({ row, rowIndex, gapRem }) => {
+        const rowRef = useRef(null);
+        const [isDragging, setIsDragging] = useState(false);
+        const [dragOverState, setDragOverState] = useState(null);
+
+        useEffect(() => {
+            const element = rowRef.current;
+            if (!element) return;
+
+            return combine(
+                draggable({
+                    element,
+                    getInitialData: () => ({ rowIndex, type: 'grid-row' }),
+                    onDragStart: () => {
+                        setIsDragging(true);
+                        setDragState({ isDragging: true, draggedRowIndex: rowIndex });
+                    },
+                    onDrop: () => {
+                        setIsDragging(false);
+                        setDragState({ isDragging: false, draggedRowIndex: null });
+                    },
+                }),
+                dropTargetForElements({
+                    element,
+                    canDrop: ({ source }) => source.data.type === 'grid-row',
+                    getIsSticky: () => true,
+                    getData: ({ input, element }) => {
+                        return attachClosestEdge({ type: 'grid-row', rowIndex }, {
+                            input,
+                            element,
+                            allowedEdges: ['top', 'bottom'],
+                        });
+                    },
+                    onDragEnter: ({ self, source }) => {
+                        const sourceIndex = source.data.rowIndex;
+                        const targetIndex = self.data.rowIndex;
+                        const edge = extractClosestEdge(self.data);
+
+                        if (sourceIndex !== targetIndex) {
+                            setDragOverState({ edge, isTarget: true });
+                        }
+                    },
+                    onDragLeave: () => {
+                        setDragOverState(null);
+                    },
+                    onDrop: ({ self, source }) => {
+                        const sourceIndex = source.data.rowIndex;
+                        const targetIndex = self.data.rowIndex;
+                        const edge = extractClosestEdge(self.data);
+
+                        setDragOverState(null);
+
+                        if (sourceIndex === targetIndex) return;
+
+                        let finishIndex = targetIndex;
+                        if (edge === 'bottom') {
+                            finishIndex = targetIndex + 1;
+                        }
+
+                        // Adjust for removal of source
+                        if (sourceIndex < finishIndex) {
+                            finishIndex -= 1;
+                        }
+
+                        handleReorderRows(sourceIndex, finishIndex);
+                    },
+                })
+            );
+        }, [rowIndex, handleReorderRows]);
+
+        const dragHandleStyle = {
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 8px',
+            cursor: isDragging ? 'grabbing' : 'grab',
+            color: '#666',
+            fontSize: '16px',
+            userSelect: 'none',
+        };
+
+        const rowClasses = [
+            'grid-row',
+            isDragging && 'dragging',
+            dragOverState?.isTarget && 'drag-over',
+            dragOverState?.edge === 'top' && 'drag-over-top',
+            dragOverState?.edge === 'bottom' && 'drag-over-bottom',
+        ].filter(Boolean).join(' ');
+
+        return (
+            <div
+                ref={rowRef}
+                className={rowClasses}
+                data-row-index={rowIndex}
+                style={{ gap: `${gapRem}rem` }}
+            >
+                <div className="drag-handle" style={dragHandleStyle} title="Drag to reorder">
+                    ⋮⋮
+                </div>
+                <div className={`row-label ${showLabels ? '' : 'hidden'}`}>
+                    {row.variation}
+                </div>
+                <div
+                    className="videos-row"
+                    style={{ gap: `${gapRem}rem` }}
+                >
+                    {currentExperiment.seeds.map(seed => {
+                        const video = row.videos.find(v => v && v.seed === seed);
+                        return (
+                            <VideoCell
+                                key={`${rowIndex}-${seed}`}
+                                video={video}
+                                videoSize={videoSize}
+                                onVideoLoaded={handleVideoLoaded}
+                                onMetadataLoaded={handleMetadataLoaded}
+                                onOpenLightbox={handleOpenLightbox}
+                            />
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
 
     if (!currentExperiment) {
         return (
@@ -247,7 +398,7 @@ const VideoGrid = () => {
         );
     }
 
-    if (currentExperiment.video_grid.length === 0) {
+    if (videoGridToRender.length === 0) {
         return (
             <div className="empty-state">
                 <h3>No videos found</h3>
@@ -260,7 +411,18 @@ const VideoGrid = () => {
         <>
             {/* Header */}
             <div className="experiment-header">
-                <h2 id="experiment-title">{currentExperiment.name}</h2>
+                <div className="experiment-title-row">
+                    <h2 id="experiment-title">{currentExperiment.name}</h2>
+                    {reorderedVideoGrid && (
+                        <button
+                            className="reset-order-btn"
+                            onClick={resetRowOrder}
+                            title="Reset row order to original"
+                        >
+                            Reset Order
+                        </button>
+                    )}
+                </div>
                 <div className="experiment-stats">
                     {currentExperiment.model_id && (
                         <span className="stat-item">{currentExperiment.model_id.split('/').pop().replace('-Diffusers', '').replace('Wan2.1-T2V-', '')}</span>
@@ -284,6 +446,7 @@ const VideoGrid = () => {
                 id="seeds-header"
                 style={{ gap: `${gapRem}rem` }}
             >
+                <div className="drag-handle-spacer"></div>
                 <div className={`row-label ${showLabels ? '' : 'hidden'}`}></div>
                 {currentExperiment.seeds.map(seed => (
                     <div
@@ -303,35 +466,13 @@ const VideoGrid = () => {
                 id="video-grid"
                 style={{ gap: `${gapRem}rem` }}
             >
-                {currentExperiment.video_grid.map((row, rowIndex) => (
-                    <div
-                        key={rowIndex}
-                        className="grid-row"
-                        data-row-index={rowIndex}
-                        style={{ gap: `${gapRem}rem` }}
-                    >
-                        <div className={`row-label ${showLabels ? '' : 'hidden'}`}>
-                            {row.variation}
-                        </div>
-                        <div
-                            className="videos-row"
-                            style={{ gap: `${gapRem}rem` }}
-                        >
-                            {currentExperiment.seeds.map(seed => {
-                                const video = row.videos.find(v => v && v.seed === seed);
-                                return (
-                                    <VideoCell
-                                        key={`${rowIndex}-${seed}`}
-                                        video={video}
-                                        videoSize={videoSize}
-                                        onVideoLoaded={handleVideoLoaded}
-                                        onMetadataLoaded={handleMetadataLoaded}
-                                        onOpenLightbox={handleOpenLightbox}
-                                    />
-                                );
-                            })}
-                        </div>
-                    </div>
+                {videoGridToRender.map((row, rowIndex) => (
+                    <DraggableRow
+                        key={`row-${row.variation}-${rowIndex}`}
+                        row={row}
+                        rowIndex={rowIndex}
+                        gapRem={gapRem}
+                    />
                 ))}
             </div>
 
