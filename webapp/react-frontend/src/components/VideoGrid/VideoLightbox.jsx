@@ -1,14 +1,42 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 
-const VideoLightbox = ({ video, isOpen, onClose }) => {
+const VideoLightbox = ({ video, isOpen, onClose, onNavigate, getPreviewInfo }) => {
     const videoRef = useRef(null);
     const lightboxRef = useRef(null);
 
-    // Handle ESC key press
+    // Get preview information for navigation
+    const getNavigationPreview = (direction) => {
+        if (!onNavigate || !getPreviewInfo) return null;
+        return getPreviewInfo(direction);
+    };
+
+    // Handle keyboard navigation
     useEffect(() => {
         const handleKeyDown = (e) => {
-            if (e.key === 'Escape' && isOpen) {
-                onClose();
+            if (!isOpen) return;
+            
+            switch (e.key) {
+                case 'Escape':
+                    onClose();
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    onNavigate?.('left');
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    onNavigate?.('right');
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    onNavigate?.('up');
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    onNavigate?.('down');
+                    break;
+                default:
+                    break;
             }
         };
 
@@ -23,7 +51,7 @@ const VideoLightbox = ({ video, isOpen, onClose }) => {
             document.removeEventListener('keydown', handleKeyDown);
             document.body.style.overflow = 'unset';
         };
-    }, [isOpen, onClose]);
+    }, [isOpen, onClose, onNavigate]);
 
     // Handle click outside
     const handleBackdropClick = useCallback((e) => {
@@ -75,6 +103,60 @@ const VideoLightbox = ({ video, isOpen, onClose }) => {
                     ×
                 </button>
 
+                {/* Navigation buttons */}
+                {onNavigate && (
+                    <>
+                        <button
+                            className="lightbox-nav lightbox-nav-left"
+                            onClick={() => onNavigate('left')}
+                            aria-label="Previous video (left)"
+                        >
+                            ◀
+                            {getPreviewInfo && (
+                                <div className="lightbox-nav-preview">
+                                    {getNavigationPreview('left') || 'Previous seed'}
+                                </div>
+                            )}
+                        </button>
+                        <button
+                            className="lightbox-nav lightbox-nav-right"
+                            onClick={() => onNavigate('right')}
+                            aria-label="Next video (right)"
+                        >
+                            ▶
+                            {getPreviewInfo && (
+                                <div className="lightbox-nav-preview">
+                                    {getNavigationPreview('right') || 'Next seed'}
+                                </div>
+                            )}
+                        </button>
+                        <button
+                            className="lightbox-nav lightbox-nav-up"
+                            onClick={() => onNavigate('up')}
+                            aria-label="Previous variation (up)"
+                        >
+                            ▲
+                            {getPreviewInfo && (
+                                <div className="lightbox-nav-preview">
+                                    {getNavigationPreview('up') || 'Previous variation'}
+                                </div>
+                            )}
+                        </button>
+                        <button
+                            className="lightbox-nav lightbox-nav-down"
+                            onClick={() => onNavigate('down')}
+                            aria-label="Next variation (down)"
+                        >
+                            ▼
+                            {getPreviewInfo && (
+                                <div className="lightbox-nav-preview">
+                                    {getNavigationPreview('down') || 'Next variation'}
+                                </div>
+                            )}
+                        </button>
+                    </>
+                )}
+
                 <div className="lightbox-video-container">
                     <video
                         ref={videoRef}
@@ -95,6 +177,11 @@ const VideoLightbox = ({ video, isOpen, onClose }) => {
                         <span><strong>Steps:</strong> {video.steps}</span>
                         <span><strong>CFG Scale:</strong> {video.cfg_scale}</span>
                     </div>
+                    {onNavigate && (
+                        <div className="lightbox-controls-hint">
+                            <span>Use arrow keys or buttons to navigate: ← → (videos) ↑ ↓ (variations) | ESC to close</span>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
