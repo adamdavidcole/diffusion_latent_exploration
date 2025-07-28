@@ -7,7 +7,20 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
     const [isLoaded, setIsLoaded] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
     const { state } = useApp();
-    const { loadVideo } = useVideoCache();
+    // const { loadVideo } = useVideoCache(); // Commented out to preserve thumbnail performance
+
+    // Calculate thumbnail path from video path
+    const getThumbnailPath = useCallback((videoPath) => {
+        if (!videoPath) return null;
+        try {
+            // Replace .mp4 extension with .jpg for thumbnail
+            const thumbnailPath = videoPath.replace(/\.mp4$/, '.jpg');
+            return `/api/thumbnail/${thumbnailPath}`;
+        } catch (error) {
+            console.warn('Error generating thumbnail path:', error);
+            return null;
+        }
+    }, []);
 
     const handleClick = useCallback(() => {
         if (onOpenLightbox && video) {
@@ -16,39 +29,60 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
     }, [onOpenLightbox, video]);
 
     const handleMouseEnter = useCallback(() => {
-        const videoElement = videoRef.current;
-        if (!videoElement || isPlaying || state.isScrubbingActive) return;
+        try {
+            const videoElement = videoRef.current;
+            if (!videoElement || isPlaying || state.isScrubbingActive) return;
 
-        videoElement.play();
-        setIsPlaying(true);
-    }, [isPlaying, state.isScrubbingActive]);
+            // Load the video source if not already loaded
+            if (!videoElement.src && video?.video_path) {
+                videoElement.src = `/api/video/${video.video_path}`;
+            }
+
+            // Play the video (will load first if needed)
+            videoElement.play().catch(err => {
+                console.warn('Failed to play video on hover:', err);
+            });
+            setIsPlaying(true);
+        } catch (error) {
+            console.error('Error in handleMouseEnter:', error);
+        }
+    }, [isPlaying, state.isScrubbingActive, video?.video_path]);
 
     const handleMouseLeave = useCallback(() => {
-        const videoElement = videoRef.current;
-        if (!videoElement || state.isScrubbingActive) return;
+        try {
+            const videoElement = videoRef.current;
+            if (!videoElement || state.isScrubbingActive) return;
 
-        videoElement.pause();
-        videoElement.currentTime = 0;
-        setIsPlaying(false);
+            videoElement.pause();
+            videoElement.currentTime = 0;
+            setIsPlaying(false);
+        } catch (error) {
+            console.error('Error in handleMouseLeave:', error);
+        }
     }, [state.isScrubbingActive]);
 
     const handleLoadedMetadata = useCallback(() => {
-        const videoElement = videoRef.current;
-        if (!videoElement) return;
+        try {
+            const videoElement = videoRef.current;
+            if (!videoElement) return;
 
-        setIsLoaded(true);
-        if (onMetadataLoaded && videoElement.duration) {
-            onMetadataLoaded(videoElement.duration);
+            setIsLoaded(true);
+            if (onMetadataLoaded && videoElement.duration) {
+                onMetadataLoaded(videoElement.duration);
+            }
+        } catch (error) {
+            console.error('Error in handleLoadedMetadata:', error);
         }
     }, [onMetadataLoaded]);
 
     // Load video when component mounts and when video prop changes
-    useEffect(() => {
-        const videoElement = videoRef.current;
-        if (videoElement && video?.video_path) {
-            loadVideo(videoElement, video.video_path);
-        }
-    }, [video?.video_path, loadVideo]);
+    // COMMENTED OUT: This was preloading all videos and defeating thumbnail performance
+    // useEffect(() => {
+    //     const videoElement = videoRef.current;
+    //     if (videoElement && video?.video_path) {
+    //         loadVideo(videoElement, video.video_path);
+    //     }
+    // }, [video?.video_path, loadVideo]);
 
     // Set up event listeners
     useEffect(() => {
@@ -100,13 +134,15 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
                 muted
                 loop
                 preload="none"
+                poster={getThumbnailPath(video.video_path)}
             />
-            <div className="video-overlay">
+                        <div className="video-overlay">
                 <div>Seed: {video.seed}</div>
                 <div>{video.width}x{video.height}, {video.num_frames}f</div>
                 <div>Steps: {video.steps}, CFG: {video.cfg_scale}</div>
             </div>
-            {!isLoaded && <div className="loading-spinner" />}
+            {/* Loading spinner hidden for thumbnail-based loading */}
+            {/* {!isLoaded && <div className="loading-spinner" />} */}
         </div>
     );
 };

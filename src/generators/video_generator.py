@@ -6,6 +6,7 @@ import os
 import time
 import logging
 import gc
+import subprocess
 from typing import List, Optional, Dict, Any, Callable, Union, Tuple
 from pathlib import Path
 from dataclasses import dataclass
@@ -34,6 +35,53 @@ from src.prompts.prompt_weighting import (
     create_enhanced_language_processor
 )
 from src.prompts.wan_weighted_embeddings_fixed import create_wan_weighted_embeddings
+
+
+def generate_thumbnail(video_path: str) -> bool:
+    """Generate thumbnail for a video file using FFmpeg.
+    
+    Args:
+        video_path: Path to the video file
+        
+    Returns:
+        bool: True if thumbnail was generated successfully, False otherwise
+    """
+    try:
+        # Create thumbnail path (same directory, same name, .jpg extension)
+        video_path_obj = Path(video_path)
+        thumbnail_path = video_path_obj.with_suffix('.jpg')
+        
+        # Skip if thumbnail already exists
+        if thumbnail_path.exists():
+            logging.debug(f"Thumbnail already exists: {thumbnail_path}")
+            return True
+        
+        # Generate thumbnail using FFmpeg
+        cmd = [
+            'ffmpeg',
+            '-i', str(video_path),
+            '-vf', 'select=eq(n\\,0)',  # Select first frame
+            '-vsync', 'vfr',
+            '-q:v', '2',  # High quality
+            '-y',  # Overwrite output files
+            str(thumbnail_path)
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        
+        if result.returncode == 0:
+            logging.debug(f"Thumbnail generated: {thumbnail_path}")
+            return True
+        else:
+            logging.warning(f"FFmpeg failed for {video_path}: {result.stderr}")
+            return False
+            
+    except subprocess.TimeoutExpired:
+        logging.error(f"Thumbnail generation timed out for {video_path}")
+        return False
+    except Exception as e:
+        logging.error(f"Error generating thumbnail for {video_path}: {e}")
+        return False
 
 
 def clear_gpu_memory():
@@ -651,6 +699,14 @@ class WanVideoGenerator:
                 logging.info(f"Exporting video frames to: {video_path}")
                 export_to_video(video_frames, video_path, fps=self.config.video_settings.fps)
                 logging.info("Video export completed successfully")
+                
+                # Generate thumbnail for the video
+                logging.info(f"Generating thumbnail for: {video_path}")
+                if generate_thumbnail(video_path):
+                    logging.info("Thumbnail generated successfully")
+                else:
+                    logging.warning("Thumbnail generation failed (continuing without thumbnail)")
+                    
             except Exception as e:
                 # Check if it's a tensor conversion error
                 if "cuda" in str(e).lower() and "numpy" in str(e).lower():
@@ -674,6 +730,13 @@ class WanVideoGenerator:
                     logging.info("Forced CPU conversion completed, retrying export...")
                     export_to_video(video_frames, video_path, fps=self.config.video_settings.fps)
                     
+                    # Generate thumbnail after successful retry
+                    logging.info(f"Generating thumbnail for: {video_path}")
+                    if generate_thumbnail(video_path):
+                        logging.info("Thumbnail generated successfully")
+                    else:
+                        logging.warning("Thumbnail generation failed (continuing without thumbnail)")
+                    
                 # If export fails due to memory, try with more aggressive cleanup
                 elif "out of memory" in str(e).lower():
                     logging.warning(f"Video export failed with memory error, trying with cleanup: {e}")
@@ -681,6 +744,14 @@ class WanVideoGenerator:
                     gc.collect()  # Extra garbage collection
                     time.sleep(1)  # Give system time to clean up
                     export_to_video(video_frames, video_path, fps=self.config.video_settings.fps)
+                    
+                    # Generate thumbnail after successful retry
+                    logging.info(f"Generating thumbnail for: {video_path}")
+                    if generate_thumbnail(video_path):
+                        logging.info("Thumbnail generated successfully")
+                    else:
+                        logging.warning("Thumbnail generation failed (continuing without thumbnail)")
+                        
                 else:
                     logging.error(f"Unexpected error during video export: {e}")
                     raise
