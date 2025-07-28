@@ -32,6 +32,12 @@ Examples:
   # Use custom config and specify output
   python main.py --config configs/romantic.yaml --template "a [gentle|passionate] kiss" --output outputs/kiss_series
   
+  # Continue from existing batch (same template)
+  python main.py --continue-from outputs/14b_kiss_5frame_weighted_20250726_020105
+  
+  # Continue from existing batch with new template
+  python main.py --continue-from outputs/14b_kiss_5frame_weighted_20250726_020105 --template "a [tender|passionate] embrace"
+  
   # Preview without generating
   python main.py --template "a [cat|dog] playing in [garden|house]" --preview
   
@@ -46,6 +52,9 @@ Examples:
     
     parser.add_argument('--config', '-c', type=str, default='configs/default.yaml',
                        help='Configuration file path')
+    
+    parser.add_argument('--continue-from', type=str,
+                       help='Continue generation from existing batch directory')
     
     parser.add_argument('--output', '-o', type=str,
                        help='Output directory (overrides config)')
@@ -247,8 +256,8 @@ def main():
         print(f"Created default configuration: {config_path}")
         return 0
     
-    # Require template for main operations
-    if not args.template and not args.validate:
+    # Require template for main operations unless continuing from existing batch
+    if not args.template and not args.validate and not args.continue_from:
         print("Error: --template is required for generation operations")
         print("Use --help for usage information or --create-examples to see example templates")
         return 1
@@ -270,8 +279,24 @@ def main():
                 return 1
             else:
                 print("Setup validation passed ✓")
-                if not args.template:
+                if not args.template and not args.continue_from:
                     return 0
+        
+        # Handle continue from existing batch
+        if args.continue_from:
+            print(f"Continuing generation from: {args.continue_from}")
+            
+            batch_results = orchestrator.continue_from_batch(
+                batch_directory=args.continue_from,
+                new_template=args.template,  # Optional - can be None to use original
+                videos_per_variation=args.videos_per_variation,
+                max_variations=args.max_variations
+            )
+            
+            print(f"\n🎉 Batch continuation complete!")
+            print(f"Results saved to: {batch_results['batch_info']['output_directory']}")
+            
+            return 0
         
         # Analyze template
         if args.analyze:
