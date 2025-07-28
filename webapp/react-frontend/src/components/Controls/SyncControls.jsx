@@ -4,14 +4,18 @@ import { useVideoControls } from '../../hooks/useVideoControls';
 
 const SyncControls = () => {
     const { state, actions } = useApp();
-    const { currentExperiment, videoDuration } = state;
+    const { currentExperiment } = state;
     const { playAllVideos, pauseAllVideos, muteAllVideos, scrubAllVideos } = useVideoControls();
+    const videoDuration = currentExperiment && currentExperiment.duration_seconds || 0;
+
 
     const [isMuted, setIsMuted] = useState(true);
     const [scrubberValue, setScrubberValue] = useState(0);
     const [scrubberTime, setScrubberTime] = useState('0:00');
     const [isPlayAllLoading, setIsPlayAllLoading] = useState(false);
     const sizeSliderTimeoutRef = useRef(null);
+
+
 
     // Throttled video size update
     const handleVideoSizeChange = useCallback((e) => {
@@ -40,10 +44,11 @@ const SyncControls = () => {
     const handleScrubberChange = useCallback((e) => {
         const percentage = parseFloat(e.target.value);
         setScrubberValue(percentage);
+        scrubAllVideos(percentage);
 
-        const currentTime = scrubAllVideos(percentage);
+        const currentTime = (percentage / 100) * videoDuration;
         updateScrubberTime(currentTime);
-    }, [scrubAllVideos, updateScrubberTime]);
+    }, [scrubAllVideos, updateScrubberTime, videoDuration]);
 
     // Handle play all
     const handlePlayAll = useCallback(() => {

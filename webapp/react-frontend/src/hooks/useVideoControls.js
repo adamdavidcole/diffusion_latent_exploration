@@ -3,6 +3,11 @@ import { useApp } from '../context/AppContext';
 
 export const useVideoControls = () => {
   const { state, actions } = useApp();
+  const { currentExperiment } = state;
+  const videoDuration = currentExperiment && currentExperiment.duration_seconds || 0;
+
+  console.log("videoDuration", videoDuration)
+
 
   const playAllVideos = useCallback(async (onLoadingChange) => {
     const videos = Array.from(document.querySelectorAll('video'));
@@ -95,14 +100,14 @@ export const useVideoControls = () => {
   const scrubAllVideos = useCallback(async (percentage) => {
     console.log('Scrub all videos called with percentage:', percentage);
     
-    if (state.videoDuration === 0) {
+    if (videoDuration === 0) {
       console.log('No video duration set, skipping scrub');
       return;
     }
 
     // Don't set scrubbing active to avoid re-renders
     // actions.setScrubbingActive(true);
-    const targetTime = (percentage / 100) * state.videoDuration;
+    const targetTime = (percentage / 100) * videoDuration;
 
     // Get all videos and find visible ones
     const videos = Array.from(document.querySelectorAll('video'));
@@ -155,13 +160,13 @@ export const useVideoControls = () => {
     });
 
     // Only set duration if it's not already set to avoid re-renders
-    if (state.videoDuration === 0) {
-      const firstVideoWithDuration = loadedVideos.find(v => v && v.duration && !isNaN(v.duration));
-      if (firstVideoWithDuration) {
-        console.log('Setting video duration from first video:', firstVideoWithDuration.duration);
-        // actions.setVideoDuration(firstVideoWithDuration.duration);
-      }
-    }
+    // if (videoDuration === 0) {
+    //   const firstVideoWithDuration = loadedVideos.find(v => v && v.duration && !isNaN(v.duration));
+    //   if (firstVideoWithDuration) {
+    //     console.log('Setting video duration from first video:', firstVideoWithDuration.duration);
+    //     // actions.setVideoDuration(firstVideoWithDuration.duration);
+    //   }
+    // }
 
     // Don't clear scrubbing flag since we're not setting it
     // setTimeout(() => {
@@ -169,7 +174,7 @@ export const useVideoControls = () => {
     // }, 50);
 
     return targetTime;
-  }, [state.videoDuration, actions]);
+  }, [videoDuration, actions]);
 
   return {
     playAllVideos,

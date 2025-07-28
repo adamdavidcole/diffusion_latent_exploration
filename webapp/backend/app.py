@@ -66,12 +66,24 @@ class VideoAnalyzer:
             
             # Load model info and other config from YAML
             config_path = exp_dir / 'configs' / 'generation_config.yaml'
+            duration_seconds = None
             if config_path.exists():
                 with open(config_path, 'r') as f:
                     config = yaml.safe_load(f)
                     if not prompt_template_path.exists():
                         base_prompt = config.get('base_prompt', 'Unknown prompt')
                     model_id = config.get('model_settings', {}).get('model_id', 'Unknown model')
+                    # Extract duration from config
+                    video_settings = config.get('video_settings', {})
+                    duration_seconds = video_settings.get('duration')
+                    if duration_seconds is None:
+                        frames = video_settings.get('frames')
+                        fps = video_settings.get('fps')
+                        if frames and fps:
+                            try:
+                                duration_seconds = float(frames) / float(fps)
+                            except Exception:
+                                duration_seconds = None
             
             # Load prompt variations to get actual variation names
             variations_data = {}
@@ -125,6 +137,7 @@ class VideoAnalyzer:
                 'videos_count': len(videos),
                 'variations_count': len(variations),
                 'seeds_count': len(seeds),
+                'duration_seconds': duration_seconds,
                 'path': str(exp_dir),
                 'created_at': creation_datetime.isoformat(),
                 'created_timestamp': creation_time
