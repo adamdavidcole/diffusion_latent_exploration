@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useCallback } from 'react';
+import { getVideoUrl } from '../../services/api';
 
 const VideoLightbox = ({ video, isOpen, onClose, onNavigate, getPreviewInfo }) => {
     const videoRef = useRef(null);
@@ -65,7 +66,7 @@ const VideoLightbox = ({ video, isOpen, onClose, onNavigate, getPreviewInfo }) =
         const videoElement = videoRef.current;
         if (isOpen && videoElement && video?.video_path) {
             // Set video source
-            const videoUrl = `/media/${video.video_path}`;
+            const videoUrl = getVideoUrl(video.video_path);
             if (videoElement.src !== videoUrl) {
                 videoElement.src = videoUrl;
             }

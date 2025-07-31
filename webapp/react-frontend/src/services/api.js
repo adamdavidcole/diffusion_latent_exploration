@@ -25,6 +25,14 @@ const fetchWithTimeout = (url, options = {}, timeout = 10000) => {
   ]);
 };
 
+export const getVideoUrl = (videoPath) => {
+    return `${API_BASE}/media/${videoPath}`;
+};
+
+export const getThumbnailUrl = (imgPath) => {
+  return `${API_BASE}/media/${imgPath}`;
+}
+
 export const api = {
   async getExperiments() {
     console.log('API: Fetching experiments...');
@@ -63,13 +71,9 @@ export const api = {
     return response.json();
   },
 
-  getVideoUrl(videoPath) {
-    return `${API_BASE}/media/${videoPath}`;
-  },
-
   async fetchVideoBlob(videoPath, signal = null) {
     const options = signal ? { signal } : {};
-    const response = await fetch(this.getVideoUrl(videoPath), options);
+    const response = await fetch(getVideoUrl(videoPath), options);
     if (!response.ok) {
       throw new Error(`Failed to fetch video: ${response.status}`);
     }

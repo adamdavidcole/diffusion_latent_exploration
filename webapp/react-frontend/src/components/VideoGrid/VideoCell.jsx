@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { getVideoUrl, getThumbnailUrl } from '../../services/api';
 import { useApp } from '../../context/AppContext';
 import { useVideoCache } from '../../hooks/useVideoCache';
 
@@ -18,7 +19,7 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
         try {
             // Replace .mp4 extension with .jpg for thumbnail
             const thumbnailPath = videoPath.replace(/\.mp4$/, '.jpg');
-            return `/media/${thumbnailPath}`;
+            return getThumbnailUrl(thumbnailPath);
         } catch (error) {
             console.warn('Error generating thumbnail path:', error);
             return null;
@@ -208,7 +209,7 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
                     width: `${videoSize}px`,
                     height: `${Math.round(videoSize * 0.56)}px`
                 }}
-                src={`/media/${video.video_path}`}
+                src={getVideoUrl(video.video_path)}
                 muted
                 loop
                 preload={preloadMode}
