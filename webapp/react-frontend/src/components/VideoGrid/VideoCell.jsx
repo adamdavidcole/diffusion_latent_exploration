@@ -18,7 +18,7 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
         try {
             // Replace .mp4 extension with .jpg for thumbnail
             const thumbnailPath = videoPath.replace(/\.mp4$/, '.jpg');
-            return `/api/thumbnail/${thumbnailPath}`;
+            return `/media/${thumbnailPath}`;
         } catch (error) {
             console.warn('Error generating thumbnail path:', error);
             return null;
@@ -208,7 +208,7 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
                     width: `${videoSize}px`,
                     height: `${Math.round(videoSize * 0.56)}px`
                 }}
-                src={`/api/video/${video.video_path}`}
+                src={`/media/${video.video_path}`}
                 muted
                 loop
                 preload={preloadMode}

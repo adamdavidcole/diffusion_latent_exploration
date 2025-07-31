@@ -308,44 +308,6 @@ def create_app():
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
-    @app.route('/api/video/<path:video_path>')
-    def serve_video(video_path):
-        """Serve video files with proper headers for streaming"""
-        try:
-            full_path = Path(app.config['VIDEO_OUTPUTS_DIR']) / video_path
-            
-            if not full_path.exists():
-                return jsonify({'error': 'Video not found'}), 404
-            
-            return send_file(str(full_path), mimetype='video/mp4')
-            
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
-    
-    @app.route('/api/thumbnail/<path:video_path>')
-    def serve_thumbnail(video_path):
-        """Serve thumbnail files for videos"""
-        try:
-            # Handle both cases: video_path with .mp4 or already with .jpg
-            if video_path.endswith('.jpg'):
-                # Path already has .jpg extension (e.g., "videos/prompt_000/video_001.jpg")
-                thumbnail_path = video_path
-            elif video_path.endswith('.mp4'):
-                # Replace .mp4 extension with .jpg for thumbnail
-                thumbnail_path = video_path[:-4] + '.jpg'
-            else:
-                # Add .jpg extension if no extension present
-                thumbnail_path = video_path + '.jpg'
-            
-            full_path = Path(app.config['VIDEO_OUTPUTS_DIR']) / thumbnail_path
-            
-            if not full_path.exists():
-                return jsonify({'error': 'Thumbnail not found'}), 404
-            
-            return send_file(str(full_path), mimetype='image/jpeg')
-            
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
     
     @app.route('/api/scan')
     def rescan_experiments():

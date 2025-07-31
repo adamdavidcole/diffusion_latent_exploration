@@ -6,6 +6,8 @@ const getApiBase = () => {
   if (import.meta.env.DEV) {
     return ''; // Use proxy in development
   }
+
+  // return "http://127.0.0.1:8888"
   
   // Production - use environment variable or default to your university server
   return import.meta.env.VITE_API_BASE_URL || 'https://acole9.pythonanywhere.com';
@@ -62,7 +64,7 @@ export const api = {
   },
 
   getVideoUrl(videoPath) {
-    return `${API_BASE}/api/video/${videoPath}`;
+    return `${API_BASE}/media/${videoPath}`;
   },
 
   async fetchVideoBlob(videoPath, signal = null) {

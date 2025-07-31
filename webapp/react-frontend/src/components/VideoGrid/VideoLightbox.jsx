@@ -65,7 +65,7 @@ const VideoLightbox = ({ video, isOpen, onClose, onNavigate, getPreviewInfo }) =
         const videoElement = videoRef.current;
         if (isOpen && videoElement && video?.video_path) {
             // Set video source
-            const videoUrl = `/api/video/${video.video_path}`;
+            const videoUrl = `/media/${video.video_path}`;
             if (videoElement.src !== videoUrl) {
                 videoElement.src = videoUrl;
             }

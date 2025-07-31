@@ -84,6 +84,9 @@ Examples:
     
     parser.add_argument('--validate', action='store_true',
                        help='Validate configuration and setup')
+
+    parser.add_argument('--note', type=str,
+                       help='Add generation context note for future reference')
     
     # Model settings overrides
     parser.add_argument('--device', type=str,
@@ -172,6 +175,10 @@ def load_or_create_config(config_path: str, args) -> GenerationConfig:
     
     if args.duration is not None:
         config.video_settings.duration = args.duration
+
+    # Apply utilities
+    if args.note:
+        config.note = args.note
     
     return config
 

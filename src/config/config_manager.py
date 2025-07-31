@@ -202,7 +202,8 @@ class ConfigManager:
             'videos_per_variation': config.videos_per_variation,
             'output_dir': config.output_dir,
             'batch_name': config.batch_name,
-            'use_timestamp': config.use_timestamp
+            'use_timestamp': config.use_timestamp,
+            'note': config.note
         }
     
     def validate_config(self, config: GenerationConfig) -> bool:
