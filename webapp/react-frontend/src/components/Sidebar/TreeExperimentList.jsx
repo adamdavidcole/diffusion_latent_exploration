@@ -11,6 +11,13 @@ const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, mo
     const [isExpanded, setIsExpanded] = useState(level < 2); // Auto-expand first two levels
     const navigate = useNavigate();
 
+    // Auto-expand when switching to alphabetical to show first experiment
+    useEffect(() => {
+        if (sortOrder === 'alphabetical' && level < 2) {
+            setIsExpanded(true);
+        }
+    }, [sortOrder, level]);
+
     const toggleExpanded = useCallback(() => {
         setIsExpanded(prev => !prev);
     }, []);
@@ -23,8 +30,8 @@ const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, mo
     if (node.type === 'folder') {
         const hasVisibleChildren = node.children?.some(child =>
             child.type === 'experiment' ?
-                isExperimentVisible(child.experiment_data, searchTerm, modelFilter, minVideoCount) :
-                hasVisibleExperiments(child, searchTerm, modelFilter, minVideoCount)
+                isExperimentVisible(child.experiment_data, searchTerm, modelFilter, minVideoCount, currentExperiment) :
+                hasVisibleExperiments(child, searchTerm, modelFilter, minVideoCount, currentExperiment)
         );
 
         if (!hasVisibleChildren) return null;
@@ -67,7 +74,7 @@ const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, mo
 
     // For experiment nodes
     if (node.type === 'experiment') {
-        if (!isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount)) {
+        if (!isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount, currentExperiment)) {
             return null;
         }
 
@@ -88,7 +95,12 @@ const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, mo
 };
 
 // Helper function to check if experiment matches filters
-const isExperimentVisible = (experiment, searchTerm, modelFilter, minVideoCount = 1) => {
+const isExperimentVisible = (experiment, searchTerm, modelFilter, minVideoCount = 1, currentExperiment = null) => {
+    // Always show the currently selected experiment, regardless of filters
+    if (currentExperiment && experiment.name === currentExperiment.name) {
+        return true;
+    }
+
     // Video count filter
     if (experiment.videos_count < minVideoCount) {
         return false;
@@ -118,12 +130,12 @@ const isExperimentVisible = (experiment, searchTerm, modelFilter, minVideoCount 
 };
 
 // Helper function to check if folder has visible experiments
-const hasVisibleExperiments = (node, searchTerm, modelFilter, minVideoCount = 1) => {
+const hasVisibleExperiments = (node, searchTerm, modelFilter, minVideoCount = 1, currentExperiment = null) => {
     if (node.type === 'experiment') {
-        return isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount);
+        return isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount, currentExperiment);
     }
     if (node.type === 'folder' && node.children) {
-        return node.children.some(child => hasVisibleExperiments(child, searchTerm, modelFilter, minVideoCount));
+        return node.children.some(child => hasVisibleExperiments(child, searchTerm, modelFilter, minVideoCount, currentExperiment));
     }
     return false;
 };
@@ -179,6 +191,27 @@ const sortChildren = (children, sortOrder) => {
     });
 };
 
+// Helper function to find the first experiment in alphabetical order (with filters applied)
+const findFirstExperiment = (node, searchTerm, modelFilter, minVideoCount, currentExperiment = null) => {
+    if (node.type === 'experiment') {
+        if (isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount, currentExperiment)) {
+            return node;
+        }
+        return null;
+    }
+    
+    if (node.type === 'folder' && node.children) {
+        // Sort children alphabetically and search through them
+        const sortedChildren = sortChildren(node.children, 'alphabetical');
+        for (const child of sortedChildren) {
+            const result = findFirstExperiment(child, searchTerm, modelFilter, minVideoCount, currentExperiment);
+            if (result) return result;
+        }
+    }
+    
+    return null;
+};
+
 const TreeExperimentList = ({ onRescan }) => {
     const navigate = useNavigate();
     const { state, actions } = useApp();
@@ -213,6 +246,17 @@ const TreeExperimentList = ({ onRescan }) => {
         }
     }, [onRescan, handleRescan]);
 
+    // Auto-select first experiment when loading with alphabetical sorting
+    useEffect(() => {
+        if (experimentsTree && sortOrder === 'alphabetical' && !currentExperiment) {
+            const firstExperiment = findFirstExperiment(experimentsTree, searchTerm, modelFilter, minVideoCount, currentExperiment);
+            if (firstExperiment) {
+                const experimentPath = firstExperiment.path.replace(/^outputs\//, '');
+                navigate(`/experiment/${experimentPath}`);
+            }
+        }
+    }, [experimentsTree, sortOrder, currentExperiment, searchTerm, modelFilter, minVideoCount, navigate]);
+
     // Calculate total visible experiments for search results
     const totalExperiments = useMemo(() => {
         if (!experimentsTree) return 0;
@@ -227,8 +271,8 @@ const TreeExperimentList = ({ onRescan }) => {
 
     const visibleExperiments = useMemo(() => {
         if (!experimentsTree || (!searchTerm && modelFilter === 'all' && minVideoCount === INITIAL_MIN_VIDEO_COUNT)) return totalExperiments;
-        return countVisibleExperiments(experimentsTree, searchTerm, modelFilter, minVideoCount);
-    }, [experimentsTree, searchTerm, modelFilter, minVideoCount, totalExperiments]);
+        return countVisibleExperiments(experimentsTree, searchTerm, modelFilter, minVideoCount, currentExperiment);
+    }, [experimentsTree, searchTerm, modelFilter, minVideoCount, totalExperiments, currentExperiment]);
 
     const handleSearchChange = useCallback((e) => {
         setSearchTerm(e.target.value);
@@ -244,7 +288,16 @@ const TreeExperimentList = ({ onRescan }) => {
 
     const handleSortOrderChange = useCallback((order) => {
         setSortOrder(order);
-    }, []);
+        
+        // When switching to alphabetical, navigate to the first experiment
+        if (order === 'alphabetical' && experimentsTree) {
+            const firstExperiment = findFirstExperiment(experimentsTree, searchTerm, modelFilter, minVideoCount, currentExperiment);
+            if (firstExperiment) {
+                const experimentPath = firstExperiment.path.replace(/^outputs\//, '');
+                navigate(`/experiment/${experimentPath}`);
+            }
+        }
+    }, [experimentsTree, navigate, searchTerm, modelFilter, minVideoCount]);
 
     if (error && !experimentsTree) {
         return (
@@ -443,13 +496,13 @@ const TreeExperimentList = ({ onRescan }) => {
 };
 
 // Helper function to count visible experiments in tree
-const countVisibleExperiments = (node, searchTerm, modelFilter, minVideoCount = 1) => {
+const countVisibleExperiments = (node, searchTerm, modelFilter, minVideoCount = 1, currentExperiment = null) => {
     if (node.type === 'experiment') {
-        return isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount) ? 1 : 0;
+        return isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount, currentExperiment) ? 1 : 0;
     }
     if (node.type === 'folder' && node.children) {
         return node.children.reduce((count, child) =>
-            count + countVisibleExperiments(child, searchTerm, modelFilter, minVideoCount), 0
+            count + countVisibleExperiments(child, searchTerm, modelFilter, minVideoCount, currentExperiment), 0
         );
     }
     return 0;
