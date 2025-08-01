@@ -26,13 +26,13 @@ const fetchWithTimeout = (url, options = {}, timeout = 10000) => {
 };
 
 export const getVideoUrl = (videoPath) => {
-    return `/media/${videoPath}`;
+    return `${getApiBase}/media/${videoPath}`;
 };
 
 export const getThumbnailUrl = (imgPath) => {
   // Convert .mp4 to .jpg for thumbnail
   const thumbnailPath = imgPath.endsWith('.mp4') ? imgPath.replace('.mp4', '.jpg') : imgPath;
-  return `/media/${thumbnailPath}`;
+  return `${getApiBase}/media/${thumbnailPath}`;
 }
 
 export const api = {
