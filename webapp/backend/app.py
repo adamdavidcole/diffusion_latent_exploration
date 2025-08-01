@@ -25,28 +25,111 @@ class VideoAnalyzer:
         self.experiments = {}
         
     def scan_outputs(self):
-        """Scan the outputs directory for experiments"""
+        """Scan the outputs directory and build hierarchical experiment tree"""
         print(f"Scanning outputs directory: {self.outputs_dir}")
         
         if not self.outputs_dir.exists():
             print(f"Outputs directory not found: {self.outputs_dir}")
-            return {}
+            return {"type": "folder", "name": "outputs", "path": "", "children": []}
         
-        experiments = {}
+        # Build the tree structure
+        tree = self._build_tree(self.outputs_dir, "")
+        print(f"Built experiment tree with {self._count_experiments(tree)} experiments")
+        return tree
+    
+    def _build_tree(self, directory, relative_path):
+        """Recursively build tree structure from directory"""
+        node = {
+            "type": "folder",
+            "name": directory.name or "outputs",
+            "path": relative_path,
+            "children": [],
+            "created_timestamp": directory.stat().st_ctime
+        }
         
-        # Look for experiment directories
-        for exp_dir in self.outputs_dir.iterdir():
-            if exp_dir.is_dir() and not exp_dir.name.startswith('.'):
-                print(f"Processing experiment: {exp_dir.name}")
+        items = []
+        
+        # Collect all items in this directory
+        for item in directory.iterdir():
+            if item.name.startswith('.'):
+                continue
                 
-                # Extract experiment metadata
-                exp_data = self._analyze_experiment(exp_dir)
+            if item.is_dir():
+                item_relative_path = str(Path(relative_path) / item.name) if relative_path else item.name
+                
+                # Try to analyze as experiment first
+                exp_data = self._analyze_experiment(item)
                 if exp_data:
-                    experiments[exp_dir.name] = exp_data
-                    
-        self.experiments = experiments
-        print(f"Found {len(experiments)} experiments")
-        return experiments
+                    # This is an experiment directory
+                    experiment_node = {
+                        "type": "experiment",
+                        "name": item.name,
+                        "path": item_relative_path,
+                        "created_timestamp": item.stat().st_ctime,
+                        "experiment_data": exp_data
+                    }
+                    items.append(experiment_node)
+                else:
+                    # This is a regular folder, recurse into it
+                    folder_node = self._build_tree(item, item_relative_path)
+                    # Only include folders that have experiments (directly or in subfolders)
+                    if self._has_experiments(folder_node):
+                        items.append(folder_node)
+        
+        # Sort: folders first, then experiments, both by creation date (newest first)
+        folders = [item for item in items if item["type"] == "folder"]
+        experiments = [item for item in items if item["type"] == "experiment"]
+        
+        folders.sort(key=lambda x: x["created_timestamp"], reverse=True)
+        experiments.sort(key=lambda x: x["created_timestamp"], reverse=True)
+        
+        node["children"] = folders + experiments
+        return node
+    
+    def _has_experiments(self, node):
+        """Check if a folder node contains any experiments (recursively)"""
+        if node["type"] == "experiment":
+            return True
+        
+        for child in node.get("children", []):
+            if self._has_experiments(child):
+                return True
+        
+        return False
+    
+    def _count_experiments(self, node):
+        """Count total experiments in tree"""
+        if node["type"] == "experiment":
+            return 1
+        
+        count = 0
+        for child in node.get("children", []):
+            count += self._count_experiments(child)
+        
+        return count
+    
+    def get_experiment_by_path(self, experiment_path):
+        """Get experiment data by hierarchical path"""
+        tree = self.scan_outputs()
+        return self._find_experiment_in_tree(tree, experiment_path.split('/'))
+    
+    def _find_experiment_in_tree(self, node, path_parts):
+        """Find experiment in tree by path parts"""
+        if not path_parts:
+            return None
+            
+        if len(path_parts) == 1:
+            # Last part - look for experiment
+            for child in node.get("children", []):
+                if child["type"] == "experiment" and child["name"] == path_parts[0]:
+                    return child["experiment_data"]
+        else:
+            # Look for folder and recurse
+            for child in node.get("children", []):
+                if child["type"] == "folder" and child["name"] == path_parts[0]:
+                    return self._find_experiment_in_tree(child, path_parts[1:])
+        
+        return None
     
     def _analyze_experiment(self, exp_dir):
         """Analyze a single experiment directory"""
@@ -268,42 +351,24 @@ def create_app():
     
     @app.route('/api/experiments')
     def get_experiments():
-        """Get list of all experiments"""
+        """Get hierarchical experiment tree"""
         try:
-            experiments = analyzer.scan_outputs()
-            
-            # Return summary data for the sidebar
-            experiment_list = []
-            for name, data in experiments.items():
-                experiment_list.append({
-                    'name': name,
-                    'base_prompt': data['base_prompt'],
-                    'model_id': data['model_id'],
-                    'videos_count': data['videos_count'],
-                    'variations_count': data['variations_count'],
-                    'seeds_count': data['seeds_count'],
-                    'created_at': data['created_at'],
-                    'created_timestamp': data['created_timestamp']
-                })
-            
-            # Sort by creation timestamp (most recent first)
-            experiment_list.sort(key=lambda x: x['created_timestamp'], reverse=True)
-            
-            return jsonify(experiment_list)
+            tree = analyzer.scan_outputs()
+            return jsonify(tree)
             
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
-    @app.route('/api/experiment/<experiment_name>')
-    def get_experiment(experiment_name):
-        """Get detailed data for a specific experiment"""
+    @app.route('/api/experiment/<path:experiment_path>')
+    def get_experiment(experiment_path):
+        """Get detailed data for a specific experiment by hierarchical path"""
         try:
-            experiments = analyzer.scan_outputs()
+            experiment_data = analyzer.get_experiment_by_path(experiment_path)
             
-            if experiment_name not in experiments:
+            if not experiment_data:
                 return jsonify({'error': 'Experiment not found'}), 404
             
-            return jsonify(experiments[experiment_name])
+            return jsonify(experiment_data)
             
         except Exception as e:
             return jsonify({'error': str(e)}), 500
@@ -313,8 +378,9 @@ def create_app():
     def rescan_experiments():
         """Trigger a rescan of the outputs directory"""
         try:
-            experiments = analyzer.scan_outputs()
-            return jsonify({'message': f'Scanned {len(experiments)} experiments'})
+            tree = analyzer.scan_outputs()
+            experiment_count = analyzer._count_experiments(tree)
+            return jsonify({'message': f'Scanned {experiment_count} experiments'})
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     

@@ -26,16 +26,18 @@ const fetchWithTimeout = (url, options = {}, timeout = 10000) => {
 };
 
 export const getVideoUrl = (videoPath) => {
-    return `${API_BASE}/media/${videoPath}`;
+    return `/media/${videoPath}`;
 };
 
 export const getThumbnailUrl = (imgPath) => {
-  return `${API_BASE}/media/${imgPath}`;
+  // Convert .mp4 to .jpg for thumbnail
+  const thumbnailPath = imgPath.endsWith('.mp4') ? imgPath.replace('.mp4', '.jpg') : imgPath;
+  return `/media/${thumbnailPath}`;
 }
 
 export const api = {
   async getExperiments() {
-    console.log('API: Fetching experiments...');
+    console.log('API: Fetching experiments tree...');
     try {
       const response = await fetchWithTimeout(`${API_BASE}/api/experiments`);
       console.log('API: Experiments response status:', response.status);
@@ -43,7 +45,7 @@ export const api = {
         throw new Error(`Failed to fetch experiments: ${response.status}`);
       }
       const data = await response.json();
-      console.log('API: Experiments data:', data);
+      console.log('API: Experiments tree data:', data);
       return data;
     } catch (error) {
       console.error('API: Error fetching experiments:', error);
@@ -51,8 +53,9 @@ export const api = {
     }
   },
 
-  async getExperiment(experimentName) {
-    const response = await fetch(`${API_BASE}/api/experiment/${experimentName}`);
+  async getExperiment(experimentPath) {
+    console.log('API: Fetching experiment:', experimentPath);
+    const response = await fetch(`${API_BASE}/api/experiment/${experimentPath}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch experiment: ${response.status}`);
     }
@@ -61,6 +64,29 @@ export const api = {
       throw new Error(experiment.error);
     }
     return experiment;
+  },
+
+  // Helper function to flatten tree into list for search/filtering
+  flattenExperimentTree(tree) {
+    const experiments = [];
+    
+    const traverse = (node, path = '') => {
+      if (node.type === 'experiment') {
+        experiments.push({
+          ...node.experiment_data,
+          path: node.path,
+          hierarchical_name: path ? `${path}/${node.name}` : node.name
+        });
+      } else if (node.children) {
+        const currentPath = path ? `${path}/${node.name}` : node.name;
+        node.children.forEach(child => {
+          traverse(child, node.name === 'outputs' ? '' : currentPath);
+        });
+      }
+    };
+    
+    traverse(tree);
+    return experiments;
   },
 
   async scanExperiments() {

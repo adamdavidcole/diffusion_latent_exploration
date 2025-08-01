@@ -3,7 +3,8 @@ import React, { createContext, useContext, useReducer, useCallback } from 'react
 // Initial state
 const initialState = {
     currentExperiment: null,
-    experiments: [],
+    experiments: [], // Flat list for backward compatibility
+    experimentsTree: null, // Hierarchical tree structure
     videoSize: 200,
     showLabels: true,
     sidebarCollapsed: true,
@@ -16,6 +17,7 @@ const initialState = {
 // Action types
 const ActionTypes = {
     SET_EXPERIMENTS: 'SET_EXPERIMENTS',
+    SET_EXPERIMENTS_TREE: 'SET_EXPERIMENTS_TREE',
     SET_CURRENT_EXPERIMENT: 'SET_CURRENT_EXPERIMENT',
     SET_VIDEO_SIZE: 'SET_VIDEO_SIZE',
     TOGGLE_LABELS: 'TOGGLE_LABELS',
@@ -32,6 +34,9 @@ const appReducer = (state, action) => {
     switch (action.type) {
         case ActionTypes.SET_EXPERIMENTS:
             return { ...state, experiments: action.payload, error: null };
+
+        case ActionTypes.SET_EXPERIMENTS_TREE:
+            return { ...state, experimentsTree: action.payload, error: null };
 
         case ActionTypes.SET_CURRENT_EXPERIMENT:
             return {
@@ -81,6 +86,9 @@ export const AppProvider = ({ children }) => {
     const actions = {
         setExperiments: useCallback((experiments) =>
             dispatch({ type: ActionTypes.SET_EXPERIMENTS, payload: experiments }), []),
+
+        setExperimentsTree: useCallback((experimentsTree) =>
+            dispatch({ type: ActionTypes.SET_EXPERIMENTS_TREE, payload: experimentsTree }), []),
 
         setCurrentExperiment: useCallback((experiment) =>
             dispatch({ type: ActionTypes.SET_CURRENT_EXPERIMENT, payload: experiment }), []),

@@ -1504,3 +1504,107 @@ p#base-prompt:hover {
     right: 1rem;
     z-index: 1000;
 }
+
+/* Tree Experiment List Styles */
+.tree-container {
+    width: 100%;
+}
+
+.tree-folder {
+    margin-bottom: 0.5rem;
+}
+
+.folder-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    user-select: none;
+}
+
+.folder-header:hover {
+    background: var(--bg-secondary);
+    border-color: var(--accent);
+    transform: translateX(2px);
+}
+
+.folder-icon {
+    font-size: 1rem;
+    transition: transform 0.2s;
+    line-height: 1;
+}
+
+.folder-icon.expanded {
+    transform: none;
+}
+
+.folder-name {
+    flex: 1;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.folder-count {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    background: var(--bg-primary);
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+}
+
+.folder-children {
+    margin-top: 0.5rem;
+    padding-left: 0.5rem;
+    border-left: 2px solid var(--border);
+    margin-left: 1rem;
+}
+
+/* Collapsed sidebar tree styles */
+.sidebar.collapsed .tree-container {
+    padding: 0;
+}
+
+.sidebar.collapsed .folder-header {
+    padding: 0.4rem 0.5rem;
+    font-size: 0.8rem;
+    gap: 0.3rem;
+}
+
+.sidebar.collapsed .folder-icon {
+    font-size: 0.9rem;
+}
+
+.sidebar.collapsed .folder-name {
+    font-size: 0.7rem;
+    line-height: 1.2;
+}
+
+.sidebar.collapsed .folder-count {
+    font-size: 0.6rem;
+    padding: 0.1rem 0.3rem;
+}
+
+.sidebar.collapsed .folder-children {
+    padding-left: 0.3rem;
+    margin-left: 0.5rem;
+    border-left-width: 1px;
+}
+
+/* Tree experiment item spacing adjustments */
+.tree-container .experiment-item {
+    margin-bottom: 0.5rem;
+}
+
+.sidebar.collapsed .tree-container .experiment-item {
+    margin-bottom: 0.3rem;
+}

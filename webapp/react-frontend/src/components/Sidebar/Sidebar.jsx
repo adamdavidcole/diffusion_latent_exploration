@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useApp } from '../../context/AppContext';
-import ExperimentList from './ExperimentList';
+import TreeExperimentList from './TreeExperimentList';
 
 const Sidebar = () => {
     const { state, actions } = useApp();
@@ -27,7 +27,7 @@ const Sidebar = () => {
             </div>
 
             <div className="sidebar-content">
-                <ExperimentList onRescan={handleRescanRef} />
+                <TreeExperimentList onRescan={handleRescanRef} />
             </div>
 
             <div className="rescan-section">

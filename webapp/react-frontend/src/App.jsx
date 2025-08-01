@@ -10,62 +10,89 @@ import './styles.css';
 
 // Experiment Route Handler
 const ExperimentRoute = () => {
-  const { experimentId } = useParams();
+  const { "*": experimentPath } = useParams(); // Capture full path
   const navigate = useNavigate();
   const { state, actions } = useApp();
 
-  // Load specific experiment when experimentId changes
+  // Load specific experiment when experimentPath changes
   useEffect(() => {
     const loadExperiment = async () => {
-      if (!experimentId) return;
+      if (!experimentPath) return;
 
       try {
         actions.setLoading(true);
         actions.clearError();
 
-        // Load experiments if not already loaded
-        if (state.experiments.length === 0) {
+        // Load experiments tree if not already loaded
+        if (!state.experimentsTree) {
           const experimentsData = await api.getExperiments();
-          actions.setExperiments(experimentsData);
+          actions.setExperimentsTree(experimentsData);
+          
+          // Also maintain flat list for backward compatibility
+          const flatExperiments = api.flattenExperimentTree(experimentsData);
+          actions.setExperiments(flatExperiments);
 
-          // Check if experiment exists in the newly loaded experiments
-          const experiment = experimentsData.find(exp => exp.name === experimentId);
+          // Try to find experiment in the tree structure
+          const experiment = findExperimentInTree(experimentsData, experimentPath);
           if (!experiment) {
-            console.warn(`Experiment "${experimentId}" not found, redirecting to home`);
+            console.warn(`Experiment "${experimentPath}" not found, redirecting to home`);
             navigate('/', { replace: true });
             return;
           }
 
           // Load experiment details
-          const experimentData = await api.getExperiment(experimentId);
+          const experimentData = await api.getExperiment(experimentPath);
           actions.setCurrentExperiment(experimentData);
         } else {
-          // Check if experiment exists in already loaded experiments
-          const experiment = state.experiments.find(exp => exp.name === experimentId);
+          // Try to find experiment in already loaded tree
+          const experiment = findExperimentInTree(state.experimentsTree, experimentPath);
           if (!experiment) {
-            console.warn(`Experiment "${experimentId}" not found, redirecting to home`);
+            console.warn(`Experiment "${experimentPath}" not found, redirecting to home`);
             navigate('/', { replace: true });
             return;
           }
 
           // Only load experiment details if it's not the current one
-          if (!state.currentExperiment || state.currentExperiment.name !== experimentId) {
-            const experimentData = await api.getExperiment(experimentId);
+          if (!state.currentExperiment || 
+              state.currentExperiment.name !== experiment.experiment_data.name) {
+            const experimentData = await api.getExperiment(experimentPath);
             actions.setCurrentExperiment(experimentData);
           }
         }
       } catch (error) {
         console.error('Error loading experiment:', error);
-        actions.setError(`Failed to load experiment: ${experimentId}`);
+        actions.setError(`Failed to load experiment: ${experimentPath}`);
       } finally {
         actions.setLoading(false);
       }
     };
 
     loadExperiment();
-  }, [experimentId, navigate]); // Removed state.experiments and actions from dependencies to prevent loop
+  }, [experimentPath, navigate]); // Removed state dependencies to prevent loops
 
   return <AppContent />;
+};
+
+// Helper function to find experiment in tree by path
+const findExperimentInTree = (tree, targetPath) => {
+  if (!tree) return null;
+  
+  const traverse = (node) => {
+    if (node.type === 'experiment') {
+      const nodePath = node.path.replace(/^outputs\//, '');
+      if (nodePath === targetPath) {
+        return node;
+      }
+    } else if (node.children) {
+      for (const child of node.children) {
+        const result = traverse(child);
+        if (result) return result;
+      }
+    }
+    return null;
+  };
+  
+  return traverse(tree);
 };
 
 // Home Route Handler
@@ -76,16 +103,22 @@ const HomeRoute = () => {
   // Auto-load experiments and select first one
   useEffect(() => {
     const loadExperiments = async () => {
-      if (state.experiments.length > 0) return; // Already loaded
+      if (state.experimentsTree) return; // Already loaded
 
       try {
         actions.setLoading(true);
         const experimentsData = await api.getExperiments();
-        actions.setExperiments(experimentsData);
+        actions.setExperimentsTree(experimentsData);
+        
+        // Also maintain flat list for backward compatibility
+        const flatExperiments = api.flattenExperimentTree(experimentsData);
+        actions.setExperiments(flatExperiments);
 
         // Auto-select first experiment and redirect to it
-        if (experimentsData.length > 0 && !state.currentExperiment) {
-          navigate(`/experiment/${experimentsData[0].name}`, { replace: true });
+        if (flatExperiments.length > 0 && !state.currentExperiment) {
+          const firstExperiment = flatExperiments[0];
+          const experimentPath = firstExperiment.path.replace(/^outputs\//, '');
+          navigate(`/experiment/${experimentPath}`, { replace: true });
         }
       } catch (error) {
         console.error('Error loading experiments:', error);
@@ -96,7 +129,7 @@ const HomeRoute = () => {
     };
 
     loadExperiments();
-  }, [navigate]); // Removed state.experiments, state.currentExperiment, and actions from dependencies
+  }, [navigate]); // Removed state dependencies
 
   return <AppContent />;
 };
@@ -193,7 +226,7 @@ function App() {
       <Router>
         <Routes>
           <Route path="/" element={<HomeRoute />} />
-          <Route path="/experiment/:experimentId" element={<ExperimentRoute />} />
+          <Route path="/experiment/*" element={<ExperimentRoute />} />
         </Routes>
       </Router>
     </AppProvider>
