@@ -7,7 +7,7 @@ import ExperimentItem from './ExperimentItem';
 // Configuration constants
 const INITIAL_MIN_VIDEO_COUNT = 20;
 
-const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, modelFilter, minVideoCount }) => {
+const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, modelFilter, minVideoCount, sortOrder }) => {
     const [isExpanded, setIsExpanded] = useState(level < 2); // Auto-expand first two levels
     const navigate = useNavigate();
 
@@ -45,14 +45,7 @@ const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, mo
                 </div>
                 {isExpanded && (
                     <div className="folder-children">
-                        {node.children
-                            .sort((a, b) => {
-                                // Folders first, then by creation time
-                                if (a.type !== b.type) {
-                                    return a.type === 'folder' ? -1 : 1;
-                                }
-                                return (b.created_timestamp || 0) - (a.created_timestamp || 0);
-                            })
+                        {sortChildren(node.children, sortOrder)
                             .map(child => (
                                 <TreeNode
                                     key={child.path}
@@ -63,6 +56,7 @@ const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, mo
                                     searchTerm={searchTerm}
                                     modelFilter={modelFilter}
                                     minVideoCount={minVideoCount}
+                                    sortOrder={sortOrder}
                                 />
                             ))}
                     </div>
@@ -154,6 +148,37 @@ const getMaxVideoCount = (node) => {
     return 0;
 };
 
+// Helper function to get the most recent timestamp from a folder or experiment
+const getMostRecentTimestamp = (node) => {
+    if (node.type === 'experiment') {
+        return node.created_timestamp || 0;
+    }
+    if (node.type === 'folder' && node.children) {
+        return Math.max(...node.children.map(child => getMostRecentTimestamp(child)));
+    }
+    return 0;
+};
+
+// Helper function to sort children based on sort order
+const sortChildren = (children, sortOrder) => {
+    return children.sort((a, b) => {
+        // Always folders first
+        if (a.type !== b.type) {
+            return a.type === 'folder' ? -1 : 1;
+        }
+        
+        if (sortOrder === 'recent') {
+            // Sort by most recent timestamp (newest first)
+            const aTimestamp = getMostRecentTimestamp(a);
+            const bTimestamp = getMostRecentTimestamp(b);
+            return bTimestamp - aTimestamp;
+        } else {
+            // Sort alphabetically
+            return a.name.localeCompare(b.name);
+        }
+    });
+};
+
 const TreeExperimentList = ({ onRescan }) => {
     const navigate = useNavigate();
     const { state, actions } = useApp();
@@ -161,6 +186,7 @@ const TreeExperimentList = ({ onRescan }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [modelFilter, setModelFilter] = useState('all'); // 'all', '14b', '1.3b'
     const [minVideoCount, setMinVideoCount] = useState(INITIAL_MIN_VIDEO_COUNT); // Minimum video count filter
+    const [sortOrder, setSortOrder] = useState('alphabetical'); // 'alphabetical', 'recent'
 
     const handleRescan = useCallback(async () => {
         try {
@@ -214,6 +240,10 @@ const TreeExperimentList = ({ onRescan }) => {
 
     const handleModelFilterChange = useCallback((filter) => {
         setModelFilter(filter);
+    }, []);
+
+    const handleSortOrderChange = useCallback((order) => {
+        setSortOrder(order);
     }, []);
 
     if (error && !experimentsTree) {
@@ -300,6 +330,24 @@ const TreeExperimentList = ({ onRescan }) => {
                     </button>
                 </div>
 
+                {/* Sort Order Toggles */}
+                <div className="sort-filter-container">
+                    <button
+                        className={`sort-filter-btn ${sortOrder === 'alphabetical' ? 'active' : ''}`}
+                        onClick={() => handleSortOrderChange('alphabetical')}
+                        title="Sort alphabetically"
+                    >
+                        A-Z
+                    </button>
+                    <button
+                        className={`sort-filter-btn ${sortOrder === 'recent' ? 'active' : ''}`}
+                        onClick={() => handleSortOrderChange('recent')}
+                        title="Sort by most recent"
+                    >
+                        Recent
+                    </button>
+                </div>
+
                 {/* Video Count Filter */}
                 <div className="video-count-filter">
                     <label className="video-count-label">
@@ -361,14 +409,7 @@ const TreeExperimentList = ({ onRescan }) => {
                         <div>
                             {/* Skip the top-level "outputs" folder and render its children directly */}
                             {experimentsTree.name === 'outputs' && experimentsTree.children ? (
-                                experimentsTree.children
-                                    .sort((a, b) => {
-                                        // Folders first, then by creation time
-                                        if (a.type !== b.type) {
-                                            return a.type === 'folder' ? -1 : 1;
-                                        }
-                                        return (b.created_timestamp || 0) - (a.created_timestamp || 0);
-                                    })
+                                sortChildren(experimentsTree.children, sortOrder)
                                     .map(child => (
                                         <TreeNode
                                             key={child.path}
@@ -378,6 +419,7 @@ const TreeExperimentList = ({ onRescan }) => {
                                             searchTerm={searchTerm}
                                             modelFilter={modelFilter}
                                             minVideoCount={minVideoCount}
+                                            sortOrder={sortOrder}
                                         />
                                     ))
                             ) : (
@@ -389,6 +431,7 @@ const TreeExperimentList = ({ onRescan }) => {
                                     searchTerm={searchTerm}
                                     modelFilter={modelFilter}
                                     minVideoCount={minVideoCount}
+                                    sortOrder={sortOrder}
                                 />
                             )}
                         </div>
