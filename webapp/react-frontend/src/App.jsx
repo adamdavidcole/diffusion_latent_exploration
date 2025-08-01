@@ -27,7 +27,7 @@ const ExperimentRoute = () => {
         if (!state.experimentsTree) {
           const experimentsData = await api.getExperiments();
           actions.setExperimentsTree(experimentsData);
-          
+
           // Also maintain flat list for backward compatibility
           const flatExperiments = api.flattenExperimentTree(experimentsData);
           actions.setExperiments(flatExperiments);
@@ -53,8 +53,8 @@ const ExperimentRoute = () => {
           }
 
           // Only load experiment details if it's not the current one
-          if (!state.currentExperiment || 
-              state.currentExperiment.name !== experiment.experiment_data.name) {
+          if (!state.currentExperiment ||
+            state.currentExperiment.name !== experiment.experiment_data.name) {
             const experimentData = await api.getExperiment(experimentPath);
             actions.setCurrentExperiment(experimentData);
           }
@@ -76,7 +76,7 @@ const ExperimentRoute = () => {
 // Helper function to find experiment in tree by path
 const findExperimentInTree = (tree, targetPath) => {
   if (!tree) return null;
-  
+
   const traverse = (node) => {
     if (node.type === 'experiment') {
       const nodePath = node.path.replace(/^outputs\//, '');
@@ -91,7 +91,7 @@ const findExperimentInTree = (tree, targetPath) => {
     }
     return null;
   };
-  
+
   return traverse(tree);
 };
 
@@ -109,7 +109,7 @@ const HomeRoute = () => {
         actions.setLoading(true);
         const experimentsData = await api.getExperiments();
         actions.setExperimentsTree(experimentsData);
-        
+
         // Also maintain flat list for backward compatibility
         const flatExperiments = api.flattenExperimentTree(experimentsData);
         actions.setExperiments(flatExperiments);

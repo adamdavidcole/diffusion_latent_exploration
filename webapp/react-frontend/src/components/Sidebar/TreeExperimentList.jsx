@@ -18,8 +18,8 @@ const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, mo
 
     // For folder nodes
     if (node.type === 'folder') {
-        const hasVisibleChildren = node.children?.some(child => 
-            child.type === 'experiment' ? 
+        const hasVisibleChildren = node.children?.some(child =>
+            child.type === 'experiment' ?
                 isExperimentVisible(child.experiment_data, searchTerm, modelFilter) :
                 hasVisibleExperiments(child, searchTerm, modelFilter)
         );
@@ -28,7 +28,7 @@ const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, mo
 
         return (
             <div className="tree-folder" style={{ marginLeft: `${level * 12}px` }}>
-                <div 
+                <div
                     className="folder-header"
                     onClick={toggleExpanded}
                 >
@@ -74,7 +74,7 @@ const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, mo
         }
 
         const experimentPath = node.path.replace(/^outputs\//, '');
-        
+
         return (
             <div style={{ marginLeft: `${level * 12}px` }}>
                 <ExperimentItem
@@ -95,7 +95,7 @@ const isExperimentVisible = (experiment, searchTerm, modelFilter) => {
     if (modelFilter !== 'all') {
         const modelId = experiment.model_id.toLowerCase();
         if (modelFilter === '14b') {
-            if (!modelId.includes('14b') && !modelId.includes('2.1')) return false;
+            if (!modelId.includes('14b')) return false;
         } else if (modelFilter === '1.3b') {
             if (!modelId.includes('1.3b')) return false;
         }
@@ -147,7 +147,7 @@ const TreeExperimentList = ({ onRescan }) => {
             await api.scanExperiments();
             const experimentsData = await api.getExperiments();
             actions.setExperimentsTree(experimentsData);
-            
+
             // Also maintain backward compatibility by setting flat experiments list
             const flatExperiments = api.flattenExperimentTree(experimentsData);
             actions.setExperiments(flatExperiments);
@@ -355,7 +355,7 @@ const countVisibleExperiments = (node, searchTerm, modelFilter) => {
         return isExperimentVisible(node.experiment_data, searchTerm, modelFilter) ? 1 : 0;
     }
     if (node.type === 'folder' && node.children) {
-        return node.children.reduce((count, child) => 
+        return node.children.reduce((count, child) =>
             count + countVisibleExperiments(child, searchTerm, modelFilter), 0
         );
     }
