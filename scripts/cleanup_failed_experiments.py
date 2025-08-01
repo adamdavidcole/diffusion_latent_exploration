@@ -6,6 +6,9 @@ This script scans the outputs directory and removes experiment directories
 that don't contain any successfully generated video files, indicating that
 the generation process failed or was interrupted before completion.
 
+The script handles both flat directory structures and nested hierarchical
+folder structures (e.g., outputs/Category/Experiment).
+
 Usage:
     python cleanup_failed_experiments.py [--dry-run] [--verbose]
     
@@ -73,6 +76,7 @@ def format_size(size_bytes: int) -> str:
 def scan_experiments(outputs_dir: Path, verbose: bool = False) -> Tuple[List[Path], List[Path]]:
     """
     Scan experiment directories and categorize them as successful or failed.
+    Handles both flat structure and nested folder structure.
     
     Args:
         outputs_dir: Path to the outputs directory
@@ -91,45 +95,89 @@ def scan_experiments(outputs_dir: Path, verbose: bool = False) -> Tuple[List[Pat
     print(f"🔍 Scanning experiments in: {outputs_dir}")
     print("=" * 60)
     
-    for item in outputs_dir.iterdir():
-        if not item.is_dir():
-            continue
+    def scan_directory(directory: Path, level: int = 0):
+        """Recursively scan directories for experiments."""
+        indent = "  " * level
+        
+        for item in directory.iterdir():
+            if not item.is_dir():
+                continue
+                
+            # Skip special directories
+            if item.name.startswith('.') or item.name in ['successful_experiments']:
+                if verbose:
+                    print(f"{indent}⏭️  Skipping special directory: {item.name}")
+                continue
             
-        # Skip special directories
-        if item.name.startswith('.') or item.name in ['successful_experiments']:
+            # Check if this directory contains video files (is an experiment)
+            video_files = find_video_files(item)
+            dir_size = get_directory_size(item)
+            
+            if video_files:
+                # This is a successful experiment
+                successful_experiments.append(item)
+                if verbose:
+                    print(f"{indent}✅ {item.relative_to(outputs_dir)}")
+                    print(f"{indent}   📹 Videos: {len(video_files)} files")
+                    print(f"{indent}   💾 Size: {format_size(dir_size)}")
+            else:
+                # Check if this directory contains subdirectories that might be experiments
+                has_subdirs = any(sub.is_dir() for sub in item.iterdir() if not sub.name.startswith('.'))
+                
+                if has_subdirs:
+                    # This is a folder containing other experiments/folders
+                    if verbose:
+                        print(f"{indent}📁 Folder: {item.relative_to(outputs_dir)}")
+                    
+                    # Recursively scan subdirectories but suppress their verbose output
+                    subdirs_before = len(failed_experiments)
+                    scan_directory(item, level + 1)
+                    subdirs_after = len(failed_experiments)
+                    
+                    # If all subdirectories were failed experiments, treat the parent as a single failed experiment
+                    subdirs_added = subdirs_after - subdirs_before
+                    if subdirs_added > 0:
+                        # Check if all subdirectories are failed experiments
+                        all_subdirs_failed = all(
+                            not find_video_files(sub) 
+                            for sub in item.iterdir() 
+                            if sub.is_dir() and not sub.name.startswith('.')
+                        )
+                        
+                        if all_subdirs_failed:
+                            # Remove the individual subdirectory entries and add the parent instead
+                            for _ in range(subdirs_added):
+                                failed_experiments.pop()
+                            failed_experiments.append(item)
+                            
+                            if verbose:
+                                dir_size = get_directory_size(item)
+                                print(f"{indent}❌ {item.relative_to(outputs_dir)} (consolidated)")
+                                print(f"{indent}   📹 Videos: 0 files")
+                                print(f"{indent}   💾 Size: {format_size(dir_size)}")
+                else:
+                    # This is a failed experiment (no videos, no subdirectories)
+                    failed_experiments.append(item)
+                    if verbose:
+                        print(f"{indent}❌ {item.relative_to(outputs_dir)}")
+                        print(f"{indent}   📹 Videos: 0 files")
+                        print(f"{indent}   💾 Size: {format_size(dir_size)}")
+            
             if verbose:
-                print(f"⏭️  Skipping special directory: {item.name}")
-            continue
-        
-        video_files = find_video_files(item)
-        dir_size = get_directory_size(item)
-        
-        if video_files:
-            successful_experiments.append(item)
-            if verbose:
-                print(f"✅ {item.name}")
-                print(f"   📹 Videos: {len(video_files)} files")
-                print(f"   💾 Size: {format_size(dir_size)}")
-        else:
-            failed_experiments.append(item)
-            if verbose:
-                print(f"❌ {item.name}")
-                print(f"   📹 Videos: 0 files")
-                print(f"   💾 Size: {format_size(dir_size)}")
-        
-        if verbose:
-            print()
+                print()
     
+    scan_directory(outputs_dir)
     return successful_experiments, failed_experiments
 
 
-def cleanup_failed_experiments(failed_experiments: List[Path], dry_run: bool = True) -> None:
+def cleanup_failed_experiments(failed_experiments: List[Path], dry_run: bool = True, outputs_dir: Path = None) -> None:
     """
     Remove failed experiment directories.
     
     Args:
         failed_experiments: List of failed experiment directory paths
         dry_run: If True, only show what would be deleted without actually deleting
+        outputs_dir: Base outputs directory for relative path calculation
     """
     if not failed_experiments:
         print("🎉 No failed experiments found! All directories contain videos.")
@@ -145,7 +193,8 @@ def cleanup_failed_experiments(failed_experiments: List[Path], dry_run: bool = T
     
     for exp_dir in failed_experiments:
         dir_size = get_directory_size(exp_dir)
-        print(f"{'🗑️' if not dry_run else '👀'} {exp_dir.name} ({format_size(dir_size)})")
+        relative_path = exp_dir.relative_to(outputs_dir) if outputs_dir else exp_dir.name
+        print(f"{'🗑️' if not dry_run else '👀'} {relative_path} ({format_size(dir_size)})")
         
         if not dry_run:
             try:
@@ -211,7 +260,9 @@ Examples:
         print(f"\nFailed experiments (no videos found):")
         for exp_dir in failed:
             size = get_directory_size(exp_dir)
-            print(f"  • {exp_dir.name} ({format_size(size)})")
+            # Show relative path from outputs directory for better readability
+            relative_path = exp_dir.relative_to(args.outputs_dir)
+            print(f"  • {relative_path} ({format_size(size)})")
     
     # Cleanup failed experiments
     if failed:
@@ -221,7 +272,7 @@ Examples:
                 print("❌ Cleanup cancelled by user")
                 return
         
-        cleanup_failed_experiments(failed, args.dry_run)
+        cleanup_failed_experiments(failed, args.dry_run, args.outputs_dir)
     
     print("\n🎯 Cleanup script finished!")
 
