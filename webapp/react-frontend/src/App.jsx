@@ -89,10 +89,106 @@ const findExperimentInTree = (tree, targetPath) => {
         if (result) return result;
       }
     }
+  return null;
+};
+
+// Helper function to find the first experiment alphabetically (matching TreeExperimentList logic)
+const findFirstExperimentAlphabetically = (tree) => {
+  if (!tree) return null;
+  
+  const sortChildren = (children) => {
+    return children.sort((a, b) => {
+      // Always folders first
+      if (a.type !== b.type) {
+        return a.type === 'folder' ? -1 : 1;
+      }
+      // Sort alphabetically
+      return a.name.localeCompare(b.name);
+    });
+  };
+  
+  const findFirst = (node) => {
+    if (node.type === 'experiment') {
+      // Apply same filters as TreeExperimentList (default: minVideoCount = 20, no model filter, no search)
+      if (node.experiment_data.videos_count >= 20) {
+        return node;
+      }
+      return null;
+    }
+    
+    if (node.type === 'folder' && node.children) {
+      const sortedChildren = sortChildren(node.children);
+      for (const child of sortedChildren) {
+        const result = findFirst(child);
+        if (result) return result;
+      }
+    }
+    
     return null;
   };
+  
+  // Skip the top-level "outputs" folder and search its children
+  if (tree.name === 'outputs' && tree.children) {
+    const sortedChildren = sortChildren(tree.children);
+    for (const child of sortedChildren) {
+      const result = findFirst(child);
+      if (result) return result;
+    }
+  } else {
+    return findFirst(tree);
+  }
+  
+  return null;
+};  return traverse(tree);
+};
 
-  return traverse(tree);
+// Helper function to find the first experiment alphabetically (matching TreeExperimentList logic)
+const findFirstExperimentAlphabetically = (tree) => {
+  if (!tree) return null;
+  
+  const sortChildren = (children) => {
+    return children.sort((a, b) => {
+      // Always folders first
+      if (a.type !== b.type) {
+        return a.type === 'folder' ? -1 : 1;
+      }
+      // Sort alphabetically
+      return a.name.localeCompare(b.name);
+    });
+  };
+  
+  const findFirst = (node) => {
+    if (node.type === 'experiment') {
+      // Apply same filters as TreeExperimentList (default: minVideoCount = 20, no model filter, no search)
+      if (node.experiment_data.videos_count >= 20) {
+        return node;
+      }
+      return null;
+    }
+    
+    if (node.type === 'folder' && node.children) {
+      const sortedChildren = sortChildren(node.children);
+      for (const child of sortedChildren) {
+        const result = findFirst(child);
+        if (result) return result;
+      }
+    }
+    
+    return null;
+  };
+  
+  // Skip the top-level "outputs" folder and search its children
+  if (tree.name === 'outputs' && tree.children) {
+    const sortedChildren = sortChildren(tree.children);
+    for (const child of sortedChildren) {
+      const result = findFirst(child);
+      if (result) return result;
+    }
+  } else {
+    return findFirst(tree);
+  }
+  
+  return null;
 };
 
 // Home Route Handler
@@ -116,9 +212,12 @@ const HomeRoute = () => {
 
         // Auto-select first experiment and redirect to it
         if (flatExperiments.length > 0 && !state.currentExperiment) {
-          const firstExperiment = flatExperiments[0];
-          const experimentPath = firstExperiment.path.replace(/^outputs\//, '');
-          navigate(`/experiment/${experimentPath}`, { replace: true });
+          // Find the first experiment alphabetically (matching TreeExperimentList logic)
+          const firstExperiment = findFirstExperimentAlphabetically(experimentsData);
+          if (firstExperiment) {
+            const experimentPath = firstExperiment.path.replace(/^outputs\//, '');
+            navigate(`/experiment/${experimentPath}`, { replace: true });
+          }
         }
       } catch (error) {
         console.error('Error loading experiments:', error);

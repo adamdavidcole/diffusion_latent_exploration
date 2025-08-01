@@ -246,17 +246,6 @@ const TreeExperimentList = ({ onRescan }) => {
         }
     }, [onRescan, handleRescan]);
 
-    // Auto-select first experiment when loading with alphabetical sorting
-    useEffect(() => {
-        if (experimentsTree && sortOrder === 'alphabetical' && !currentExperiment) {
-            const firstExperiment = findFirstExperiment(experimentsTree, searchTerm, modelFilter, minVideoCount, currentExperiment);
-            if (firstExperiment) {
-                const experimentPath = firstExperiment.path.replace(/^outputs\//, '');
-                navigate(`/experiment/${experimentPath}`);
-            }
-        }
-    }, [experimentsTree, sortOrder, currentExperiment, searchTerm, modelFilter, minVideoCount, navigate]);
-
     // Calculate total visible experiments for search results
     const totalExperiments = useMemo(() => {
         if (!experimentsTree) return 0;
