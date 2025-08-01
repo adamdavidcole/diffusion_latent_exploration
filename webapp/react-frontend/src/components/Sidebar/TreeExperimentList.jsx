@@ -4,7 +4,10 @@ import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
 import ExperimentItem from './ExperimentItem';
 
-const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, modelFilter }) => {
+// Configuration constants
+const INITIAL_MIN_VIDEO_COUNT = 20;
+
+const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, modelFilter, minVideoCount }) => {
     const [isExpanded, setIsExpanded] = useState(level < 2); // Auto-expand first two levels
     const navigate = useNavigate();
 
@@ -20,8 +23,8 @@ const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, mo
     if (node.type === 'folder') {
         const hasVisibleChildren = node.children?.some(child =>
             child.type === 'experiment' ?
-                isExperimentVisible(child.experiment_data, searchTerm, modelFilter) :
-                hasVisibleExperiments(child, searchTerm, modelFilter)
+                isExperimentVisible(child.experiment_data, searchTerm, modelFilter, minVideoCount) :
+                hasVisibleExperiments(child, searchTerm, modelFilter, minVideoCount)
         );
 
         if (!hasVisibleChildren) return null;
@@ -59,6 +62,7 @@ const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, mo
                                     currentExperiment={currentExperiment}
                                     searchTerm={searchTerm}
                                     modelFilter={modelFilter}
+                                    minVideoCount={minVideoCount}
                                 />
                             ))}
                     </div>
@@ -69,7 +73,7 @@ const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, mo
 
     // For experiment nodes
     if (node.type === 'experiment') {
-        if (!isExperimentVisible(node.experiment_data, searchTerm, modelFilter)) {
+        if (!isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount)) {
             return null;
         }
 
@@ -90,7 +94,12 @@ const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, mo
 };
 
 // Helper function to check if experiment matches filters
-const isExperimentVisible = (experiment, searchTerm, modelFilter) => {
+const isExperimentVisible = (experiment, searchTerm, modelFilter, minVideoCount = 1) => {
+    // Video count filter
+    if (experiment.videos_count < minVideoCount) {
+        return false;
+    }
+
     // Model filter
     if (modelFilter !== 'all') {
         const modelId = experiment.model_id.toLowerCase();
@@ -115,12 +124,12 @@ const isExperimentVisible = (experiment, searchTerm, modelFilter) => {
 };
 
 // Helper function to check if folder has visible experiments
-const hasVisibleExperiments = (node, searchTerm, modelFilter) => {
+const hasVisibleExperiments = (node, searchTerm, modelFilter, minVideoCount = 1) => {
     if (node.type === 'experiment') {
-        return isExperimentVisible(node.experiment_data, searchTerm, modelFilter);
+        return isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount);
     }
     if (node.type === 'folder' && node.children) {
-        return node.children.some(child => hasVisibleExperiments(child, searchTerm, modelFilter));
+        return node.children.some(child => hasVisibleExperiments(child, searchTerm, modelFilter, minVideoCount));
     }
     return false;
 };
@@ -134,12 +143,24 @@ const getExperimentCount = (node) => {
     return 0;
 };
 
+// Helper function to get maximum video count in tree
+const getMaxVideoCount = (node) => {
+    if (node.type === 'experiment') {
+        return node.experiment_data.videos_count || 0;
+    }
+    if (node.type === 'folder' && node.children) {
+        return Math.max(...node.children.map(child => getMaxVideoCount(child)));
+    }
+    return 0;
+};
+
 const TreeExperimentList = ({ onRescan }) => {
     const navigate = useNavigate();
     const { state, actions } = useApp();
     const { experimentsTree, currentExperiment, isLoading, error } = state;
     const [searchTerm, setSearchTerm] = useState('');
     const [modelFilter, setModelFilter] = useState('all'); // 'all', '14b', '1.3b'
+    const [minVideoCount, setMinVideoCount] = useState(INITIAL_MIN_VIDEO_COUNT); // Minimum video count filter
 
     const handleRescan = useCallback(async () => {
         try {
@@ -172,10 +193,16 @@ const TreeExperimentList = ({ onRescan }) => {
         return getExperimentCount(experimentsTree);
     }, [experimentsTree]);
 
+    // Calculate maximum video count for slider range
+    const maxVideoCount = useMemo(() => {
+        if (!experimentsTree) return 10;
+        return getMaxVideoCount(experimentsTree);
+    }, [experimentsTree]);
+
     const visibleExperiments = useMemo(() => {
-        if (!experimentsTree || (!searchTerm && modelFilter === 'all')) return totalExperiments;
-        return countVisibleExperiments(experimentsTree, searchTerm, modelFilter);
-    }, [experimentsTree, searchTerm, modelFilter, totalExperiments]);
+        if (!experimentsTree || (!searchTerm && modelFilter === 'all' && minVideoCount === INITIAL_MIN_VIDEO_COUNT)) return totalExperiments;
+        return countVisibleExperiments(experimentsTree, searchTerm, modelFilter, minVideoCount);
+    }, [experimentsTree, searchTerm, modelFilter, minVideoCount, totalExperiments]);
 
     const handleSearchChange = useCallback((e) => {
         setSearchTerm(e.target.value);
@@ -273,10 +300,31 @@ const TreeExperimentList = ({ onRescan }) => {
                     </button>
                 </div>
 
-                {(searchTerm || modelFilter !== 'all') && (
+                {/* Video Count Filter */}
+                <div className="video-count-filter">
+                    <label className="video-count-label">
+                        Min Videos: {minVideoCount}
+                    </label>
+                    <div className="video-count-slider-container">
+                        <span className="video-count-range-start">1</span>
+                        <input
+                            type="range"
+                            min="1"
+                            max={maxVideoCount}
+                            value={minVideoCount}
+                            onChange={(e) => setMinVideoCount(parseInt(e.target.value))}
+                            className="video-count-slider"
+                            title={`Filter experiments with at least ${minVideoCount} videos`}
+                        />
+                        <span className="video-count-range-end">{maxVideoCount}</span>
+                    </div>
+                </div>
+
+                {(searchTerm || modelFilter !== 'all' || minVideoCount > INITIAL_MIN_VIDEO_COUNT) && (
                     <div className="search-results-info">
                         {visibleExperiments} of {totalExperiments} experiments
                         {modelFilter !== 'all' && ` (${modelFilter.toUpperCase()} model)`}
+                        {minVideoCount > INITIAL_MIN_VIDEO_COUNT && ` (≥${minVideoCount} videos)`}
                     </div>
                 )}
             </div>
@@ -329,6 +377,7 @@ const TreeExperimentList = ({ onRescan }) => {
                                             currentExperiment={currentExperiment}
                                             searchTerm={searchTerm}
                                             modelFilter={modelFilter}
+                                            minVideoCount={minVideoCount}
                                         />
                                     ))
                             ) : (
@@ -339,6 +388,7 @@ const TreeExperimentList = ({ onRescan }) => {
                                     currentExperiment={currentExperiment}
                                     searchTerm={searchTerm}
                                     modelFilter={modelFilter}
+                                    minVideoCount={minVideoCount}
                                 />
                             )}
                         </div>
@@ -350,13 +400,13 @@ const TreeExperimentList = ({ onRescan }) => {
 };
 
 // Helper function to count visible experiments in tree
-const countVisibleExperiments = (node, searchTerm, modelFilter) => {
+const countVisibleExperiments = (node, searchTerm, modelFilter, minVideoCount = 1) => {
     if (node.type === 'experiment') {
-        return isExperimentVisible(node.experiment_data, searchTerm, modelFilter) ? 1 : 0;
+        return isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount) ? 1 : 0;
     }
     if (node.type === 'folder' && node.children) {
         return node.children.reduce((count, child) =>
-            count + countVisibleExperiments(child, searchTerm, modelFilter), 0
+            count + countVisibleExperiments(child, searchTerm, modelFilter, minVideoCount), 0
         );
     }
     return 0;
