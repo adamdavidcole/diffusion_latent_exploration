@@ -7,7 +7,7 @@ import ExperimentItem from './ExperimentItem';
 // Configuration constants
 const INITIAL_MIN_VIDEO_COUNT = 20;
 
-const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, modelFilter, minVideoCount, sortOrder }) => {
+const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, modelFilter, minVideoCount, minDuration, sortOrder }) => {
     const [isExpanded, setIsExpanded] = useState(level < 2); // Auto-expand first two levels
     const navigate = useNavigate();
 
@@ -30,8 +30,8 @@ const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, mo
     if (node.type === 'folder') {
         const hasVisibleChildren = node.children?.some(child =>
             child.type === 'experiment' ?
-                isExperimentVisible(child.experiment_data, searchTerm, modelFilter, minVideoCount, currentExperiment) :
-                hasVisibleExperiments(child, searchTerm, modelFilter, minVideoCount, currentExperiment)
+                isExperimentVisible(child.experiment_data, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment) :
+                hasVisibleExperiments(child, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment)
         );
 
         if (!hasVisibleChildren) return null;
@@ -63,6 +63,7 @@ const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, mo
                                     searchTerm={searchTerm}
                                     modelFilter={modelFilter}
                                     minVideoCount={minVideoCount}
+                                    minDuration={minDuration}
                                     sortOrder={sortOrder}
                                 />
                             ))}
@@ -74,7 +75,7 @@ const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, mo
 
     // For experiment nodes
     if (node.type === 'experiment') {
-        if (!isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount, currentExperiment)) {
+        if (!isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment)) {
             return null;
         }
 
@@ -95,7 +96,7 @@ const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, mo
 };
 
 // Helper function to check if experiment matches filters
-const isExperimentVisible = (experiment, searchTerm, modelFilter, minVideoCount = 1, currentExperiment = null) => {
+const isExperimentVisible = (experiment, searchTerm, modelFilter, minVideoCount = 1, minDuration = 0, currentExperiment = null) => {
     // Always show the currently selected experiment, regardless of filters
     if (currentExperiment && experiment.name === currentExperiment.name) {
         return true;
@@ -104,6 +105,14 @@ const isExperimentVisible = (experiment, searchTerm, modelFilter, minVideoCount 
     // Video count filter
     if (experiment.videos_count < minVideoCount) {
         return false;
+    }
+
+    // Duration filter
+    if (minDuration > 0) {
+        const duration = experiment.duration_seconds || 0;
+        if (duration < minDuration) {
+            return false;
+        }
     }
 
     // Model filter
@@ -130,12 +139,12 @@ const isExperimentVisible = (experiment, searchTerm, modelFilter, minVideoCount 
 };
 
 // Helper function to check if folder has visible experiments
-const hasVisibleExperiments = (node, searchTerm, modelFilter, minVideoCount = 1, currentExperiment = null) => {
+const hasVisibleExperiments = (node, searchTerm, modelFilter, minVideoCount = 1, minDuration = 0, currentExperiment = null) => {
     if (node.type === 'experiment') {
-        return isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount, currentExperiment);
+        return isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment);
     }
     if (node.type === 'folder' && node.children) {
-        return node.children.some(child => hasVisibleExperiments(child, searchTerm, modelFilter, minVideoCount, currentExperiment));
+        return node.children.some(child => hasVisibleExperiments(child, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment));
     }
     return false;
 };
@@ -156,6 +165,18 @@ const getMaxVideoCount = (node) => {
     }
     if (node.type === 'folder' && node.children) {
         return Math.max(...node.children.map(child => getMaxVideoCount(child)));
+    }
+    return 0;
+};
+
+// Helper function to get maximum duration in tree
+const getMaxDuration = (node) => {
+    if (node.type === 'experiment') {
+        return node.experiment_data.duration_seconds || 0;
+    }
+    if (node.type === 'folder' && node.children) {
+        const durations = node.children.map(child => getMaxDuration(child)).filter(d => d > 0);
+        return durations.length > 0 ? Math.max(...durations) : 0;
     }
     return 0;
 };
@@ -192,9 +213,9 @@ const sortChildren = (children, sortOrder) => {
 };
 
 // Helper function to find the first experiment in alphabetical order (with filters applied)
-const findFirstExperiment = (node, searchTerm, modelFilter, minVideoCount, currentExperiment = null) => {
+const findFirstExperiment = (node, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment = null) => {
     if (node.type === 'experiment') {
-        if (isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount, currentExperiment)) {
+        if (isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment)) {
             return node;
         }
         return null;
@@ -204,7 +225,7 @@ const findFirstExperiment = (node, searchTerm, modelFilter, minVideoCount, curre
         // Sort children alphabetically and search through them
         const sortedChildren = sortChildren(node.children, 'alphabetical');
         for (const child of sortedChildren) {
-            const result = findFirstExperiment(child, searchTerm, modelFilter, minVideoCount, currentExperiment);
+            const result = findFirstExperiment(child, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment);
             if (result) return result;
         }
     }
@@ -219,6 +240,7 @@ const TreeExperimentList = ({ onRescan }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [modelFilter, setModelFilter] = useState('all'); // 'all', '14b', '1.3b'
     const [minVideoCount, setMinVideoCount] = useState(INITIAL_MIN_VIDEO_COUNT); // Minimum video count filter
+    const [minDuration, setMinDuration] = useState(0); // Minimum duration filter in seconds
     const [sortOrder, setSortOrder] = useState('alphabetical'); // 'alphabetical', 'recent'
 
     const handleRescan = useCallback(async () => {
@@ -258,10 +280,17 @@ const TreeExperimentList = ({ onRescan }) => {
         return getMaxVideoCount(experimentsTree);
     }, [experimentsTree]);
 
+    // Calculate maximum duration for slider range
+    const maxDuration = useMemo(() => {
+        if (!experimentsTree) return 10;
+        const maxDur = getMaxDuration(experimentsTree);
+        return maxDur > 0 ? Math.ceil(maxDur) : 10;
+    }, [experimentsTree]);
+
     const visibleExperiments = useMemo(() => {
-        if (!experimentsTree || (!searchTerm && modelFilter === 'all' && minVideoCount === INITIAL_MIN_VIDEO_COUNT)) return totalExperiments;
-        return countVisibleExperiments(experimentsTree, searchTerm, modelFilter, minVideoCount, currentExperiment);
-    }, [experimentsTree, searchTerm, modelFilter, minVideoCount, totalExperiments, currentExperiment]);
+        if (!experimentsTree || (!searchTerm && modelFilter === 'all' && minVideoCount === INITIAL_MIN_VIDEO_COUNT && minDuration === 0)) return totalExperiments;
+        return countVisibleExperiments(experimentsTree, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment);
+    }, [experimentsTree, searchTerm, modelFilter, minVideoCount, minDuration, totalExperiments, currentExperiment]);
 
     const handleSearchChange = useCallback((e) => {
         setSearchTerm(e.target.value);
@@ -280,13 +309,13 @@ const TreeExperimentList = ({ onRescan }) => {
         
         // When switching to alphabetical, navigate to the first experiment
         if (order === 'alphabetical' && experimentsTree) {
-            const firstExperiment = findFirstExperiment(experimentsTree, searchTerm, modelFilter, minVideoCount, currentExperiment);
+            const firstExperiment = findFirstExperiment(experimentsTree, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment);
             if (firstExperiment) {
                 const experimentPath = firstExperiment.path.replace(/^outputs\//, '');
                 navigate(`/experiment/${experimentPath}`);
             }
         }
-    }, [experimentsTree, navigate, searchTerm, modelFilter, minVideoCount]);
+    }, [experimentsTree, navigate, searchTerm, modelFilter, minVideoCount, minDuration]);
 
     if (error && !experimentsTree) {
         return (
@@ -410,11 +439,33 @@ const TreeExperimentList = ({ onRescan }) => {
                     </div>
                 </div>
 
-                {(searchTerm || modelFilter !== 'all' || minVideoCount > INITIAL_MIN_VIDEO_COUNT) && (
+                {/* Duration Filter */}
+                <div className="duration-filter">
+                    <label className="duration-label">
+                        Min Duration: {minDuration}s
+                    </label>
+                    <div className="duration-slider-container">
+                        <span className="duration-range-start">0s</span>
+                        <input
+                            type="range"
+                            min="0"
+                            max={maxDuration}
+                            step="0.5"
+                            value={minDuration}
+                            onChange={(e) => setMinDuration(parseFloat(e.target.value))}
+                            className="duration-slider"
+                            title={`Filter experiments with at least ${minDuration}s duration`}
+                        />
+                        <span className="duration-range-end">{maxDuration}s</span>
+                    </div>
+                </div>
+
+                {(searchTerm || modelFilter !== 'all' || minVideoCount > INITIAL_MIN_VIDEO_COUNT || minDuration > 0) && (
                     <div className="search-results-info">
                         {visibleExperiments} of {totalExperiments} experiments
                         {modelFilter !== 'all' && ` (${modelFilter.toUpperCase()} model)`}
                         {minVideoCount > INITIAL_MIN_VIDEO_COUNT && ` (≥${minVideoCount} videos)`}
+                        {minDuration > 0 && ` (≥${minDuration}s duration)`}
                     </div>
                 )}
             </div>
@@ -461,6 +512,7 @@ const TreeExperimentList = ({ onRescan }) => {
                                             searchTerm={searchTerm}
                                             modelFilter={modelFilter}
                                             minVideoCount={minVideoCount}
+                                            minDuration={minDuration}
                                             sortOrder={sortOrder}
                                         />
                                     ))
@@ -473,6 +525,7 @@ const TreeExperimentList = ({ onRescan }) => {
                                     searchTerm={searchTerm}
                                     modelFilter={modelFilter}
                                     minVideoCount={minVideoCount}
+                                    minDuration={minDuration}
                                     sortOrder={sortOrder}
                                 />
                             )}
@@ -485,13 +538,13 @@ const TreeExperimentList = ({ onRescan }) => {
 };
 
 // Helper function to count visible experiments in tree
-const countVisibleExperiments = (node, searchTerm, modelFilter, minVideoCount = 1, currentExperiment = null) => {
+const countVisibleExperiments = (node, searchTerm, modelFilter, minVideoCount = 1, minDuration = 0, currentExperiment = null) => {
     if (node.type === 'experiment') {
-        return isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount, currentExperiment) ? 1 : 0;
+        return isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment) ? 1 : 0;
     }
     if (node.type === 'folder' && node.children) {
         return node.children.reduce((count, child) =>
-            count + countVisibleExperiments(child, searchTerm, modelFilter, minVideoCount, currentExperiment), 0
+            count + countVisibleExperiments(child, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment), 0
         );
     }
     return 0;

@@ -10,6 +10,7 @@ const ExperimentList = ({ onRescan }) => {
     const { experiments, currentExperiment, isLoading, error } = state;
     const [searchTerm, setSearchTerm] = useState('');
     const [modelFilter, setModelFilter] = useState('all'); // 'all', '14b', '1.3b'
+    const [minDuration, setMinDuration] = useState(0); // Minimum duration filter in seconds
 
     const handleSelectExperiment = useCallback((experimentName) => {
         // Navigate to the experiment URL instead of loading directly
@@ -54,6 +55,14 @@ const ExperimentList = ({ onRescan }) => {
             });
         }
 
+        // Apply duration filter
+        if (minDuration > 0) {
+            filtered = filtered.filter(experiment => {
+                const duration = experiment.duration_seconds || 0;
+                return duration >= minDuration;
+            });
+        }
+
         // Apply search filter
         if (searchTerm.trim()) {
             const term = searchTerm.toLowerCase();
@@ -65,7 +74,16 @@ const ExperimentList = ({ onRescan }) => {
         }
 
         return filtered;
-    }, [experiments, searchTerm, modelFilter]);
+    }, [experiments, searchTerm, modelFilter, minDuration]);
+
+    // Calculate maximum duration for slider range
+    const maxDuration = useMemo(() => {
+        if (experiments.length === 0) return 10;
+        const durations = experiments
+            .map(exp => exp.duration_seconds || 0)
+            .filter(duration => duration > 0);
+        return durations.length > 0 ? Math.ceil(Math.max(...durations)) : 10;
+    }, [experiments]);
 
     const handleSearchChange = useCallback((e) => {
         setSearchTerm(e.target.value);
@@ -163,23 +181,47 @@ const ExperimentList = ({ onRescan }) => {
                     </button>
                 </div>
 
-                {(searchTerm || modelFilter !== 'all') && (
+                {/* Duration Filter */}
+                <div className="duration-filter">
+                    <label className="duration-label">
+                        Min Duration: {minDuration}s
+                    </label>
+                    <div className="duration-slider-container">
+                        <span className="duration-range-start">0s</span>
+                        <input
+                            type="range"
+                            min="0"
+                            max={maxDuration}
+                            step="0.5"
+                            value={minDuration}
+                            onChange={(e) => setMinDuration(parseFloat(e.target.value))}
+                            className="duration-slider"
+                            title={`Filter experiments with at least ${minDuration}s duration`}
+                        />
+                        <span className="duration-range-end">{maxDuration}s</span>
+                    </div>
+                </div>
+
+                {(searchTerm || modelFilter !== 'all' || minDuration > 0) && (
                     <div className="search-results-info">
                         {filteredExperiments.length} of {experiments.length} experiments
                         {modelFilter !== 'all' && ` (${modelFilter.toUpperCase()} model)`}
+                        {minDuration > 0 && ` (≥${minDuration}s duration)`}
                     </div>
                 )}
             </div>
 
             {/* Experiments List */}
-            {filteredExperiments.length === 0 && (searchTerm || modelFilter !== 'all') ? (
+            {filteredExperiments.length === 0 && (searchTerm || modelFilter !== 'all' || minDuration > 0) ? (
                 <div className="empty-state">
                     <h3>No experiments found</h3>
                     <p>
                         No experiments match
                         {searchTerm && ` "${searchTerm}"`}
-                        {searchTerm && modelFilter !== 'all' && ' and'}
+                        {searchTerm && (modelFilter !== 'all' || minDuration > 0) && ' and'}
                         {modelFilter !== 'all' && ` ${modelFilter.toUpperCase()} model`}
+                        {modelFilter !== 'all' && minDuration > 0 && ' and'}
+                        {minDuration > 0 && ` ≥${minDuration}s duration`}
                     </p>
                     <div className="filter-clear-buttons">
                         {searchTerm && (
@@ -193,6 +235,14 @@ const ExperimentList = ({ onRescan }) => {
                                 className="clear-search-btn-large"
                             >
                                 Show all models
+                            </button>
+                        )}
+                        {minDuration > 0 && (
+                            <button
+                                onClick={() => setMinDuration(0)}
+                                className="clear-search-btn-large"
+                            >
+                                Clear duration filter
                             </button>
                         )}
                     </div>
