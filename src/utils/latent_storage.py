@@ -74,15 +74,18 @@ class LatentStorage:
         self.current_generation_params = generation_params
         self.stored_steps = []
         
-        # Extract prompt directory from video_id (e.g., "prompt_000_vid001" -> "prompt_000")
+        # Extract prompt and video parts from video_id (e.g., "prompt_000_vid001" -> "prompt_000", "vid001")
         # Video IDs are formatted as: prompt_XXX_vidYYY
         if "_vid" in video_id:
-            prompt_part = video_id.split("_vid")[0]  # Extract "prompt_000" part
+            prompt_part, vid_part = video_id.split("_vid")
+            vid_part = f"vid_{vid_part}"  # Convert "001" to "vid_001"
         else:
-            prompt_part = video_id  # Fallback if format is different
+            # Fallback if format is different
+            prompt_part = video_id
+            vid_part = "vid_001"  # Default video number
         
-        # Create video-specific directory structure: latents_data/prompt_000/
-        self.current_video_dir = self.latents_dir / prompt_part
+        # Create video-specific directory structure: latents_data/prompt_000/vid_001/
+        self.current_video_dir = self.latents_dir / prompt_part / vid_part
         self.current_video_dir.mkdir(parents=True, exist_ok=True)
         
         self.logger.info(f"Starting latent storage for video: {video_id}")
@@ -215,13 +218,15 @@ class LatentStorage:
     
     def load_latent(self, video_id: str, step: int) -> Optional[torch.Tensor]:
         """Load a stored latent representation."""
-        # Extract prompt directory from video_id (e.g., "prompt_000_vid001" -> "prompt_000")
+        # Extract prompt and video parts from video_id (e.g., "prompt_000_vid001" -> "prompt_000", "vid_001")
         if "_vid" in video_id:
-            prompt_part = video_id.split("_vid")[0]
+            prompt_part, vid_num = video_id.split("_vid")
+            vid_part = f"vid_{vid_num}"  # Convert "001" to "vid_001"
         else:
             prompt_part = video_id
+            vid_part = "vid_001"  # Default fallback
         
-        video_dir = self.latents_dir / prompt_part
+        video_dir = self.latents_dir / prompt_part / vid_part
         filename_base = f"step_{step:03d}"
         
         # Try different file extensions
@@ -273,13 +278,15 @@ class LatentStorage:
     
     def load_metadata(self, video_id: str, step: int) -> Optional[LatentMetadata]:
         """Load metadata for a stored latent."""
-        # Extract prompt directory from video_id (e.g., "prompt_000_vid001" -> "prompt_000")
+        # Extract prompt and video parts from video_id (e.g., "prompt_000_vid001" -> "prompt_000", "vid_001")
         if "_vid" in video_id:
-            prompt_part = video_id.split("_vid")[0]
+            prompt_part, vid_num = video_id.split("_vid")
+            vid_part = f"vid_{vid_num}"  # Convert "001" to "vid_001"
         else:
             prompt_part = video_id
+            vid_part = "vid_001"  # Default fallback
         
-        video_dir = self.latents_dir / prompt_part
+        video_dir = self.latents_dir / prompt_part / vid_part
         filename_base = f"step_{step:03d}"
         metadata_file = video_dir / f"{filename_base}_metadata.json"
         
@@ -313,13 +320,16 @@ class LatentStorage:
         # Scan prompt directories in latents_data/
         for prompt_dir in self.latents_dir.iterdir():
             if prompt_dir.is_dir() and prompt_dir.name.startswith('prompt_'):
-                # Check if this directory has any latent files
-                latent_files = list(prompt_dir.glob("step_*.npy*")) + list(prompt_dir.glob("step_*.pt*"))
-                if latent_files:
-                    # For each prompt directory, we need to infer video IDs
-                    # Since we store all videos from the same prompt in the same directory,
-                    # we'll return just the prompt part as the "video" identifier
-                    videos.add(prompt_dir.name)
+                # Scan video directories within each prompt directory
+                for vid_dir in prompt_dir.iterdir():
+                    if vid_dir.is_dir() and vid_dir.name.startswith('vid_'):
+                        # Check if this directory has any latent files
+                        latent_files = list(vid_dir.glob("step_*.npy*")) + list(vid_dir.glob("step_*.pt*"))
+                        if latent_files:
+                            # Reconstruct video ID: prompt_000_vid001
+                            vid_num = vid_dir.name.replace('vid_', '')  # Extract "001" from "vid_001"
+                            video_id = f"{prompt_dir.name}_vid{vid_num}"
+                            videos.add(video_id)
         
         return sorted(list(videos))
     
@@ -333,7 +343,15 @@ class LatentStorage:
     def list_steps_for_video(self, video_id: str) -> List[int]:
         """List all available steps for a given video ID."""
         prompt_part = self.get_prompt_from_video_id(video_id)
-        video_dir = self.latents_dir / prompt_part
+        
+        # Extract video part
+        if "_vid" in video_id:
+            _, vid_num = video_id.split("_vid")
+            vid_part = f"vid_{vid_num}"
+        else:
+            vid_part = "vid_001"  # Default fallback
+            
+        video_dir = self.latents_dir / prompt_part / vid_part
         
         if not video_dir.exists():
             return []
@@ -361,25 +379,27 @@ class LatentStorage:
         """Get overall storage statistics."""
         videos = self.list_stored_videos()
         
-        # Count all files in all prompt directories
+        # Count all files in all prompt/video directories
         total_files = 0
         total_size = 0
         for prompt_dir in self.latents_dir.iterdir():
             if prompt_dir.is_dir():
-                for file_path in prompt_dir.glob("*"):
-                    if file_path.is_file():
-                        total_files += 1
-                        total_size += file_path.stat().st_size
+                for vid_dir in prompt_dir.iterdir():
+                    if vid_dir.is_dir():
+                        for file_path in vid_dir.glob("*"):
+                            if file_path.is_file():
+                                total_files += 1
+                                total_size += file_path.stat().st_size
         
         return {
-            "total_prompt_dirs": len(videos),
+            "total_videos": len(videos),
             "total_latent_files": total_files,
             "total_size_bytes": total_size,
             "total_size_mb": total_size / (1024 * 1024),
             "storage_format": self.storage_format,
             "storage_dtype": self.storage_dtype,
             "compressed": self.compress,
-            "prompt_dirs": videos
+            "videos": videos
         }
 
 

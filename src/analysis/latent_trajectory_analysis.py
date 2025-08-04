@@ -75,23 +75,20 @@ class LatentTrajectoryAnalyzer:
     
     def get_available_videos(self) -> List[str]:
         """Get list of video IDs with stored latents."""
-        prompt_dirs = self.latent_storage.list_stored_videos()
-        
-        # For backward compatibility, return prompt directory names
-        # Users can analyze at the prompt level (all videos from same prompt together)
-        return prompt_dirs
+        return self.latent_storage.list_stored_videos()
     
     def get_available_prompt_dirs(self) -> List[str]:
         """Get list of prompt directories with stored latents."""
-        return self.latent_storage.list_stored_videos()
+        prompt_dirs = set()
+        videos = self.latent_storage.list_stored_videos()
+        for video_id in videos:
+            prompt_part = self.latent_storage.get_prompt_from_video_id(video_id)
+            prompt_dirs.add(prompt_part)
+        return sorted(list(prompt_dirs))
     
     def discover_videos_in_prompt(self, prompt_dir: str) -> List[str]:
         """
         Discover individual video IDs within a prompt directory.
-        
-        Note: Since the new structure stores multiple videos from the same prompt
-        in the same directory, this attempts to reconstruct video IDs based on
-        video summary files.
         
         Args:
             prompt_dir: Prompt directory name (e.g., "prompt_000")
@@ -100,20 +97,22 @@ class LatentTrajectoryAnalyzer:
             List of video IDs that have stored latents
         """
         video_ids = []
+        all_videos = self.latent_storage.list_stored_videos()
         
-        # Look for video summary files to reconstruct video IDs
+        # Filter videos that belong to this prompt
+        for video_id in all_videos:
+            if video_id.startswith(prompt_dir + "_vid"):
+                video_ids.append(video_id)
+        
+        # Also look for video summary files to ensure we don't miss any
         for summary_file in self.storage_dir.glob(f"video_{prompt_dir}_vid*_summary.json"):
             # Extract video ID from summary filename
             filename = summary_file.stem
             if filename.startswith('video_'):
                 video_id = filename[6:-8]  # Remove "video_" prefix and "_summary" suffix
-                video_ids.append(video_id)
+                if video_id not in video_ids:
+                    video_ids.append(video_id)
         
-        # If no summary files found, just return the prompt directory
-        # This allows analysis of all latents in the prompt directory together
-        if not video_ids:
-            video_ids = [prompt_dir]
-            
         return sorted(video_ids)
     
     def load_video_trajectory(self, video_id: str) -> Tuple[List[torch.Tensor], List[LatentMetadata]]:
@@ -121,8 +120,7 @@ class LatentTrajectoryAnalyzer:
         Load complete latent trajectory for a video.
         
         Args:
-            video_id: ID of the video to load (can be full video_id like "prompt_000_vid001" 
-                     or just prompt part like "prompt_000")
+            video_id: ID of the video to load (full video_id like "prompt_000_vid001")
             
         Returns:
             Tuple of (latent_tensors, metadata_list)
@@ -135,39 +133,10 @@ class LatentTrajectoryAnalyzer:
             stored_steps = summary['stored_steps']
         else:
             # Discover steps by scanning the directory structure
-            if "_vid" in video_id:
-                prompt_part = video_id.split("_vid")[0]
-            else:
-                prompt_part = video_id
-                
-            latents_dir = self.latent_storage.latents_dir / prompt_part
-            if not latents_dir.exists():
-                raise ValueError(f"No latent directory found for video: {video_id}")
-            
-            # Find all step files in the directory
-            step_files = list(latents_dir.glob("step_*.npy*")) + list(latents_dir.glob("step_*.pt*"))
-            if not step_files:
-                raise ValueError(f"No latent files found for video: {video_id}")
-            
-            # Extract step numbers from filenames
-            stored_steps = []
-            for file_path in step_files:
-                # Extract step number from filename like "step_000.npy.gz"
-                filename = file_path.stem
-                if filename.endswith('.npy') or filename.endswith('.pt'):
-                    filename = file_path.with_suffix('').stem
-                
-                if filename.startswith('step_'):
-                    try:
-                        step_num = int(filename.split('_')[1])
-                        stored_steps.append(step_num)
-                    except (IndexError, ValueError):
-                        continue
-            
-            stored_steps = sorted(list(set(stored_steps)))
+            stored_steps = self.latent_storage.list_steps_for_video(video_id)
             
             if not stored_steps:
-                raise ValueError(f"No valid step files found for video: {video_id}")
+                raise ValueError(f"No latent files found for video: {video_id}")
         
         latents = []
         metadata = []
