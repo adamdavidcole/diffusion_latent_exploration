@@ -493,11 +493,21 @@ body {
 .sidebar.collapsed .experiment-meta {
     font-size: 0.6rem;
     gap: 0.2rem;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
+    justify-content: center;
 }
 
-.sidebar.collapsed .experiment-meta span:not(:first-child) {
+/* .sidebar.collapsed .experiment-meta span.dot {
+    display: inline-block;
+} */
+
+/* .sidebar.collapsed .experiment-meta span:not(:last-child)::after {
+    content: '·';
+    margin: 0 5px;
+} */
+
+.sidebar.collapsed .experiment-meta span:not(:first-child):not(:last-child):not(.dot) {
     display: none;
 }
 

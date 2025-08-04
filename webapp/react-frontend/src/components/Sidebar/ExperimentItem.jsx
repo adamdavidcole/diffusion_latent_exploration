@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useApp } from '../../context/AppContext';
+import { formatDuration } from '../../utils/formatters';
 
 const ExperimentItem = ({ experiment, isActive, onSelect }) => {
     const [showTooltip, setShowTooltip] = useState(false);
@@ -80,8 +81,12 @@ const ExperimentItem = ({ experiment, isActive, onSelect }) => {
                     <div className="experiment-model">{modelDisplayName}</div>
                     <div className="experiment-meta">
                         <span>{experiment.videos_count} videos</span>
+                        <span className="dot">•</span>
                         <span>{experiment.variations_count} variations</span>
                         <span>{experiment.seeds_count} seeds</span>
+                        {experiment.duration_seconds && (
+                            <span>{parseFloat(experiment.duration_seconds.toFixed(1))}s</span>
+                        )}
                     </div>
                     <div className="experiment-prompt">{experiment.base_prompt}</div>
                 </div>
@@ -104,6 +109,11 @@ const ExperimentItem = ({ experiment, isActive, onSelect }) => {
                     <br />• {experiment.videos_count} videos
                     <br />• {experiment.variations_count} variations
                     <br />• {experiment.seeds_count} seeds
+                    {experiment.duration_seconds && (
+                        <>
+                            <br />• {formatDuration(experiment.duration_seconds)} duration
+                        </>
+                    )}
                     <br /><br />
                     <strong>Base Prompt:</strong>
                     <br />{truncatedPrompt}

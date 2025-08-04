@@ -4,6 +4,7 @@ import { useIntersectionObserver } from '../../hooks/useIntersectionObserver';
 import { useVideoCache } from '../../hooks/useVideoCache';
 import VideoCell from './VideoCell';
 import VideoLightbox from './VideoLightbox';
+import { formatDuration } from '../../utils/formatters';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
 import { extractClosestEdge, attachClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
@@ -430,6 +431,9 @@ const VideoGrid = () => {
                     <span className="stat-item">{currentExperiment.videos_count} videos</span>
                     <span className="stat-item">{currentExperiment.variations_count} variations</span>
                     <span className="stat-item">{currentExperiment.seeds_count} seeds</span>
+                    {currentExperiment.duration_seconds && (
+                        <span className="stat-item">{formatDuration(currentExperiment.duration_seconds)} duration</span>
+                    )}
                 </div>
                 <p
                     id="base-prompt"
