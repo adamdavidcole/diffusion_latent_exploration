@@ -1,6 +1,6 @@
 # WAN Video Generation Project
 
-A comprehensive tool for generating video sets using WAN video models (1.3B and 14B) with configurable settings, prompt variations, and optimized memory management.
+A comprehensive tool for generating video sets using WAN video models (1.3B and 14B) with configurable settings, prompt variations, optimized memory management, and **latent trajectory analysis** for studying diffusion model geometry.
 
 ## Features
 
@@ -12,6 +12,7 @@ A comprehensive tool for generating video sets using WAN video models (1.3B and 
 - **Organized Output**: Automatically organize results in structured subfolders
 - **Progress Tracking**: Monitor generation progress and handle errors gracefully
 - **GPU Memory Optimization**: Automatic memory management for CUDA devices
+- **🆕 Latent Trajectory Analysis**: Store and analyze latent representations during diffusion to study model geometry and potential biases
 
 ## Project Structure
 
@@ -20,14 +21,17 @@ A comprehensive tool for generating video sets using WAN video models (1.3B and 
 │   ├── config/            # Configuration management
 │   ├── generators/        # Video generation logic
 │   ├── prompts/           # Prompt handling and variations
+│   ├── analysis/          # Latent trajectory analysis tools
 │   └── utils/             # Utility functions
 ├── configs/               # Configuration files
 ├── outputs/               # Generated videos (organized by batch)
 ├── logs/                  # Generation logs
 ├── scripts/               # Auxiliary scripts and utilities
 ├── webapp/                # Web interface for experiment management
+├── docs/                  # Documentation
 ├── requirements.txt       # Python dependencies
-└── main.py               # Main entry point
+├── main.py               # Main entry point
+└── analyze_latent_trajectories.py  # Latent analysis script
 ```
 
 ## Usage
@@ -47,11 +51,41 @@ python main.py --config configs/wan_14b_optimized.yaml --template "a simple test
 python main.py --config configs/romantic_scenes.yaml --videos-per-variation 5 --output-dir outputs/romantic_batch_1
 ```
 
+### 🆕 With Latent Trajectory Analysis
+```bash
+# Generate videos while storing latent representations for analysis
+python main.py --template "a [romantic|platonic] kiss between [two people|two men|two women]" --store-latents
+
+# Analyze stored latents to study diffusion geometry
+python analyze_latent_trajectories.py --batch-dir outputs/your_batch_20250804_123456
+```
+
 ### Available Configurations
 - `configs/default.yaml` - Standard WAN 1.3B settings
 - `configs/wan_14b_optimized.yaml` - Optimized for WAN 14B with memory management
 - `configs/fast_test.yaml` - Quick testing configuration
 - `configs/high_quality.yaml` - High-quality generation settings
+- `configs/latent_analysis_example.yaml` - 🆕 Example config with latent storage enabled
+
+## Latent Trajectory Analysis
+
+This project includes advanced tools for studying the latent space geometry of diffusion models during the generation process. This can help understand potential biases and representation patterns in AI-generated content.
+
+### Key Hypothesis
+Dominant representations may occupy more area in the latent space, while "marginal" or "othered" representations might occupy less area. By analyzing trajectories, we can potentially measure the relative scale of certain representations.
+
+### Quick Start
+1. **Generate with latent storage**: Add `--store-latents` flag
+2. **Analyze trajectories**: Use `analyze_latent_trajectories.py` script
+3. **Study results**: Examine metrics like trajectory linearity, volume, and dynamics
+
+See [docs/LATENT_TRAJECTORY_ANALYSIS.md](docs/LATENT_TRAJECTORY_ANALYSIS.md) for detailed documentation.
+
+### Analysis Metrics
+- **Trajectory linearity**: How straight the path through latent space is
+- **Volume estimation**: Space occupied by the trajectory
+- **Temporal dynamics**: Velocity and acceleration patterns
+- **Geometric properties**: PCA analysis and dimensionality reduction
 
 ## Configuration
 

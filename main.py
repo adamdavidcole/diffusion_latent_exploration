@@ -117,6 +117,10 @@ Examples:
     parser.add_argument('--duration', type=float,
                        help='Override video duration (seconds)')
     
+    # Latent trajectory analysis
+    parser.add_argument('--store-latents', action='store_true',
+                       help='Store latent representations at each denoising step for trajectory analysis')
+    
     # Verbose output
     parser.add_argument('--verbose', '-v', action='store_true',
                        help='Verbose output')
@@ -179,6 +183,10 @@ def load_or_create_config(config_path: str, args) -> GenerationConfig:
     # Apply utilities
     if args.note:
         config.note = args.note
+    
+    # Apply latent analysis settings
+    if args.store_latents:
+        config.latent_analysis_settings.store_latents = True
     
     return config
 

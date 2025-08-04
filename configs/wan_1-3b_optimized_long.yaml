@@ -41,3 +41,13 @@ prompt_settings:
   # Advanced weighted embeddings (WORKING SYSTEM)
   use_weighted_embeddings: true             # Enable WAN-specific weighted embeddings
   embedding_method: "multiply"              # "multiply", "interpolation", or "norm_preserving"
+
+
+
+# Latent trajectory analysis settings
+latent_analysis_settings:
+  store_latents: true                       # Enable latent storage
+  latent_storage_format: "numpy"           # "numpy" or "torch"
+  storage_interval: 1                      # Store every N steps (1 = all steps)
+  compress_latents: true                   # Use gzip compression
+  storage_dtype: "float16"                 # "float32" or "float16" (FP16 saves ~50% storage)

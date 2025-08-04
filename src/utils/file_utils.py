@@ -99,7 +99,8 @@ class FileManager:
             "videos": batch_dir / "videos",
             "logs": batch_dir / "logs", 
             "configs": batch_dir / "configs",
-            "reports": batch_dir / "reports"
+            "reports": batch_dir / "reports",
+            "latents": batch_dir / "latents"
         }
         
         for dir_path in dirs.values():

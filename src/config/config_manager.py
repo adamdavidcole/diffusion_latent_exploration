@@ -33,6 +33,16 @@ class MemorySettings:
     
 
 @dataclass
+class LatentAnalysisSettings:
+    """Settings for latent trajectory analysis."""
+    store_latents: bool = False
+    latent_storage_format: str = "numpy"  # "numpy" or "torch"
+    storage_interval: int = 1  # Store every N steps (1 = all steps)
+    compress_latents: bool = True  # Use compression to save disk space
+    storage_dtype: str = "float32"  # "float32" or "float16" for storage precision
+
+
+@dataclass
 class PromptSettings:
     """Prompt weighting and processing settings."""
     enable_weighting: bool = False
@@ -62,6 +72,7 @@ class GenerationConfig:
     memory_settings: MemorySettings = field(default_factory=MemorySettings)
     video_settings: VideoSettings = field(default_factory=VideoSettings)
     prompt_settings: PromptSettings = field(default_factory=PromptSettings)
+    latent_analysis_settings: LatentAnalysisSettings = field(default_factory=LatentAnalysisSettings)
     videos_per_variation: int = 3
     output_dir: str = "outputs"
     batch_name: Optional[str] = None
@@ -117,6 +128,7 @@ class ConfigManager:
         memory_data = config_data.get('memory_settings', {})
         video_data = config_data.get('video_settings', {})
         prompt_data = config_data.get('prompt_settings', {})
+        latent_data = config_data.get('latent_analysis_settings', {})
         
         model_settings = ModelSettings(
             seed=model_data.get('seed', 42),
@@ -154,11 +166,20 @@ class ConfigManager:
             embedding_method=prompt_data.get('embedding_method', 'norm_preserving')
         )
         
+        latent_analysis_settings = LatentAnalysisSettings(
+            store_latents=latent_data.get('store_latents', False),
+            latent_storage_format=latent_data.get('latent_storage_format', 'numpy'),
+            storage_interval=latent_data.get('storage_interval', 1),
+            compress_latents=latent_data.get('compress_latents', True),
+            storage_dtype=latent_data.get('storage_dtype', 'float32')
+        )
+        
         return GenerationConfig(
             model_settings=model_settings,
             memory_settings=memory_settings,
             video_settings=video_settings,
             prompt_settings=prompt_settings,
+            latent_analysis_settings=latent_analysis_settings,
             videos_per_variation=config_data.get('videos_per_variation', 3),
             output_dir=config_data.get('output_dir', 'outputs'),
             batch_name=config_data.get('batch_name'),
@@ -199,11 +220,17 @@ class ConfigManager:
                 'use_weighted_embeddings': config.prompt_settings.use_weighted_embeddings,
                 'embedding_method': config.prompt_settings.embedding_method
             },
+            'latent_analysis_settings': {
+                'store_latents': config.latent_analysis_settings.store_latents,
+                'latent_storage_format': config.latent_analysis_settings.latent_storage_format,
+                'storage_interval': config.latent_analysis_settings.storage_interval,
+                'compress_latents': config.latent_analysis_settings.compress_latents,
+                'storage_dtype': config.latent_analysis_settings.storage_dtype
+            },
             'videos_per_variation': config.videos_per_variation,
             'output_dir': config.output_dir,
             'batch_name': config.batch_name,
-            'use_timestamp': config.use_timestamp,
-            'note': config.note
+            'use_timestamp': config.use_timestamp
         }
     
     def validate_config(self, config: GenerationConfig) -> bool:

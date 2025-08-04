@@ -35,6 +35,7 @@ from src.prompts.prompt_weighting import (
     create_enhanced_language_processor
 )
 from src.prompts.wan_weighted_embeddings_fixed import create_wan_weighted_embeddings
+from src.utils.latent_storage import LatentStorage, create_denoising_callback
 
 
 def generate_thumbnail(video_path: str) -> bool:
@@ -299,6 +300,7 @@ class GenerationResult:
     error_message: Optional[str] = None
     generation_time: float = 0.0
     metadata: Dict[str, Any] = None
+    latent_storage_summary: Optional[Dict[str, Any]] = None
     
     def __post_init__(self):
         if self.metadata is None:
@@ -560,12 +562,18 @@ class WanVideoGenerator:
             guidance_scale = kwargs.get('cfg_scale', self.config.model_settings.cfg_scale)
             generator_seed = kwargs.get('seed', self.config.model_settings.seed)
             
+            # Extract latent storage parameters
+            latent_storage = kwargs.get('latent_storage', None)
+            video_id = kwargs.get('video_id', None)
+            
             # Create generator for reproducibility
             generator = torch.Generator(device=self.device).manual_seed(generator_seed)
             
             logging.info(f"Generating video: {width}x{height}, {num_frames} frames")
             logging.info(f"Prompt: {prompt}")
             logging.info(f"Seed: {generator_seed}")
+            if latent_storage:
+                logging.info(f"Latent storage enabled for video: {video_id}")
             
             # Log memory before generation
             mem_info = get_gpu_memory_info(self.device)
@@ -597,6 +605,52 @@ class WanVideoGenerator:
                 else:
                     logging.info("Using prompt processing (no weighted embeddings)")
             
+            # Setup latent storage callback if enabled
+            callback_fn = None
+            callback_tensor_inputs = ['latents']
+            if latent_storage and video_id:
+                # Start latent storage for this video
+                latent_storage.start_video_storage(
+                    video_id=video_id,
+                    prompt=prompt,
+                    seed=generator_seed,
+                    cfg_scale=guidance_scale,
+                    width=width,
+                    height=height,
+                    num_frames=num_frames
+                )
+                
+                # Create callback function compatible with WAN pipeline
+                def latent_callback(pipe, step: int, timestep: torch.Tensor, callback_kwargs: dict):
+                    """Callback to store latents during denoising."""
+                    try:
+                        # Extract latents from callback_kwargs
+                        latents = callback_kwargs.get('latents', None) if callback_kwargs else None
+                        if latents is None:
+                            logging.warning(f"No latents found in callback_kwargs at step {step}")
+                            return callback_kwargs or {}
+                        
+                        # Convert timestep to float if it's a tensor
+                        if torch.is_tensor(timestep):
+                            timestep_val = timestep.item()
+                        else:
+                            timestep_val = float(timestep)
+                        
+                        latent_storage.store_latent(
+                            latent=latents,
+                            step=step,
+                            timestep=timestep_val,
+                            total_steps=num_inference_steps
+                        )
+                        
+                        return callback_kwargs or {}
+                        
+                    except Exception as e:
+                        logging.error(f"Error in latent storage callback: {e}")
+                        return callback_kwargs or {}
+                
+                callback_fn = latent_callback
+            
             # Generate video with memory optimization
             with torch.no_grad():
                 if use_weighted_embeddings:
@@ -610,7 +664,7 @@ class WanVideoGenerator:
                             weighting_method=embedding_method
                         )
                         
-                        # Generate using prompt_embeds
+                        # Generate using prompt_embeds with callback
                         video_frames = self.pipe(
                             prompt_embeds=prompt_embeds,
                             width=width,
@@ -618,7 +672,9 @@ class WanVideoGenerator:
                             num_frames=num_frames,
                             num_inference_steps=num_inference_steps,
                             guidance_scale=guidance_scale,
-                            generator=generator
+                            generator=generator,
+                            callback_on_step_end=callback_fn,
+                            callback_on_step_end_tensor_inputs=callback_tensor_inputs if callback_fn else None
                         ).frames[0]
                         
                         logging.info("Successfully generated video using weighted embeddings")
@@ -627,7 +683,7 @@ class WanVideoGenerator:
                         logging.error(f"Weighted embeddings generation failed: {e}")
                         logging.info("Falling back to processed prompt generation")
                         
-                        # Fallback to processed prompt
+                        # Fallback to processed prompt with callback
                         video_frames = self.pipe(
                             prompt=processed_prompt,
                             width=width,
@@ -635,10 +691,12 @@ class WanVideoGenerator:
                             num_frames=num_frames,
                             num_inference_steps=num_inference_steps,
                             guidance_scale=guidance_scale,
-                            generator=generator
+                            generator=generator,
+                            callback_on_step_end=callback_fn,
+                            callback_on_step_end_tensor_inputs=callback_tensor_inputs if callback_fn else None
                         ).frames[0]
                 else:
-                    # Use processed prompt (repetition, enhanced language, or clean)
+                    # Use processed prompt (repetition, enhanced language, or clean) with callback
                     video_frames = self.pipe(
                         prompt=processed_prompt,
                         width=width,
@@ -646,8 +704,16 @@ class WanVideoGenerator:
                         num_frames=num_frames,
                         num_inference_steps=num_inference_steps,
                         guidance_scale=guidance_scale,
-                        generator=generator
+                        generator=generator,
+                        callback_on_step_end=callback_fn,
+                        callback_on_step_end_tensor_inputs=callback_tensor_inputs if callback_fn else None
                     ).frames[0]
+            
+            # Finish latent storage if enabled
+            latent_summary = None
+            if latent_storage and video_id:
+                latent_summary = latent_storage.finish_video_storage()
+                logging.info(f"Latent storage completed: {latent_summary['total_stored']} steps stored")
             
             # Debug video frames structure
             logging.info(f"Video frames type: {type(video_frames)}")
@@ -760,6 +826,11 @@ class WanVideoGenerator:
             if self._is_large_model() and self.memory_settings.clear_cache_between_videos:
                 clear_gpu_memory()
             
+            # Finish latent storage if enabled
+            latent_summary = None
+            if latent_storage and video_id:
+                latent_summary = latent_storage.finish_video_storage()
+            
             generation_time = time.time() - start_time
             
             # Log memory after export
@@ -771,6 +842,7 @@ class WanVideoGenerator:
                 success=True,
                 video_path=video_path,
                 generation_time=generation_time,
+                latent_storage_summary=latent_summary,
                 metadata={
                     "prompt": prompt,
                     "width": width,
@@ -936,6 +1008,7 @@ class BatchVideoGenerator:
                       output_dir: str,
                       videos_per_prompt: int = 1,
                       filename_template: str = "{prompt_id}_{video_num:03d}",
+                      latent_storage: Optional[LatentStorage] = None,
                       **generation_kwargs) -> Dict[str, List[GenerationResult]]:
         """
         Generate multiple videos for each prompt.
@@ -945,6 +1018,7 @@ class BatchVideoGenerator:
             output_dir: Base output directory
             videos_per_prompt: Number of videos to generate per prompt
             filename_template: Template for video filenames
+            latent_storage: Optional LatentStorage instance for saving latents
             **generation_kwargs: Additional generation parameters
         
         Returns:
@@ -983,6 +1057,9 @@ class BatchVideoGenerator:
                     prompt_idx=prompt_idx
                 )
                 
+                # Create unique video ID for latent storage
+                video_id = f"{prompt_id}_vid{video_num + 1:03d}"
+                
                 # Add seed variation for multiple videos
                 # For each prompt, restart seed sequence from base + video_num
                 current_kwargs = generation_kwargs.copy()
@@ -991,10 +1068,17 @@ class BatchVideoGenerator:
                 base_seed = generation_kwargs.get('seed', self.generator.config.model_settings.seed)
                 current_kwargs['seed'] = base_seed + video_num
                 
+                # Add latent storage parameters if enabled
+                if latent_storage:
+                    current_kwargs['latent_storage'] = latent_storage
+                    current_kwargs['video_id'] = video_id
+                
                 output_path = prompt_dir / filename
                 
                 self.logger.info(f"Generating video {current_video}/{total_videos}: {filename}")
                 self.logger.info(f"Using seed: {current_kwargs['seed']} (base: {base_seed} + video_num: {video_num})")
+                if latent_storage:
+                    self.logger.info(f"Latent storage enabled for video ID: {video_id}")
                 
                 # For large models, reload the model between videos to prevent memory accumulation
                 if self.reload_model_between_videos and current_video > 1:
@@ -1012,6 +1096,8 @@ class BatchVideoGenerator:
                 # Log result
                 if result.success:
                     self.logger.info(f"Successfully generated: {result.video_path}")
+                    if result.latent_storage_summary:
+                        self.logger.info(f"Latent storage: {result.latent_storage_summary['total_stored']} steps stored")
                 else:
                     self.logger.error(f"Generation failed: {result.error_message}")
                 

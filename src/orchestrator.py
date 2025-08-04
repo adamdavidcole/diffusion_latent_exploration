@@ -10,7 +10,7 @@ import json
 from src.config import ConfigManager, GenerationConfig
 from src.prompts import PromptManager, PromptTemplate, PromptVariation, WeightingConfig
 from src.generators import WAN13BVideoGenerator, BatchVideoGenerator
-from src.utils import FileManager, LogManager, ProgressTracker, MetadataManager
+from src.utils import FileManager, LogManager, ProgressTracker, MetadataManager, LatentStorage
 
 
 class VideoGenerationOrchestrator:
@@ -137,6 +137,20 @@ class VideoGenerationOrchestrator:
         
         self.logger.info(f"Starting video generation: {len(variations)} variations × {videos_per_var} videos = {total_videos} total videos")
         
+        # Setup latent storage if enabled
+        latent_storage = None
+        if self.config.latent_analysis_settings.store_latents:
+            latent_storage = LatentStorage(
+                storage_dir=self.batch_dirs["latents"],
+                storage_format=self.config.latent_analysis_settings.latent_storage_format,
+                compress=self.config.latent_analysis_settings.compress_latents,
+                storage_interval=self.config.latent_analysis_settings.storage_interval,
+                storage_dtype=self.config.latent_analysis_settings.storage_dtype
+            )
+            self.logger.info(f"Latent storage enabled: {latent_storage.storage_dir}")
+            self.logger.info(f"Storage format: {latent_storage.storage_format}, compress: {latent_storage.compress}, interval: {latent_storage.storage_interval}")
+            self.logger.info(f"Storage dtype: {latent_storage.storage_dtype}")
+        
         # Setup progress tracker
         self.progress_tracker = ProgressTracker(
             total=total_videos,
@@ -164,6 +178,7 @@ class VideoGenerationOrchestrator:
             output_dir=str(self.batch_dirs["videos"]),
             videos_per_prompt=videos_per_var,
             filename_template="video_{video_num:03d}",
+            latent_storage=latent_storage,
             # Pass model settings as generation parameters
             seed=self.config.model_settings.seed,
             sampler=self.config.model_settings.sampler,
@@ -192,6 +207,14 @@ class VideoGenerationOrchestrator:
         self.logger.info(f"  Success rate: {summary['success_rate']:.1%}")
         self.logger.info(f"  Total time: {summary['total_generation_time']:.1f}s")
         self.logger.info(f"  Avg time per video: {summary['average_time_per_video']:.1f}s")
+        
+        # Log latent storage summary if enabled
+        if latent_storage:
+            storage_stats = latent_storage.get_storage_stats()
+            self.logger.info(f"Latent Storage Summary:")
+            self.logger.info(f"  Total videos with latents: {storage_stats['total_videos']}")
+            self.logger.info(f"  Total latent files: {storage_stats['total_latent_files']}")
+            self.logger.info(f"  Total storage size: {storage_stats['total_size_mb']:.1f} MB")
         
         return results
     
