@@ -54,11 +54,8 @@ class LatentStorage:
         self.storage_interval = storage_interval
         self.storage_dtype = storage_dtype
         
-        # Create subdirectories
-        self.latents_dir = self.storage_dir / "latents_data"
-        self.metadata_dir = self.storage_dir / "metadata"
-        self.latents_dir.mkdir(exist_ok=True)
-        self.metadata_dir.mkdir(exist_ok=True)
+        # Use storage_dir directly as the latents directory
+        self.latents_dir = self.storage_dir
         
         self.logger = logging.getLogger(__name__)
         
@@ -84,7 +81,7 @@ class LatentStorage:
             prompt_part = video_id
             vid_part = "vid_001"  # Default video number
         
-        # Create video-specific directory structure: latents_data/prompt_000/vid_001/
+        # Create video-specific directory structure: prompt_000/vid_001/
         self.current_video_dir = self.latents_dir / prompt_part / vid_part
         self.current_video_dir.mkdir(parents=True, exist_ok=True)
         
@@ -200,8 +197,8 @@ class LatentStorage:
             "compressed": self.compress
         }
         
-        # Save video summary
-        summary_file = self.storage_dir / f"video_{self.current_video_id}_summary.json"
+        # Save video summary to the individual video directory
+        summary_file = self.current_video_dir / "summary.json"
         with open(summary_file, 'w') as f:
             json.dump(summary, f, indent=2)
         
@@ -302,7 +299,17 @@ class LatentStorage:
     
     def get_video_summary(self, video_id: str) -> Optional[Dict[str, Any]]:
         """Get storage summary for a video."""
-        summary_file = self.storage_dir / f"video_{video_id}_summary.json"
+        # Extract prompt and video parts from video_id
+        if "_vid" in video_id:
+            prompt_part, vid_part = video_id.split("_vid")
+            vid_part = f"vid_{vid_part}"  # Convert "001" to "vid_001"
+        else:
+            prompt_part = video_id
+            vid_part = "vid_001"
+        
+        # Look for summary in the individual video directory
+        video_dir = self.latents_dir / prompt_part / vid_part
+        summary_file = video_dir / "summary.json"
         
         if summary_file.exists():
             try:
@@ -317,7 +324,7 @@ class LatentStorage:
         """List all videos with stored latents."""
         videos = set()
         
-        # Scan prompt directories in latents_data/
+        # Scan prompt directories in the storage directory
         for prompt_dir in self.latents_dir.iterdir():
             if prompt_dir.is_dir() and prompt_dir.name.startswith('prompt_'):
                 # Scan video directories within each prompt directory

@@ -62,13 +62,13 @@ When latent storage is enabled, the following structure is created:
 outputs/your_batch_20250804_123456/
 ├── videos/           # Generated videos
 ├── latents/          # Stored latent representations
-│   ├── latents/      # Actual latent tensor files
-│   │   ├── latent_prompt_001_vid001_step_000.npy.gz
-│   │   ├── latent_prompt_001_vid001_step_001.npy.gz
-│   │   └── ...
-│   ├── metadata/     # Metadata for each latent
-│   │   ├── latent_prompt_001_vid001_step_000_metadata.json
-│   │   └── ...
+│   ├── prompt_000/   # Prompt-specific directory
+│   │   └── vid_001/  # Individual video directory
+│   │       ├── step_000.npy.gz           # Latent tensor for step 0
+│   │       ├── step_000_metadata.json    # Metadata for step 0
+│   │       ├── step_001.npy.gz           # Latent tensor for step 1
+│   │       ├── step_001_metadata.json    # Metadata for step 1
+│   │       └── summary.json              # Video generation summary
 │   └── analysis/     # Analysis results and visualizations
 │       ├── visualizations/
 │       └── trajectory_analysis_*.json

@@ -100,19 +100,13 @@ Examples:
                 logger.error(f"Batch directory not found: {args.batch_dir}")
                 return 1
             
-            # Try new structure first (latents_data), then fall back to old (latents)
-            latents_dir = batch_path / "latents_data"
+            # Look for latents directory in the batch
+            latents_dir = batch_path / "latents"
             if not latents_dir.exists():
-                latents_dir = batch_path / "latents"
-                if not latents_dir.exists():
-                    logger.error(f"No latents directory found in batch: {args.batch_dir}")
-                    logger.info("Make sure the batch was generated with --store-latents flag")
-                    logger.info("Expected to find either 'latents_data' or 'latents' directory")
-                    return 1
-                else:
-                    logger.info("Found old-style 'latents' directory structure")
-            else:
-                logger.info("Found new-style 'latents_data' directory structure")
+                logger.error(f"No latents directory found in batch: {args.batch_dir}")
+                logger.info("Make sure the batch was generated with --store-latents flag")
+                logger.info("Expected to find 'latents' directory")
+                return 1
         else:
             latents_dir = Path(args.latents_dir)
             if not latents_dir.exists():

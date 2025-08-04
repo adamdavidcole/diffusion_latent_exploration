@@ -104,14 +104,19 @@ class LatentTrajectoryAnalyzer:
             if video_id.startswith(prompt_dir + "_vid"):
                 video_ids.append(video_id)
         
-        # Also look for video summary files to ensure we don't miss any
-        for summary_file in self.storage_dir.glob(f"video_{prompt_dir}_vid*_summary.json"):
-            # Extract video ID from summary filename
-            filename = summary_file.stem
-            if filename.startswith('video_'):
-                video_id = filename[6:-8]  # Remove "video_" prefix and "_summary" suffix
-                if video_id not in video_ids:
-                    video_ids.append(video_id)
+        # Also look for video summary files in the new directory structure
+        # Check for summary.json files in prompt_xxx/vid_xxx/ directories
+        prompt_latents_dir = self.storage_dir / prompt_dir
+        if prompt_latents_dir.exists():
+            for vid_dir in prompt_latents_dir.iterdir():
+                if vid_dir.is_dir() and vid_dir.name.startswith("vid_"):
+                    summary_file = vid_dir / "summary.json"
+                    if summary_file.exists():
+                        # Reconstruct video_id from directory structure
+                        vid_part = vid_dir.name.replace("vid_", "")  # Convert "vid_001" to "001"
+                        video_id = f"{prompt_dir}_vid{vid_part}"
+                        if video_id not in video_ids:
+                            video_ids.append(video_id)
         
         return sorted(video_ids)
     
