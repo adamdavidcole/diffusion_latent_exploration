@@ -140,12 +140,14 @@ def parse_weighted_prompt(prompt: str) -> List[Tuple[str, float]]:
     Examples:
         "a beautiful (landscape:1.2)" -> [("a beautiful ", 1.0), ("landscape", 1.2)]
         "(romantic:1.5) kiss between (two people:0.8)" -> [("romantic", 1.5), (" kiss between ", 1.0), ("two people", 0.8)]
+        "(flower)" -> [("flower", 1.0)]
+        "(flower:1.0)" -> [("flower", 1.0)]
     
     Returns:
         List of (text, weight) tuples
     """
-    # Pattern to match (text:weight) syntax
-    pattern = r'\(([^:)]+):([0-9]*\.?[0-9]+)\)'
+    # Pattern to match both (text:weight) and (text) syntax
+    pattern = r'\(([^)]+?)(?::([0-9]*\.?[0-9]+))?\)'
     
     segments = []
     last_end = 0
@@ -159,7 +161,14 @@ def parse_weighted_prompt(prompt: str) -> List[Tuple[str, float]]:
         
         # Add the weighted segment
         text = match.group(1)
-        weight = float(match.group(2))
+        weight_str = match.group(2)
+        
+        # If no weight specified, default to 1.0
+        if weight_str is None:
+            weight = 1.0
+        else:
+            weight = float(weight_str)
+        
         segments.append((text, weight))
         
         last_end = match.end()
@@ -171,6 +180,35 @@ def parse_weighted_prompt(prompt: str) -> List[Tuple[str, float]]:
             segments.append((remaining_text, 1.0))
     
     return segments
+
+
+def clean_prompt_for_attention(prompt: str) -> str:
+    """
+    Remove weight syntax from prompt to get clean text for attention storage.
+    
+    Examples:
+        "(flower:1.2)" -> "flower"
+        "(flower)" -> "flower"  
+        "beautiful (landscape:1.5) scene" -> "beautiful landscape scene"
+    
+    Returns:
+        Clean prompt without weight syntax
+    """
+    # Pattern to match both (text:weight) and (text) syntax
+    pattern = r'\(([^)]+?)(?::[0-9]*\.?[0-9]+)?\)'
+    
+    def replace_parenthetical(match):
+        text = match.group(1)
+        # Only return non-empty text
+        return text if text.strip() else ""
+    
+    # Replace all parenthetical expressions with their text content
+    clean_prompt = re.sub(pattern, replace_parenthetical, prompt)
+    
+    # Clean up extra whitespace
+    clean_prompt = ' '.join(clean_prompt.split())
+    
+    return clean_prompt
 
 
 def create_weighted_embeddings(pipe, prompt: str, device: str) -> torch.Tensor:
@@ -192,14 +230,20 @@ def create_weighted_embeddings(pipe, prompt: str, device: str) -> torch.Tensor:
     # Parse the weighted prompt
     segments = parse_weighted_prompt(prompt)
     
-    if len(segments) == 1 and segments[0][1] == 1.0:
-        # No weighting needed, use regular embedding
+    # Create clean prompt without weight syntax for tokenization
+    clean_prompt = "".join(text for text, _ in segments)
+    
+    # Check if any weights are different from 1.0
+    has_weights = any(weight != 1.0 for _, weight in segments)
+    
+    if not has_weights:
+        # No weighting needed, use clean prompt for regular embedding
         try:
             # Use a safe max_length to avoid tokenizer issues
             max_length = min(77, getattr(pipe.tokenizer, 'model_max_length', 77))
             
             text_inputs = pipe.tokenizer(
-                prompt,
+                clean_prompt,  # Use clean prompt instead of original
                 padding="max_length",
                 max_length=max_length,
                 truncation=True,
@@ -215,9 +259,6 @@ def create_weighted_embeddings(pipe, prompt: str, device: str) -> torch.Tensor:
     logging.info(f"Creating weighted embeddings for {len(segments)} segments")
     
     try:
-        # Create the base prompt without weight syntax
-        clean_prompt = "".join(text for text, _ in segments)
-        
         # Use safe tokenization parameters
         max_length = min(77, getattr(pipe.tokenizer, 'model_max_length', 77))
         
@@ -278,8 +319,7 @@ def create_weighted_embeddings(pipe, prompt: str, device: str) -> torch.Tensor:
         logging.error(f"Error in weighted embedding creation: {e}")
         logging.info("Falling back to regular prompt processing")
         
-        # Fallback: use regular tokenization without weights
-        clean_prompt = "".join(text for text, _ in segments)
+        # Fallback: use regular tokenization without weights (clean_prompt already available)
         max_length = min(77, getattr(pipe.tokenizer, 'model_max_length', 77))
         
         text_inputs = pipe.tokenizer(
@@ -660,10 +700,13 @@ class WanVideoGenerator:
             # Setup attention storage if enabled
             attention_hooks_registered = False
             if attention_storage and video_id:
+                # Create clean prompt for attention storage (remove weight syntax)
+                clean_prompt = clean_prompt_for_attention(processed_prompt)
+                
                 # Start attention storage for this video
                 attention_storage.start_video_storage(
                     video_id=video_id,
-                    prompt=processed_prompt,  # Use processed prompt (the actual prompt sent to model)
+                    prompt=clean_prompt,  # Use clean prompt without weight syntax
                     target_words=attention_target_words,  # Pass specific target words for attention tracking
                     seed=generator_seed,
                     cfg_scale=guidance_scale,
