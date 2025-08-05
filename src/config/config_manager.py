@@ -42,6 +42,24 @@ class LatentAnalysisSettings:
     storage_dtype: str = "float32"  # "float32" or "float16" for storage precision
 
 
+@dataclass  
+class AttentionAnalysisSettings:
+    """Settings for attention map analysis."""
+    store_attention: bool = False
+    tokenizer_name: str = "google/umt5-xxl"  # T5 tokenizer used by WAN pipeline
+    storage_format: str = "numpy"  # "numpy" or "torch"
+    compress_attention: bool = True  # Use compression to save disk space
+    storage_interval: int = 5  # Store every N steps (attention maps are larger)
+    storage_dtype: str = "float32"  # "float32" or "float16" for storage precision
+    
+    # Attention-specific settings
+    store_per_head: bool = False  # Store individual attention heads
+    store_per_block: bool = False  # Store individual transformer blocks
+    store_individual_tokens: bool = False  # Store individual token attention
+    attention_threshold: Optional[float] = None  # Threshold for filtering attention values
+    spatial_downsample_factor: int = 1  # Factor to downsample spatial dimensions
+
+
 @dataclass
 class PromptSettings:
     """Prompt weighting and processing settings."""
@@ -73,6 +91,7 @@ class GenerationConfig:
     video_settings: VideoSettings = field(default_factory=VideoSettings)
     prompt_settings: PromptSettings = field(default_factory=PromptSettings)
     latent_analysis_settings: LatentAnalysisSettings = field(default_factory=LatentAnalysisSettings)
+    attention_analysis_settings: AttentionAnalysisSettings = field(default_factory=AttentionAnalysisSettings)
     videos_per_variation: int = 3
     output_dir: str = "outputs"
     batch_name: Optional[str] = None
@@ -129,6 +148,7 @@ class ConfigManager:
         video_data = config_data.get('video_settings', {})
         prompt_data = config_data.get('prompt_settings', {})
         latent_data = config_data.get('latent_analysis_settings', {})
+        attention_data = config_data.get('attention_analysis_settings', {})
         
         model_settings = ModelSettings(
             seed=model_data.get('seed', 42),
@@ -174,12 +194,27 @@ class ConfigManager:
             storage_dtype=latent_data.get('storage_dtype', 'float32')
         )
         
+        attention_analysis_settings = AttentionAnalysisSettings(
+            store_attention=attention_data.get('store_attention', False),
+            tokenizer_name=attention_data.get('tokenizer_name', 'microsoft/WAN-2B-v2'),
+            storage_format=attention_data.get('storage_format', 'numpy'),
+            compress_attention=attention_data.get('compress_attention', True),
+            storage_interval=attention_data.get('storage_interval', 5),
+            storage_dtype=attention_data.get('storage_dtype', 'float32'),
+            store_per_head=attention_data.get('store_per_head', False),
+            store_per_block=attention_data.get('store_per_block', False),
+            store_individual_tokens=attention_data.get('store_individual_tokens', False),
+            attention_threshold=attention_data.get('attention_threshold'),
+            spatial_downsample_factor=attention_data.get('spatial_downsample_factor', 1)
+        )
+        
         return GenerationConfig(
             model_settings=model_settings,
             memory_settings=memory_settings,
             video_settings=video_settings,
             prompt_settings=prompt_settings,
             latent_analysis_settings=latent_analysis_settings,
+            attention_analysis_settings=attention_analysis_settings,
             videos_per_variation=config_data.get('videos_per_variation', 3),
             output_dir=config_data.get('output_dir', 'outputs'),
             batch_name=config_data.get('batch_name'),
@@ -226,6 +261,19 @@ class ConfigManager:
                 'storage_interval': config.latent_analysis_settings.storage_interval,
                 'compress_latents': config.latent_analysis_settings.compress_latents,
                 'storage_dtype': config.latent_analysis_settings.storage_dtype
+            },
+            'attention_analysis_settings': {
+                'store_attention': config.attention_analysis_settings.store_attention,
+                'tokenizer_name': config.attention_analysis_settings.tokenizer_name,
+                'storage_format': config.attention_analysis_settings.storage_format,
+                'compress_attention': config.attention_analysis_settings.compress_attention,
+                'storage_interval': config.attention_analysis_settings.storage_interval,
+                'storage_dtype': config.attention_analysis_settings.storage_dtype,
+                'store_per_head': config.attention_analysis_settings.store_per_head,
+                'store_per_block': config.attention_analysis_settings.store_per_block,
+                'store_individual_tokens': config.attention_analysis_settings.store_individual_tokens,
+                'attention_threshold': config.attention_analysis_settings.attention_threshold,
+                'spatial_downsample_factor': config.attention_analysis_settings.spatial_downsample_factor
             },
             'videos_per_variation': config.videos_per_variation,
             'output_dir': config.output_dir,

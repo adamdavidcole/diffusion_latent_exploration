@@ -10,7 +10,7 @@ import json
 from src.config import ConfigManager, GenerationConfig
 from src.prompts import PromptManager, PromptTemplate, PromptVariation, WeightingConfig
 from src.generators import WAN13BVideoGenerator, BatchVideoGenerator
-from src.utils import FileManager, LogManager, ProgressTracker, MetadataManager, LatentStorage
+from src.utils import FileManager, LogManager, ProgressTracker, MetadataManager, LatentStorage, AttentionStorage
 
 
 class VideoGenerationOrchestrator:
@@ -151,6 +151,40 @@ class VideoGenerationOrchestrator:
             self.logger.info(f"Storage format: {latent_storage.storage_format}, compress: {latent_storage.compress}, interval: {latent_storage.storage_interval}")
             self.logger.info(f"Storage dtype: {latent_storage.storage_dtype}")
         
+        # Setup attention storage if enabled
+        attention_storage = None
+        if self.config.attention_analysis_settings.store_attention:
+            attention_storage = AttentionStorage(
+                storage_dir=self.batch_dirs["attention_maps"],
+                tokenizer_name=self.config.attention_analysis_settings.tokenizer_name,
+                storage_format=self.config.attention_analysis_settings.storage_format,
+                compress=self.config.attention_analysis_settings.compress_attention,
+                storage_interval=self.config.attention_analysis_settings.storage_interval,
+                storage_dtype=self.config.attention_analysis_settings.storage_dtype,
+                store_per_head=self.config.attention_analysis_settings.store_per_head,
+                store_per_block=self.config.attention_analysis_settings.store_per_block,
+                store_individual_tokens=self.config.attention_analysis_settings.store_individual_tokens,
+                attention_threshold=self.config.attention_analysis_settings.attention_threshold,
+                spatial_downsample_factor=self.config.attention_analysis_settings.spatial_downsample_factor
+            )
+            self.logger.info(f"Attention storage enabled: {attention_storage.storage_dir}")
+            self.logger.info(f"Storage format: {attention_storage.storage_format}, compress: {attention_storage.compress}, interval: {attention_storage.storage_interval}")
+            self.logger.info(f"Storage dtype: {attention_storage.storage_dtype}")
+            self.logger.info(f"Per-head: {attention_storage.store_per_head}, Per-block: {attention_storage.store_per_block}")
+            
+            # Check if prompts contain parenthetical tokens
+            has_parenthetical = any('(' in var.text and ')' in var.text for var in variations)
+            if not has_parenthetical:
+                self.logger.warning("Attention storage is enabled but no parenthetical tokens found in prompts!")
+                self.logger.warning("Use format like 'romantic (kiss) between two (men)' to capture attention for specific words")
+            else:
+                parenthetical_tokens = set()
+                for var in variations:
+                    import re
+                    tokens = re.findall(r'\(([^)]+)\)', var.text)
+                    parenthetical_tokens.update(tokens)
+                self.logger.info(f"Found parenthetical tokens in prompts: {sorted(parenthetical_tokens)}")
+        
         # Setup progress tracker
         self.progress_tracker = ProgressTracker(
             total=total_videos,
@@ -179,6 +213,7 @@ class VideoGenerationOrchestrator:
             videos_per_prompt=videos_per_var,
             filename_template="video_{video_num:03d}",
             latent_storage=latent_storage,
+            attention_storage=attention_storage,
             # Pass model settings as generation parameters
             seed=self.config.model_settings.seed,
             sampler=self.config.model_settings.sampler,
@@ -215,6 +250,13 @@ class VideoGenerationOrchestrator:
             self.logger.info(f"  Total videos with latents: {storage_stats['total_videos']}")
             self.logger.info(f"  Total latent files: {storage_stats['total_latent_files']}")
             self.logger.info(f"  Total storage size: {storage_stats['total_size_mb']:.1f} MB")
+        
+        # Log attention storage summary if enabled
+        if attention_storage:
+            # Attention storage doesn't have get_storage_stats yet, so we'll log basic info
+            self.logger.info(f"Attention Storage Summary:")
+            self.logger.info(f"  Attention maps stored in: {attention_storage.storage_dir}")
+            self.logger.info(f"  Target tokens processed for each video")
         
         return results
     

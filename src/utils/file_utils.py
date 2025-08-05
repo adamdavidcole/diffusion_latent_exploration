@@ -100,7 +100,8 @@ class FileManager:
             "logs": batch_dir / "logs", 
             "configs": batch_dir / "configs",
             "reports": batch_dir / "reports",
-            "latents": batch_dir / "latents"
+            "latents": batch_dir / "latents",
+            "attention_maps": batch_dir / "attention_maps"
         }
         
         for dir_path in dirs.values():

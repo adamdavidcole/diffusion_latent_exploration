@@ -36,6 +36,7 @@ from src.prompts.prompt_weighting import (
 )
 from src.prompts.wan_weighted_embeddings_fixed import create_wan_weighted_embeddings
 from src.utils.latent_storage import LatentStorage, create_denoising_callback
+from src.utils.attention_storage import AttentionStorage
 
 
 def generate_thumbnail(video_path: str) -> bool:
@@ -301,6 +302,7 @@ class GenerationResult:
     generation_time: float = 0.0
     metadata: Dict[str, Any] = None
     latent_storage_summary: Optional[Dict[str, Any]] = None
+    attention_storage_summary: Optional[Dict[str, Any]] = None
     
     def __post_init__(self):
         if self.metadata is None:
@@ -564,6 +566,7 @@ class WanVideoGenerator:
             
             # Extract latent storage parameters
             latent_storage = kwargs.get('latent_storage', None)
+            attention_storage = kwargs.get('attention_storage', None)
             video_id = kwargs.get('video_id', None)
             
             # Create generator for reproducibility
@@ -574,6 +577,8 @@ class WanVideoGenerator:
             logging.info(f"Seed: {generator_seed}")
             if latent_storage:
                 logging.info(f"Latent storage enabled for video: {video_id}")
+            if attention_storage:
+                logging.info(f"Attention storage enabled for video: {video_id}")
             
             # Log memory before generation
             mem_info = get_gpu_memory_info(self.device)
@@ -651,6 +656,66 @@ class WanVideoGenerator:
                 
                 callback_fn = latent_callback
             
+            # Setup attention storage if enabled
+            attention_hooks_registered = False
+            if attention_storage and video_id:
+                # Start attention storage for this video
+                attention_storage.start_video_storage(
+                    video_id=video_id,
+                    prompt=prompt,
+                    seed=generator_seed,
+                    cfg_scale=guidance_scale,
+                    width=width,
+                    height=height,
+                    num_frames=num_frames
+                )
+                
+                # Register attention hooks on the transformer model
+                if hasattr(self.pipe, 'transformer') and self.pipe.transformer is not None:
+                    logging.info(f"Found transformer model for attention hooks: {type(self.pipe.transformer).__name__}")
+                    
+                    # Set scheduler reference for step tracking
+                    if hasattr(self.pipe, 'scheduler') and self.pipe.scheduler is not None:
+                        attention_storage.set_scheduler(self.pipe.scheduler)
+                    
+                    attention_storage.register_attention_hooks(self.pipe.transformer)
+                    attention_hooks_registered = True
+                    logging.info(f"Registered attention hooks on transformer for video: {video_id}")
+                else:
+                    logging.warning("Could not register attention hooks: transformer not found")
+                    logging.warning(f"Pipeline attributes: {list(self.pipe.__dict__.keys())}")
+                
+                # Create combined callback that handles both latent and attention storage
+                original_callback = callback_fn
+                
+                def combined_callback(pipe, step: int, timestep: torch.Tensor, callback_kwargs: dict):
+                    """Combined callback for latent and attention storage."""
+                    result = callback_kwargs or {}
+                    
+                    # Call original latent callback if it exists
+                    if original_callback:
+                        result = original_callback(pipe, step, timestep, result)
+                    
+                    # Store attention maps at this step
+                    try:
+                        if torch.is_tensor(timestep):
+                            timestep_val = timestep.item()
+                        else:
+                            timestep_val = float(timestep)
+                        
+                        # Attention storage will check its storage_interval internally
+                        attention_storage.store_attention_maps(
+                            step=step,
+                            timestep=timestep_val,
+                            total_steps=num_inference_steps
+                        )
+                    except Exception as e:
+                        logging.error(f"Error in attention storage callback: {e}")
+                    
+                    return result
+                
+                callback_fn = combined_callback
+            
             # Generate video with memory optimization
             with torch.no_grad():
                 if use_weighted_embeddings:
@@ -714,6 +779,19 @@ class WanVideoGenerator:
             if latent_storage and video_id:
                 latent_summary = latent_storage.finish_video_storage()
                 logging.info(f"Latent storage completed: {latent_summary['total_stored']} steps stored")
+            
+            # Finish attention storage if enabled
+            attention_summary = None
+            if attention_storage and video_id:
+                # Remove attention hooks first
+                if attention_hooks_registered:
+                    attention_storage.remove_attention_hooks(self.pipe.transformer)
+                    logging.info("Removed attention hooks from transformer")
+                
+                attention_summary = attention_storage.finish_video_storage()
+                logging.info(f"Attention storage completed for video: {video_id}")
+                if attention_summary.get('target_tokens'):
+                    logging.info(f"Attention tokens stored: {list(attention_summary['target_tokens'].keys())}")
             
             # Debug video frames structure
             logging.info(f"Video frames type: {type(video_frames)}")
@@ -843,6 +921,7 @@ class WanVideoGenerator:
                 video_path=video_path,
                 generation_time=generation_time,
                 latent_storage_summary=latent_summary,
+                attention_storage_summary=attention_summary,
                 metadata={
                     "prompt": prompt,
                     "width": width,
@@ -864,6 +943,14 @@ class WanVideoGenerator:
             if self._is_large_model() and self.memory_settings.clear_cache_between_videos:
                 clear_gpu_memory()
                 logging.info("Cleaned up GPU memory after error")
+            
+            # Clean up attention hooks on error if they were registered
+            if attention_storage and attention_hooks_registered:
+                try:
+                    attention_storage.remove_attention_hooks(self.pipe.transformer)
+                    logging.info("Removed attention hooks after error")
+                except Exception as cleanup_error:
+                    logging.warning(f"Failed to remove attention hooks after error: {cleanup_error}")
             
             return GenerationResult(
                 success=False,
@@ -1009,6 +1096,7 @@ class BatchVideoGenerator:
                       videos_per_prompt: int = 1,
                       filename_template: str = "{prompt_id}_{video_num:03d}",
                       latent_storage: Optional[LatentStorage] = None,
+                      attention_storage: Optional['AttentionStorage'] = None,
                       **generation_kwargs) -> Dict[str, List[GenerationResult]]:
         """
         Generate multiple videos for each prompt.
@@ -1019,6 +1107,7 @@ class BatchVideoGenerator:
             videos_per_prompt: Number of videos to generate per prompt
             filename_template: Template for video filenames
             latent_storage: Optional LatentStorage instance for saving latents
+            attention_storage: Optional AttentionStorage instance for saving attention maps
             **generation_kwargs: Additional generation parameters
         
         Returns:
@@ -1073,12 +1162,19 @@ class BatchVideoGenerator:
                     current_kwargs['latent_storage'] = latent_storage
                     current_kwargs['video_id'] = video_id
                 
+                # Add attention storage parameters if enabled
+                if attention_storage:
+                    current_kwargs['attention_storage'] = attention_storage
+                    current_kwargs['video_id'] = video_id
+                
                 output_path = prompt_dir / filename
                 
                 self.logger.info(f"Generating video {current_video}/{total_videos}: {filename}")
                 self.logger.info(f"Using seed: {current_kwargs['seed']} (base: {base_seed} + video_num: {video_num})")
                 if latent_storage:
                     self.logger.info(f"Latent storage enabled for video ID: {video_id}")
+                if attention_storage:
+                    self.logger.info(f"Attention storage enabled for video ID: {video_id}")
                 
                 # For large models, reload the model between videos to prevent memory accumulation
                 if self.reload_model_between_videos and current_video > 1:
@@ -1098,6 +1194,9 @@ class BatchVideoGenerator:
                     self.logger.info(f"Successfully generated: {result.video_path}")
                     if result.latent_storage_summary:
                         self.logger.info(f"Latent storage: {result.latent_storage_summary['total_stored']} steps stored")
+                    if result.attention_storage_summary:
+                        tokens = list(result.attention_storage_summary.get('target_tokens', {}).keys())
+                        self.logger.info(f"Attention storage: {len(tokens)} tokens tracked: {tokens}")
                 else:
                     self.logger.error(f"Generation failed: {result.error_message}")
                 
