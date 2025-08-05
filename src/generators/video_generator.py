@@ -1253,9 +1253,34 @@ class BatchVideoGenerator:
                         # NEW: Generate attention videos immediately after video completion if enabled
                         if hasattr(self.generator.config.attention_analysis_settings, 'auto_generate_per_video') and \
                            self.generator.config.attention_analysis_settings.auto_generate_per_video:
-                            self._generate_attention_videos_for_single_video(
-                                attention_storage, video_id, prompt_dir
-                            )
+                            
+                            # Safety check: Ensure the video file actually exists before generating attention videos
+                            expected_video_path = output_path
+                            if not str(expected_video_path).endswith(('.mp4', '.avi', '.mov')):
+                                expected_video_path = Path(str(expected_video_path) + '.mp4')
+                            
+                            # Wait briefly and check if file exists (handle potential file system delays)
+                            max_wait_attempts = 3
+                            wait_delay = 0.5  # 500ms between attempts
+                            
+                            file_exists = False
+                            for attempt in range(max_wait_attempts):
+                                if expected_video_path.exists():
+                                    file_exists = True
+                                    break
+                                elif attempt < max_wait_attempts - 1:  # Don't wait on the last attempt
+                                    self.logger.debug(f"Video file {expected_video_path} not found, waiting {wait_delay}s (attempt {attempt + 1}/{max_wait_attempts})")
+                                    time.sleep(wait_delay)
+                            
+                            if file_exists:
+                                self.logger.info(f"✅ Video file verified at {expected_video_path}, proceeding with attention video generation")
+                                self._generate_attention_videos_for_single_video(
+                                    attention_storage, video_id, prompt_dir
+                                )
+                            else:
+                                self.logger.error(f"❌ CRITICAL: Video file {expected_video_path} does not exist despite successful generation result")
+                                self.logger.error(f"❌ This indicates a race condition - skipping per-video attention generation")
+                                self.logger.error(f"❌ Attention videos will be generated during batch processing instead")
                 else:
                     self.logger.error(f"Generation failed: {result.error_message}")
                 
@@ -1421,9 +1446,32 @@ class BatchVideoGenerator:
                 **supported_params
             )
             
-            # Find the original video file for overlay
-            video_files = list(video_output_dir.glob("*.mp4"))
-            original_video_path = video_files[0] if video_files else None
+            # Find the original video file for overlay - STRICT matching only
+            original_video_path = None
+            
+            # Extract video number from video_id and find matching video file
+            if '_vid' in video_id:
+                try:
+                    vid_num = video_id.split('_vid')[1]  # Extract vid number (e.g., "002" from "prompt_000_vid002") 
+                    vid_int = int(vid_num)
+                    # Look for video_XXX.mp4 format - STRICT matching
+                    target_video = video_output_dir / f"video_{vid_int:03d}.mp4"
+                    if target_video.exists():
+                        original_video_path = target_video
+                        self.logger.info(f"✅ Found exact matching video for {video_id}: {target_video}")
+                    else:
+                        self.logger.error(f"❌ CRITICAL: Target video {target_video} does not exist for {video_id}")
+                        self.logger.error(f"❌ This indicates a race condition - per-video attention generation called before video file creation")
+                        self.logger.error(f"❌ Aborting attention video generation to prevent incorrect overlays")
+                        return  # ABORT - do not generate attention videos with wrong source
+                except (ValueError, IndexError) as e:
+                    self.logger.error(f"❌ CRITICAL: Failed to parse video number from {video_id}: {e}")
+                    self.logger.error(f"❌ Invalid video_id format - aborting attention video generation")
+                    return  # ABORT - invalid format
+            else:
+                self.logger.error(f"❌ CRITICAL: video_id '{video_id}' does not contain '_vid' - invalid format")
+                self.logger.error(f"❌ Aborting attention video generation")
+                return  # ABORT - old format not supported for per-video generation
             
             # Get the tokens for this video from the attention storage directory structure
             # Handle nested directory structure: prompt_000/vid001/
@@ -1445,6 +1493,23 @@ class BatchVideoGenerator:
             if not video_tokens:
                 self.logger.warning(f"No attention tokens found for video {video_id}")
                 return
+            
+            # Final verification: Ensure the matched video file actually corresponds to our video_id
+            if original_video_path and '_vid' in video_id:
+                try:
+                    vid_num = video_id.split('_vid')[1]
+                    vid_int = int(vid_num)
+                    expected_name = f"video_{vid_int:03d}.mp4"
+                    if original_video_path.name != expected_name:
+                        self.logger.error(f"❌ CRITICAL: Video path mismatch!")
+                        self.logger.error(f"❌ Expected: {expected_name}, Got: {original_video_path.name}")
+                        self.logger.error(f"❌ Aborting attention video generation to prevent incorrect overlays")
+                        return
+                    else:
+                        self.logger.info(f"✅ Video path verification passed: {original_video_path.name} matches {video_id}")
+                except (ValueError, IndexError):
+                    self.logger.error(f"❌ CRITICAL: Could not verify video path for {video_id}")
+                    return
             
             successful_videos = 0
             total_tokens = len(video_tokens)

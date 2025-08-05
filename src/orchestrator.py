@@ -848,11 +848,14 @@ class VideoGenerationOrchestrator:
                                                 target_video = prompt_dir / f"video_{vid_int:03d}.mp4"
                                                 if target_video.exists():
                                                     original_video_path = target_video
+                                                    self.logger.info(f"Matched video for {video_id}: {target_video}")
                                                 else:
                                                     # Fall back to first video
                                                     original_video_path = video_files[0]
-                                            except ValueError:
+                                                    self.logger.warning(f"Target video {target_video} missing for {video_id}, using fallback: {original_video_path}")
+                                            except ValueError as e:
                                                 original_video_path = video_files[0]
+                                                self.logger.warning(f"Failed to parse video number from {video_id}: {e}, using fallback: {original_video_path}")
                                         else:
                                             original_video_path = video_files[0]
                             
