@@ -15,6 +15,11 @@ from typing import Union, Optional, Tuple, List, Dict, Any
 from enum import Enum
 import logging
 from dataclasses import dataclass
+try:
+    from scipy.ndimage import zoom
+    SCIPY_AVAILABLE = True
+except ImportError:
+    SCIPY_AVAILABLE = False
 
 from .attention_analyzer import AttentionAnalyzer, AttentionMapInfo
 
@@ -286,21 +291,29 @@ class AttentionVisualizer:
         # Load attention map for specific step or aggregated
         if step is not None:
             # Load specific step
+            self.logger.info(f"Loading specific step {step} for {video_id}:{token_word}")
             spatial_attention, metadata = self.analyzer.get_spatial_attention_map(
                 video_id, token_word, step, aggregate_all=True
             )
+            self.logger.info(f"Loaded step {step}: spatial_attention.shape={spatial_attention.shape}")
         else:
             # Use aggregated attention across all steps
+            self.logger.info(f"Loading aggregated attention for {video_id}:{token_word}")
             aggregated_attention = self.generate_aggregated_attention_map(
                 video_id, token_word, aggregate_steps=True, fusion_method=fusion_method
             )
+            self.logger.info(f"Generated aggregated attention: shape={aggregated_attention.shape}")
             spatial_attention = aggregated_attention.squeeze(-1)  # Remove token dimension
+            self.logger.info(f"After squeeze: spatial_attention.shape={spatial_attention.shape}")
             
             # Get metadata from first available step
             _, metadata_list = self.analyzer.get_temporal_evolution(
                 video_id, token_word, aggregate_blocks=True, aggregate_heads=True
             )
             metadata = metadata_list[0]
+            self.logger.info(f"Using metadata from first step: {metadata.step}")
+        
+        self.logger.info(f"Final spatial_attention: shape={spatial_attention.shape}, dtype={spatial_attention.dtype}")
         
         if not (metadata.video_frames and metadata.video_height and metadata.video_width):
             raise ValueError("Video dimensions not available in metadata")
@@ -319,27 +332,36 @@ class AttentionVisualizer:
         spatial_size = spatial_attention.shape[0]
         expected_spatial_size = latent_frames * latent_height * latent_width
         
+        self.logger.info(f"Reshaping attention: spatial_size={spatial_size}, expected={expected_spatial_size}")
+        self.logger.info(f"Original spatial_attention shape: {spatial_attention.shape}")
+        self.logger.info(f"Latent dimensions: frames={latent_frames}, height={latent_height}, width={latent_width}")
+        
         if spatial_size == expected_spatial_size:
             # Perfect match - reshape to latent dimensions
             attention_latent = spatial_attention.view(latent_frames, latent_height, latent_width)
+            self.logger.info(f"Perfect reshape match: {attention_latent.shape}")
         else:
             # Try to infer dimensions
             self.logger.warning(f"Spatial size mismatch: got {spatial_size}, expected {expected_spatial_size}")
             # Assume temporal dimension is correct and spatial is flattened
             attention_latent = spatial_attention.view(latent_frames, -1)
             spatial_per_frame = attention_latent.shape[1]
+            self.logger.info(f"Fallback reshape: {attention_latent.shape}, spatial_per_frame={spatial_per_frame}")
             
             # Try to make it square-ish
             frame_dim = int(np.sqrt(spatial_per_frame))
             if frame_dim * frame_dim == spatial_per_frame:
                 attention_latent = attention_latent.view(latent_frames, frame_dim, frame_dim)
                 latent_height, latent_width = frame_dim, frame_dim
+                self.logger.info(f"Square reshape: {attention_latent.shape}")
             else:
                 # Fallback: use original latent dimensions and pad/crop
                 attention_latent = attention_latent.view(latent_frames, latent_height, latent_width)
+                self.logger.info(f"Forced reshape: {attention_latent.shape}")
         
         # Convert to numpy
         attention_np = attention_latent.cpu().numpy()
+        self.logger.info(f"Converted to numpy: shape={attention_np.shape}, dtype={attention_np.dtype}")
         
         self.logger.info(f"Attention latent shape: {attention_np.shape} -> Target: {target_frames}×{target_height}×{target_width}")
         
@@ -353,12 +375,57 @@ class AttentionVisualizer:
             # Get the latent attention for this frame
             latent_attention = attention_np[latent_frame_idx]
             
+            self.logger.debug(f"Processing frame {frame_idx}: latent_frame_idx={latent_frame_idx}")
+            self.logger.debug(f"  latent_attention shape: {latent_attention.shape}")
+            self.logger.debug(f"  latent_attention dtype: {latent_attention.dtype}")
+            self.logger.debug(f"  latent_attention range: [{latent_attention.min():.6f}, {latent_attention.max():.6f}]")
+            self.logger.debug(f"  has NaN: {np.any(np.isnan(latent_attention))}")
+            self.logger.debug(f"  has inf: {np.any(np.isinf(latent_attention))}")
+            self.logger.debug(f"  is contiguous: {latent_attention.flags.c_contiguous}")
+            
+            # Debug: Check for invalid values
+            if np.any(np.isnan(latent_attention)) or np.any(np.isinf(latent_attention)):
+                self.logger.warning(f"Frame {frame_idx}: Found NaN or inf values in attention map")
+                latent_attention = np.nan_to_num(latent_attention, nan=0.0, posinf=1.0, neginf=0.0)
+            
+            # Ensure proper dtype for OpenCV (float32)
+            if latent_attention.dtype != np.float32:
+                self.logger.debug(f"Converting dtype from {latent_attention.dtype} to float32")
+                latent_attention = latent_attention.astype(np.float32)
+            
+            # Ensure the array is contiguous
+            if not latent_attention.flags.c_contiguous:
+                self.logger.debug("Making array contiguous")
+                latent_attention = np.ascontiguousarray(latent_attention)
+            
+            self.logger.debug(f"  Final before resize: shape={latent_attention.shape}, "
+                            f"dtype={latent_attention.dtype}, contiguous={latent_attention.flags.c_contiguous}")
+            self.logger.debug(f"  Target resize: {latent_attention.shape} -> ({target_width}, {target_height})")
+            
             # Resize from latent to target dimensions
-            resized_attention = cv2.resize(
-                latent_attention, 
-                (target_width, target_height), 
-                interpolation=cv2.INTER_LINEAR
-            )
+            try:
+                resized_attention = cv2.resize(
+                    latent_attention, 
+                    (target_width, target_height), 
+                    interpolation=cv2.INTER_LINEAR
+                )
+                self.logger.debug(f"  Resize successful: {resized_attention.shape}")
+            except cv2.error as e:
+                self.logger.error(f"OpenCV resize failed for frame {frame_idx}: {e}")
+                self.logger.error(f"  Input shape: {latent_attention.shape}")
+                self.logger.error(f"  Input dtype: {latent_attention.dtype}")
+                self.logger.error(f"  Input contiguous: {latent_attention.flags.c_contiguous}")
+                self.logger.error(f"  Target dimensions: ({target_width}, {target_height})")
+                self.logger.error(f"  Input value range: [{latent_attention.min():.6f}, {latent_attention.max():.6f}]")
+                
+                # Fallback: use scipy zoom
+                self.logger.info("Attempting fallback with scipy zoom")
+                from scipy.ndimage import zoom
+                scale_h = target_height / latent_attention.shape[0]
+                scale_w = target_width / latent_attention.shape[1]
+                resized_attention = zoom(latent_attention, (scale_h, scale_w), order=1)
+                resized_attention = resized_attention.astype(np.float32)
+                self.logger.info(f"  Scipy fallback successful: {resized_attention.shape}")
             
             attention_frames[frame_idx] = resized_attention
         
@@ -370,13 +437,30 @@ class AttentionVisualizer:
             invert_values=overlay_config.invert_values
         )
         
-        # Generate output filename
+        # Generate output filename with nested directory structure
         if output_filename is None:
             step_suffix = f"_step{step}" if step is not None else "_aggregated"
             overlay_suffix = "_overlay" if source_video_path else ""
-            output_filename = f"attention_{video_id}_{token_word}{step_suffix}{overlay_suffix}.mp4"
+            output_filename = f"attention_{token_word}{step_suffix}{overlay_suffix}.mp4"
         
-        output_path = self.output_dir / output_filename
+        self.logger.info(f"AttentionVisualizer received output_filename: '{output_filename}'")
+        self.logger.info(f"AttentionVisualizer self.output_dir: '{self.output_dir}'")
+        
+        # Create nested directory structure: prompt_000/vid_000/
+        # Parse video_id to extract prompt and video parts
+        if "_vid" in video_id:
+            prompt_part, vid_part = video_id.rsplit("_vid", 1)
+            # Use the output directory directly (it's already set to attention_videos)
+            video_output_dir = self.output_dir / prompt_part / f"vid{vid_part}"
+            self.logger.info(f"Creating attention video directory: {video_output_dir}")
+        else:
+            # Fallback for video IDs that don't follow the expected pattern
+            video_output_dir = self.output_dir / video_id
+            self.logger.info(f"Creating fallback attention video directory: {video_output_dir}")
+        
+        video_output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = video_output_dir / output_filename
+        self.logger.info(f"Final output path: {output_path}")
         
         # Get colormap
         cv_colormap = self._get_colormap(overlay_config.colormap)

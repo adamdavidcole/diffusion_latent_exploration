@@ -1399,8 +1399,10 @@ class BatchVideoGenerator:
             
             self.logger.info(f"Generating attention videos for completed video: {video_id}")
             
-            # Create attention videos directory alongside the video
-            attention_videos_dir = video_output_dir / "attention_videos"
+            # Create attention videos directory at the root level (not inside video directory)
+            # Get the root output directory from video_output_dir 
+            root_output_dir = video_output_dir.parent.parent  # videos/prompt_000 -> videos -> root
+            attention_videos_dir = root_output_dir / "attention_videos"
             attention_videos_dir.mkdir(exist_ok=True)
             
             # Initialize analyzer and visualizer
@@ -1450,7 +1452,7 @@ class BatchVideoGenerator:
             for token_name in video_tokens.keys():
                 try:
                     # Generate attention video for this token
-                    output_path = attention_videos_dir / f"{video_id}_{token_name}_attention.mp4"
+                    self.logger.info(f"Processing attention video for {video_id}:{token_name}")
                     
                     # video_attention_dir is already calculated above
                     aggregated_dir = video_attention_dir / "aggregated" if video_attention_dir.exists() else None
@@ -1459,9 +1461,10 @@ class BatchVideoGenerator:
                     if aggregated_file and aggregated_file.exists():
                         # Use aggregated attention for faster generation
                         self.logger.info(f"Using aggregated attention for {video_id}:{token_name}")
+                        static_output = attention_videos_dir / f"{video_id}_{token_name}_static.mp4"
                         visualizer.create_static_video_from_aggregated(
                             aggregated_file, 
-                            output_path,
+                            static_output,
                             duration=self.generator.config.attention_analysis_settings.visualization_params.get('static_duration', 3.0)
                         )
                     else:
@@ -1470,14 +1473,14 @@ class BatchVideoGenerator:
                         
                         # Try with overlay if original video exists
                         if original_video_path and original_video_path.exists():
-                            overlay_output = attention_videos_dir / f"{video_id}_{token_name}_overlay.mp4"
                             try:
                                 visualizer.generate_attention_video(
                                     video_id=video_id,
                                     token_word=token_name,
-                                    output_filename=str(overlay_output),
+                                    output_filename=f"{video_id}_{token_name}_overlay.mp4",  # Just filename
                                     source_video_path=str(original_video_path)
                                 )
+                                overlay_output = attention_videos_dir / f"{video_id}_{token_name}_overlay.mp4"
                                 if overlay_output.exists():
                                     self.logger.info(f"Generated overlay video: {overlay_output}")
                             except Exception as e:
@@ -1487,12 +1490,36 @@ class BatchVideoGenerator:
                         visualizer.generate_attention_video(
                             video_id=video_id,
                             token_word=token_name,
-                            output_filename=str(output_path)
+                            output_filename=f"{video_id}_{token_name}_attention.mp4"  # Just filename
                         )
+                        
+                        # Check if file was created successfully
+                        attention_only_output = attention_videos_dir / f"{video_id}_{token_name}_attention.mp4"
+                        if attention_only_output.exists():
+                            output_path = attention_only_output
                     
-                    if output_path.exists():
+                    # Check if any output was created (static, attention-only, or overlay)
+                    # Files are created in the nested structure: attention_videos/prompt_000/vid001/
+                    if '_vid' in video_id:
+                        prompt_part, vid_part = video_id.split('_vid', 1)
+                        nested_output_dir = attention_videos_dir / prompt_part / f"vid{vid_part}"
+                    else:
+                        nested_output_dir = attention_videos_dir / video_id
+                    
+                    possible_outputs = [
+                        nested_output_dir / f"{video_id}_{token_name}_static.mp4",
+                        nested_output_dir / f"{video_id}_{token_name}_attention.mp4",
+                        nested_output_dir / f"{video_id}_{token_name}_overlay.mp4"
+                    ]
+                    
+                    created_files = [p for p in possible_outputs if p.exists()]
+                    if created_files:
                         successful_videos += 1
-                        self.logger.info(f"✅ Generated attention video: {output_path.name}")
+                        for created_file in created_files:
+                            self.logger.info(f"✅ Generated attention video: {created_file.name}")
+                    else:
+                        self.logger.warning(f"❌ No attention video files were created for {video_id}:{token_name}")
+                        self.logger.debug(f"Checked paths: {[str(p) for p in possible_outputs]}")
                     
                 except Exception as e:
                     self.logger.error(f"❌ Error generating attention video for {video_id}:{token_name}: {e}")

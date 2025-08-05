@@ -854,10 +854,6 @@ class AttentionStorage:
             
         self.logger.info(f"Generating aggregated attention maps for {self.current_video_id}")
         
-        # Create aggregated directory
-        aggregated_dir = self.current_video_dir / "aggregated"
-        aggregated_dir.mkdir(exist_ok=True)
-        
         # Process each target token
         for token_word in self.target_tokens.keys():
             token_dir = self.current_video_dir / f"token_{token_word}"  # Use token_ prefix
@@ -880,12 +876,18 @@ class AttentionStorage:
                     # Average across steps
                     aggregated_map = torch.stack(step_maps).mean(dim=0)
                     
-                    # Store aggregated map
-                    output_file = aggregated_dir / f"{token_word}_aggregated.{self.aggregated_storage_format}"
+                    # Store aggregated map directly in token directory
+                    if self.compress:
+                        output_file = token_dir / "aggregate.npy.gz"
+                    else:
+                        output_file = token_dir / f"aggregate.{self.aggregated_storage_format}"
                     
                     if self.aggregated_storage_format == "numpy":
                         if self.compress:
-                            np.savez_compressed(output_file, attention=aggregated_map.cpu().numpy())
+                            # For compressed files, use gzip directly
+                            import gzip
+                            with gzip.open(output_file, 'wb') as f:
+                                np.save(f, aggregated_map.cpu().numpy())
                         else:
                             np.save(output_file, aggregated_map.cpu().numpy())
                     elif self.aggregated_storage_format == "torch":
@@ -915,7 +917,7 @@ class AttentionStorage:
                         video_frames=self.current_generation_params.get('video_frames')
                     )
                     
-                    metadata_file = aggregated_dir / f"{token_word}_aggregated_metadata.json"
+                    metadata_file = token_dir / "aggregate_metadata.json"
                     with open(metadata_file, 'w') as f:
                         import dataclasses
                         json.dump(dataclasses.asdict(metadata), f, indent=2)
