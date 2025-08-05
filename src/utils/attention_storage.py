@@ -36,6 +36,10 @@ class AttentionMetadata:
     prompt: str = ""
     seed: Optional[int] = None
     cfg_scale: Optional[float] = None
+    # Video dimensions for reconstructing spatial context
+    video_width: Optional[int] = None
+    video_height: Optional[int] = None
+    video_frames: Optional[int] = None
 
 
 class WanAttentionWrapper(torch.nn.Module):
@@ -713,6 +717,11 @@ class AttentionStorage:
         if 'cfg_scale' in self.current_generation_params:
             valid_params['cfg_scale'] = self.current_generation_params['cfg_scale']
         
+        # Extract video dimensions for spatial context reconstruction
+        video_width = self.current_generation_params.get('width', None)
+        video_height = self.current_generation_params.get('height', None)
+        video_frames = self.current_generation_params.get('num_frames', None)
+        
         metadata = AttentionMetadata(
             video_id=self.current_video_id,
             step=step,
@@ -733,6 +742,9 @@ class AttentionStorage:
             head_idx=head_idx,
             dtype=str(attention.dtype),
             prompt=self.current_prompt,
+            video_width=video_width,
+            video_height=video_height,
+            video_frames=video_frames,
             **valid_params
         )
         
