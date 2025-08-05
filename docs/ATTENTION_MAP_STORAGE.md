@@ -8,25 +8,29 @@ The attention storage system captures cross-attention maps from the WAN transfor
 
 ## Storage Format
 
-### Tensor Shape
+## Tensor Format
 
-All attention maps are stored with a **consistent per-step format**:
+The attention storage system uses a **dynamic tensor format** that adapts based on your configuration settings:
 
-```
-[blocks, heads, spatial, tokens]
-```
+### Shape Dependencies
 
-Where:
-- `blocks`: Number of transformer blocks (30 for WAN 1.3B)
-- `heads`: Number of attention heads per block (12 for WAN 1.3B)
-- `spatial`: Flattened spatial dimensions of the video (height × width × frames)
-- `tokens`: Number of tokens being tracked (typically 1 for single-word tracking)
+The final tensor shape depends on your `store_per_block` and `store_per_head` settings:
 
-**Example shape**: `[30, 12, 1170, 1]` 
-- 30 transformer blocks
-- 12 attention heads each
-- 1170 spatial positions (390 spatial × 3 frames for a 416×240×3 video at default downsampling)
-- 1 token being tracked
+- **`store_per_block: true, store_per_head: true`**: `[blocks, heads, spatial, tokens]`
+  - Full resolution: 30 blocks × 12 heads
+  - Example: `[30, 12, 23850, 1]`
+
+- **`store_per_block: false, store_per_head: true`**: `[1, heads, spatial, tokens]`  
+  - Averaged across blocks, preserves heads
+  - Example: `[1, 12, 23850, 1]`
+
+- **`store_per_block: true, store_per_head: false`**: `[blocks, 1, spatial, tokens]`
+  - Preserves blocks, averaged across heads  
+  - Example: `[30, 1, 23850, 1]`
+
+- **`store_per_block: false, store_per_head: false`**: `[1, 1, spatial, tokens]`
+  - Fully aggregated (minimal memory usage)
+  - Example: `[1, 1, 23850, 1]`
 
 ### Data Types
 
@@ -172,10 +176,19 @@ attention_analysis_settings:
   storage_dtype: "float16"          # "float16" or "float32"
   spatial_downsample_factor: 1      # Spatial downsampling
   
-  # Consistent storage (recommended)
-  store_full_per_step: true         # Store [blocks, heads, spatial, tokens]
-  store_aggregated: false           # Also store aggregated versions
+  # Aggregation control (affects memory usage)
+  store_per_head: false             # false = average across heads (memory efficient)
+  store_per_block: false            # false = average across blocks (memory efficient)
 ```
+
+### Memory vs Detail Trade-offs
+
+| Configuration | Shape | Memory Usage | Use Case |
+|---------------|--------|--------------|----------|
+| `store_per_head: false`<br>`store_per_block: false` | `[1, 1, spatial, tokens]` | **Minimal** (~100x smaller) | Basic visualization, memory-constrained |
+| `store_per_head: true`<br>`store_per_block: false` | `[1, heads, spatial, tokens]` | **Low** (~30x smaller) | Head analysis, balanced approach |
+| `store_per_head: false`<br>`store_per_block: true` | `[blocks, 1, spatial, tokens]` | **Medium** (~12x smaller) | Layer analysis, averaged heads |
+| `store_per_head: true`<br>`store_per_block: true` | `[blocks, heads, spatial, tokens]` | **Full** (maximum detail) | Research, complete analysis |
 
 ### Memory Considerations
 

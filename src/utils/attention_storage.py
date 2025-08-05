@@ -136,8 +136,7 @@ class AttentionStorage:
                  attention_threshold: Optional[float] = None,
                  spatial_downsample_factor: int = 1,
                  # NEW: Consistent storage options
-                 store_full_per_step: bool = True,     # Store [blocks, heads, spatial, tokens] per step
-                 store_aggregated: bool = False):      # Also store aggregated [1, spatial, tokens] for quick access
+                 store_full_per_step: bool = True):     # Store detailed per-step tensors (legacy compatibility)
         """
         Initialize attention storage manager.
         
@@ -148,8 +147,8 @@ class AttentionStorage:
             compress: Whether to compress stored attention maps
             storage_interval: Store every N steps (1 = all steps)
             storage_dtype: Data type for storage ("float32" or "float16")
-            store_per_head: Whether to store individual attention heads
-            store_per_block: Whether to store individual transformer blocks
+            store_per_head: Whether to preserve individual attention heads (False = average across heads)
+            store_per_block: Whether to preserve individual transformer blocks (False = average across blocks)
             store_individual_tokens: Whether to store individual token attention
             attention_threshold: Threshold for filtering attention values
             spatial_downsample_factor: Factor to downsample spatial dimensions
@@ -170,7 +169,6 @@ class AttentionStorage:
         
         # NEW: Consistent storage configuration
         self.store_full_per_step = store_full_per_step
-        self.store_aggregated = store_aggregated
         
         # Use storage_dir directly as the attention directory
         self.attention_dir = self.storage_dir
@@ -403,7 +401,7 @@ class AttentionStorage:
                     # Replace the module with our wrapper
                     setattr(parent_module, module_name, wrapper)
                     
-                    self.logger.info(f"Wrapped attn2 module {name} with WanAttentionWrapper (block {wrap_count})")
+                    # self.logger.info(f"Wrapped attn2 module {name} with WanAttentionWrapper (block {wrap_count})")
                 
                 wrap_count += 1
         
@@ -502,9 +500,9 @@ class AttentionStorage:
             return False
         
         # Debug: Log current state
-        self.logger.info(f"🎯 Attempting to store attention for step {step}")
-        self.logger.info(f"Current attention maps keys: {list(self.current_attention_maps.keys())}")
-        self.logger.info(f"Number of wrapped modules: {len(self.original_modules) if hasattr(self, 'original_modules') else 0}")
+        # self.logger.info(f"🎯 Attempting to store attention for step {step}")
+        # self.logger.info(f"Current attention maps keys: {list(self.current_attention_maps.keys())}")
+        # self.logger.info(f"Number of wrapped modules: {len(self.original_modules) if hasattr(self, 'original_modules') else 0}")
         
         if not self.current_attention_maps:
             self.logger.error(f"❌ No attention maps captured for step {step}")
@@ -513,7 +511,7 @@ class AttentionStorage:
             
             return False
         
-        self.logger.info(f"Storing attention maps for step {step} with {len(self.current_attention_maps)} captured maps")
+        # self.logger.info(f"Storing attention maps for step {step} with {len(self.current_attention_maps)} captured maps")
         
         try:
             # Process each target word
@@ -527,7 +525,7 @@ class AttentionStorage:
             self.stored_steps.append(step)
             self.current_attention_maps = {}  # Clear for next step
             
-            self.logger.info(f"Successfully stored attention maps for step {step}")
+            # self.logger.info(f"Successfully stored attention maps for step {step}")
             return True
             
         except Exception as e:
@@ -555,24 +553,6 @@ class AttentionStorage:
             self.logger.debug(f"Block {block_idx} token attention shape after extraction: {token_attention.shape}")
             
             block_attentions.append(token_attention)
-            
-            # Store per-block if requested
-            if self.store_per_block:
-                self._store_attention_tensor(
-                    token_attention, word_dir, f"{filename_base}_block_{block_idx:02d}",
-                    word, token_ids, step, timestep, total_steps, 
-                    block_idx=block_idx, aggregation_method="per_block"
-                )
-            
-            # Store per-head if requested
-            if self.store_per_head:
-                for head_idx in range(token_attention.shape[1]):
-                    head_attention = token_attention[:, head_idx:head_idx+1]
-                    self._store_attention_tensor(
-                        head_attention, word_dir, f"{filename_base}_block_{block_idx:02d}_head_{head_idx:02d}",
-                        word, token_ids, step, timestep, total_steps,
-                        block_idx=block_idx, head_idx=head_idx, aggregation_method="per_head"
-                    )
         
         if not block_attentions:
             return
@@ -580,8 +560,7 @@ class AttentionStorage:
         self.logger.debug(f"Number of block attentions: {len(block_attentions)}")
         self.logger.debug(f"First block attention shape: {block_attentions[0].shape}")
         
-        # Store the full per-step tensor with consistent shape: [blocks, heads, spatial, tokens]
-        # This maintains consistency regardless of aggregation settings
+        # Store the main attention tensor with shape determined by aggregation settings
         if block_attentions:
             # Stack to create [blocks, batch, heads, spatial, tokens]
             stacked_attention = torch.stack(block_attentions, dim=0)
@@ -589,39 +568,31 @@ class AttentionStorage:
             # Remove batch dimension to get [blocks, heads, spatial, tokens]
             full_step_attention = stacked_attention.squeeze(1)  # Remove batch dim
             
-            self.logger.debug(f"Full step attention shape: {full_step_attention.shape}")
+            self.logger.debug(f"Full step attention shape before aggregation: {full_step_attention.shape}")
             
-            # Store the full per-step tensor
+            # Apply aggregation based on storage settings
+            final_attention = full_step_attention
+            aggregation_method = "full"
+            
+            # Aggregate across blocks if store_per_block is False
+            if not self.store_per_block:
+                final_attention = final_attention.mean(dim=0, keepdim=True)  # [1, heads, spatial, tokens]
+                aggregation_method = "blocks_averaged"
+                self.logger.debug(f"Aggregated across blocks: {final_attention.shape}")
+            
+            # Aggregate across heads if store_per_head is False
+            if not self.store_per_head:
+                final_attention = final_attention.mean(dim=1, keepdim=True)  # [blocks/1, 1, spatial, tokens]
+                aggregation_method = "heads_averaged" if aggregation_method == "full" else "blocks_and_heads_averaged"
+                self.logger.debug(f"Aggregated across heads: {final_attention.shape}")
+            
+            # self.logger.info(f"Final attention shape after aggregation ({aggregation_method}): {final_attention.shape}")
+            
+            # Store the aggregated tensor
             self._store_attention_tensor(
-                full_step_attention, word_dir, filename_base,
+                final_attention, word_dir, filename_base,
                 word, token_ids, step, timestep, total_steps,
-                aggregation_method="per_step_full"
-            )
-        
-        # Optionally also store aggregated version for quick access (if requested)
-        if hasattr(self, 'store_aggregated') and self.store_aggregated:
-            # Average across blocks and heads for quick visualization
-            averaged_attention = stacked_attention.mean(dim=[0, 2])  # [batch, spatial, tokens]
-            
-            # Apply thresholding if configured
-            if self.attention_threshold is not None:
-                averaged_attention = torch.where(
-                    averaged_attention > self.attention_threshold,
-                    averaged_attention,
-                    torch.zeros_like(averaged_attention)
-                )
-            
-            # Apply spatial downsampling if configured
-            if self.spatial_downsample_factor > 1:
-                averaged_attention = self._downsample_attention(averaged_attention)
-            
-            # Store the aggregated result in a subdirectory
-            aggregated_dir = word_dir / "aggregated"
-            aggregated_dir.mkdir(exist_ok=True)
-            self._store_attention_tensor(
-                averaged_attention, aggregated_dir, filename_base,
-                word, token_ids, step, timestep, total_steps,
-                aggregation_method="averaged"
+                aggregation_method=aggregation_method
             )
     
     def _extract_token_attention(self, attention: torch.Tensor, token_ids: List[int]) -> torch.Tensor:
@@ -807,20 +778,19 @@ class AttentionStorage:
             "storage_dir": str(self.storage_dir),
             "storage_format": self.storage_format,
             "compressed": self.compress,
-            "storage_type": "consistent_per_step",  # NEW: Indicate storage approach
-            "attention_shape_per_step": "[blocks, heads, spatial, tokens]",  # NEW: Document shape
+            "storage_type": "aggregated_per_step",  # NEW: Indicate storage approach
+            "attention_shape_per_step": "Dynamic based on store_per_block/store_per_head settings",  # NEW: Document shape
             "config": {
                 # NEW: Updated config that reflects actual storage behavior
-                "store_full_per_step": self.store_full_per_step,  # Always stores [blocks, heads, spatial, tokens]
-                "store_aggregated": self.store_aggregated,        # Optionally also stores aggregated version
-                "stores_all_blocks": True,   # Always true with new format
-                "stores_all_heads": True,    # Always true with new format  
+                "store_full_per_step": self.store_full_per_step,  # Always stores per-step tensors
+                "stores_all_blocks": self.store_per_block,   # Depends on setting
+                "stores_all_heads": self.store_per_head,    # Depends on setting 
                 "store_individual_tokens": self.store_individual_tokens,
                 "attention_threshold": self.attention_threshold,
                 "spatial_downsample_factor": self.spatial_downsample_factor,
-                # Legacy fields for backward compatibility
-                "store_per_head": True,      # Always true now (stored in consistent format)
-                "store_per_block": True,     # Always true now (stored in consistent format)
+                # Storage configuration (reflects actual settings)
+                "store_per_head": self.store_per_head,
+                "store_per_block": self.store_per_block,
             }
         }
         
