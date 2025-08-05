@@ -828,7 +828,8 @@ class VideoGenerationOrchestrator:
                         
                         try:
                             # Generate attention video for this token
-                            output_filename = f"{video_id}_{token_name}_attention.mp4"
+                            # Use None for output_filename to let AttentionVisualizer generate proper names
+                            output_filename = None
                             
                             # Find the original video file for overlay
                             original_video_path = None
@@ -891,11 +892,28 @@ class VideoGenerationOrchestrator:
                                     source_video_path=str(original_video_path) if original_video_path else None
                                 )
                             
-                            # Check if the video was created
-                            output_path = viz_dir / output_filename
-                            if output_path.exists():
+                            # Check if the video was created in the new structure: token_folder/aggregate_*.mp4
+                            # Parse video_id to construct expected path
+                            if '_vid' in video_id:
+                                prompt_part, vid_part = video_id.split('_vid', 1)
+                                token_output_dir = viz_dir / prompt_part / f"vid{vid_part}" / f"token_{token_name}"
+                            else:
+                                token_output_dir = viz_dir / video_id / f"token_{token_name}"
+                            
+                            # Check for expected output files
+                            expected_files = [
+                                token_output_dir / "aggregate_attention.mp4",
+                                token_output_dir / "aggregate_overlay.mp4"
+                            ]
+                            
+                            created_files = [f for f in expected_files if f.exists()]
+                            if created_files:
                                 successful_videos += 1
-                                self.logger.info(f"Generated attention video: {output_path}")
+                                for created_file in created_files:
+                                    self.logger.info(f"Generated attention video: {created_file}")
+                            else:
+                                self.logger.warning(f"No attention videos created for {video_id}:{token_name}")
+                                self.logger.debug(f"Checked paths: {[str(f) for f in expected_files]}")
                             
                             total_videos += 1
                             

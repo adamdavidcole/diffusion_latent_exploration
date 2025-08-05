@@ -24,7 +24,7 @@ video_settings:
   height: 480                # Video height (must be divisible by 8) - lower than 720p to save memory
   fps: 12                    # Frames per second
   duration: null             # Video duration in seconds
-  frames: 5                  # Total frames (calculated from fps * duration if null)
+  frames: 61                  # Total frames (calculated from fps * duration if null)
 
 # Batch settings (smaller batches for memory management)
 videos_per_variation: 8      # Fewer videos per variation to reduce memory pressure
@@ -66,7 +66,7 @@ attention_analysis_settings:
   store_per_head: false                    # Store individual attention heads
   store_per_block: false                   # Store individual transformer blocks
   store_individual_tokens: false          # Store individual token attention
-  attention_threshold: 0.1               # Filter out weak attention values
+  attention_threshold: null               # Filter out weak attention values
   spatial_downsample_factor: 2             # Downsample spatial dimensions 2x
 
   # NEW: Aggregated storage - creates step-averaged attention maps

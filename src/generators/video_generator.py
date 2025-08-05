@@ -1542,12 +1542,9 @@ class BatchVideoGenerator:
                                 visualizer.generate_attention_video(
                                     video_id=video_id,
                                     token_word=token_name,
-                                    output_filename=f"{video_id}_{token_name}_overlay.mp4",  # Just filename
+                                    output_filename=None,  # Let AttentionVisualizer generate proper filename
                                     source_video_path=str(original_video_path)
                                 )
-                                overlay_output = attention_videos_dir / f"{video_id}_{token_name}_overlay.mp4"
-                                if overlay_output.exists():
-                                    self.logger.info(f"Generated overlay video: {overlay_output}")
                             except Exception as e:
                                 self.logger.warning(f"Overlay generation failed for {token_name}, creating attention-only video: {e}")
                         
@@ -1555,26 +1552,23 @@ class BatchVideoGenerator:
                         visualizer.generate_attention_video(
                             video_id=video_id,
                             token_word=token_name,
-                            output_filename=f"{video_id}_{token_name}_attention.mp4"  # Just filename
+                            output_filename=None  # Let AttentionVisualizer generate proper filename
                         )
-                        
-                        # Check if file was created successfully
-                        attention_only_output = attention_videos_dir / f"{video_id}_{token_name}_attention.mp4"
-                        if attention_only_output.exists():
-                            output_path = attention_only_output
                     
                     # Check if any output was created (static, attention-only, or overlay)
-                    # Files are created in the nested structure: attention_videos/prompt_000/vid001/
+                    # Files are created in the nested structure: attention_videos/prompt_000/vid001/token_flower/
                     if '_vid' in video_id:
                         prompt_part, vid_part = video_id.split('_vid', 1)
-                        nested_output_dir = attention_videos_dir / prompt_part / f"vid{vid_part}"
+                        nested_output_dir = attention_videos_dir / prompt_part / f"vid{vid_part}" / f"token_{token_name}"
                     else:
-                        nested_output_dir = attention_videos_dir / video_id
+                        nested_output_dir = attention_videos_dir / video_id / f"token_{token_name}"
                     
                     possible_outputs = [
-                        nested_output_dir / f"{video_id}_{token_name}_static.mp4",
-                        nested_output_dir / f"{video_id}_{token_name}_attention.mp4",
-                        nested_output_dir / f"{video_id}_{token_name}_overlay.mp4"
+                        nested_output_dir / "aggregate_attention.mp4",
+                        nested_output_dir / "aggregate_overlay.mp4",
+                        # Also check for step-specific files (though less common in per-video generation)
+                        *[nested_output_dir / f"step_{i:03d}_attention.mp4" for i in range(20)],
+                        *[nested_output_dir / f"step_{i:03d}_overlay.mp4" for i in range(20)]
                     ]
                     
                     created_files = [p for p in possible_outputs if p.exists()]

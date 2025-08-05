@@ -61,7 +61,7 @@ class OverlayConfig:
     colormap: ColorMap = ColorMap.JET
     normalize_per_frame: bool = False  # Whether to normalize attention per frame
     threshold: Optional[float] = None  # Optional threshold for attention values
-    invert_values: bool = True  # Whether to invert attention values (for WAN models where low=high attention)
+    invert_values: bool = False  # Whether to invert attention values 
 
 
 class AttentionVisualizer:
@@ -463,25 +463,34 @@ class AttentionVisualizer:
             invert_values=overlay_config.invert_values
         )
         
-        # Generate output filename with nested directory structure
+        # Generate output filename with descriptive names matching attention maps structure
         if output_filename is None:
-            step_suffix = f"_step{step}" if step is not None else "_aggregated"
-            overlay_suffix = "_overlay" if source_video_path else ""
-            output_filename = f"attention_{token_word}{step_suffix}{overlay_suffix}.mp4"
+            if step is not None:
+                # For specific steps: step_000_overlay.mp4 or step_000_attention.mp4
+                base_name = f"step_{step:03d}"
+            else:
+                # For aggregated: aggregate_overlay.mp4 or aggregate_attention.mp4
+                base_name = "aggregate"
+            
+            if source_video_path:
+                output_filename = f"{base_name}_overlay.mp4"
+            else:
+                output_filename = f"{base_name}_attention.mp4"
         
         self.logger.info(f"AttentionVisualizer received output_filename: '{output_filename}'")
         self.logger.info(f"AttentionVisualizer self.output_dir: '{self.output_dir}'")
         
-        # Create nested directory structure: prompt_000/vid_000/
+        # Create nested directory structure: prompt_000/vid_000/token_flower/
         # Parse video_id to extract prompt and video parts
         if "_vid" in video_id:
             prompt_part, vid_part = video_id.rsplit("_vid", 1)
             # Use the output directory directly (it's already set to attention_videos)
-            video_output_dir = self.output_dir / prompt_part / f"vid{vid_part}"
+            # Add token directory to match attention maps structure
+            video_output_dir = self.output_dir / prompt_part / f"vid{vid_part}" / f"token_{token_word}"
             self.logger.info(f"Creating attention video directory: {video_output_dir}")
         else:
             # Fallback for video IDs that don't follow the expected pattern
-            video_output_dir = self.output_dir / video_id
+            video_output_dir = self.output_dir / video_id / f"token_{token_word}"
             self.logger.info(f"Creating fallback attention video directory: {video_output_dir}")
         
         video_output_dir.mkdir(parents=True, exist_ok=True)
