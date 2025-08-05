@@ -365,17 +365,36 @@ class AttentionVisualizer:
         
         self.logger.info(f"Attention latent shape: {attention_np.shape} -> Target: {target_frames}×{target_height}×{target_width}")
         
-        # Resize each frame to match target video dimensions
+        # Resize each frame to match target video dimensions with interpolation
+        # Calculate interpolated frames similar to the original approach
+        expected_interpolated_frames = (latent_frames - 1) * 4 + 1
+        use_interpolation = target_frames >= expected_interpolated_frames or target_frames > latent_frames
+        
         attention_frames = np.zeros((target_frames, target_height, target_width), dtype=np.float32)
         
+        # First, create interpolated latent frames if we have fewer latent frames than target frames
+        if target_frames > latent_frames:
+            # Interpolate between latent frames
+            interpolated_latent = np.zeros((target_frames, latent_height, latent_width), dtype=np.float32)
+            for i in range(target_frames):
+                original_idx = i * (latent_frames - 1) / (target_frames - 1) if target_frames > 1 else 0
+                lower_idx = int(np.floor(original_idx))
+                upper_idx = min(lower_idx + 1, latent_frames - 1)
+                alpha = original_idx - lower_idx
+                
+                if lower_idx == upper_idx:
+                    interpolated_latent[i] = attention_np[lower_idx]
+                else:
+                    interpolated_latent[i] = (1 - alpha) * attention_np[lower_idx] + alpha * attention_np[upper_idx]
+        else:
+            interpolated_latent = attention_np
+        
+        # Now upscale each frame to target dimensions
         for frame_idx in range(target_frames):
-            # Map target frame to latent frame
-            latent_frame_idx = min(frame_idx // 4, latent_frames - 1)
+            # Get the interpolated latent attention for this frame
+            latent_attention = interpolated_latent[frame_idx] if target_frames > latent_frames else attention_np[min(frame_idx, latent_frames - 1)]
             
-            # Get the latent attention for this frame
-            latent_attention = attention_np[latent_frame_idx]
-            
-            self.logger.debug(f"Processing frame {frame_idx}: latent_frame_idx={latent_frame_idx}")
+            self.logger.debug(f"Processing frame {frame_idx}")
             self.logger.debug(f"  latent_attention shape: {latent_attention.shape}")
             self.logger.debug(f"  latent_attention dtype: {latent_attention.dtype}")
             self.logger.debug(f"  latent_attention range: [{latent_attention.min():.6f}, {latent_attention.max():.6f}]")
@@ -387,6 +406,13 @@ class AttentionVisualizer:
             if np.any(np.isnan(latent_attention)) or np.any(np.isinf(latent_attention)):
                 self.logger.warning(f"Frame {frame_idx}: Found NaN or inf values in attention map")
                 latent_attention = np.nan_to_num(latent_attention, nan=0.0, posinf=1.0, neginf=0.0)
+            
+            # Apply attention threshold for visualization if specified
+            if overlay_config.threshold is not None:
+                pre_threshold_range = f"[{latent_attention.min():.6f}, {latent_attention.max():.6f}]"
+                latent_attention = np.where(latent_attention > overlay_config.threshold, latent_attention, 0)
+                post_threshold_range = f"[{latent_attention.min():.6f}, {latent_attention.max():.6f}]"
+                self.logger.debug(f"  Applied threshold {overlay_config.threshold}: {pre_threshold_range} -> {post_threshold_range}")
             
             # Ensure proper dtype for OpenCV (float32)
             if latent_attention.dtype != np.float32:

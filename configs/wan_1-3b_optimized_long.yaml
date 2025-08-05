@@ -24,7 +24,7 @@ video_settings:
   height: 480                # Video height (must be divisible by 8) - lower than 720p to save memory
   fps: 12                    # Frames per second
   duration: null             # Video duration in seconds
-  frames: 61                  # Total frames (calculated from fps * duration if null)
+  frames: 5                  # Total frames (calculated from fps * duration if null)
 
 # Batch settings (smaller batches for memory management)
 videos_per_variation: 8      # Fewer videos per variation to reduce memory pressure
@@ -81,7 +81,7 @@ attention_analysis_settings:
   visualization_params:
     figsize: [12, 8]
     colormap: "hot"
-    overlay_alpha: 0.5
+    overlay_alpha: 0.7
     static_duration: 3.0      # Duration for static aggregated videos
     fps: 12                   # FPS for attention videos
     interpolation_steps: 2    # Smoothing between diffusion steps
