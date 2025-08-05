@@ -11,6 +11,7 @@ import logging
 import json
 from dataclasses import dataclass, asdict
 import gzip
+from datetime import datetime
 from transformers import AutoTokenizer
 
 
@@ -140,7 +141,10 @@ class AttentionStorage:
                  attention_threshold: Optional[float] = None,
                  spatial_downsample_factor: int = 1,
                  # NEW: Consistent storage options
-                 store_full_per_step: bool = True):     # Store detailed per-step tensors (legacy compatibility)
+                 store_full_per_step: bool = True,     # Store detailed per-step tensors (legacy compatibility)
+                 # NEW: Aggregated attention storage
+                 store_aggregated_attention: bool = False,  # Store step-averaged attention maps
+                 aggregated_storage_format: str = "numpy"):  # Format for aggregated maps
         """
         Initialize attention storage manager.
         
@@ -171,8 +175,10 @@ class AttentionStorage:
         self.attention_threshold = attention_threshold
         self.spatial_downsample_factor = spatial_downsample_factor
         
-        # NEW: Consistent storage configuration
+        # NEW: Storage mode configuration
         self.store_full_per_step = store_full_per_step
+        self.store_aggregated_attention = store_aggregated_attention
+        self.aggregated_storage_format = aggregated_storage_format
         
         # Use storage_dir directly as the attention directory
         self.attention_dir = self.storage_dir
@@ -315,6 +321,20 @@ class AttentionStorage:
         sanitized = video_id.replace(':', '_').replace('/', '_').replace('\\', '_')
         return sanitized
     
+    def _get_video_dir_path(self, video_id: str) -> Path:
+        """Get the nested directory path for a video ID.
+        
+        Converts video_id like 'prompt_000_vid001' to nested structure:
+        attention_maps/prompt_000/vid001/
+        """
+        if "_vid" in video_id:
+            prompt_part, vid_num = video_id.rsplit("_vid", 1)
+            vid_part = f"vid{vid_num}"
+            return self.attention_dir / prompt_part / vid_part
+        else:
+            # Fallback for non-standard video IDs
+            return self.attention_dir / self._sanitize_video_id(video_id)
+    
     def start_video_storage(self, video_id: str, prompt: str, target_words: List[str] = None, **generation_params):
         """Start storage for a new video.
         
@@ -334,8 +354,8 @@ class AttentionStorage:
         self.current_attention_maps = {}
         self.steps_processed = set()
         
-        # Create video directory
-        self.current_video_dir = self.attention_dir / self._sanitize_video_id(video_id)
+        # Create nested video directory structure: prompt_xxx/vidyyy/
+        self.current_video_dir = self._get_video_dir_path(video_id)
         self.current_video_dir.mkdir(parents=True, exist_ok=True)
         
         # Map target words to tokens in the processed prompt
@@ -813,6 +833,10 @@ class AttentionStorage:
         
         self.logger.info(f"Finished storing attention maps for {self.current_video_id}: {len(self.stored_steps)} steps stored")
         
+        # NEW: Generate aggregated attention maps if enabled
+        if self.store_aggregated_attention and self.stored_steps:
+            self._generate_aggregated_attention_maps()
+        
         # Reset for next video
         self.current_video_id = None
         self.current_video_dir = None
@@ -823,6 +847,117 @@ class AttentionStorage:
         
         return summary
     
+    def _generate_aggregated_attention_maps(self):
+        """Generate and store aggregated attention maps across all denoising steps."""
+        if not self.current_video_dir or not self.stored_steps:
+            return
+            
+        self.logger.info(f"Generating aggregated attention maps for {self.current_video_id}")
+        
+        # Create aggregated directory
+        aggregated_dir = self.current_video_dir / "aggregated"
+        aggregated_dir.mkdir(exist_ok=True)
+        
+        # Process each target token
+        for token_word in self.target_tokens.keys():
+            token_dir = self.current_video_dir / f"token_{token_word}"  # Use token_ prefix
+            if not token_dir.exists():
+                continue
+                
+            try:
+                # Collect attention maps across all steps
+                step_maps = []
+                valid_steps = []
+                
+                for step in self.stored_steps:
+                    # Load attention map for this step
+                    attention_map = self._load_step_attention_map(token_dir, step)
+                    if attention_map is not None:
+                        step_maps.append(attention_map)
+                        valid_steps.append(step)
+                
+                if step_maps:
+                    # Average across steps
+                    aggregated_map = torch.stack(step_maps).mean(dim=0)
+                    
+                    # Store aggregated map
+                    output_file = aggregated_dir / f"{token_word}_aggregated.{self.aggregated_storage_format}"
+                    
+                    if self.aggregated_storage_format == "numpy":
+                        if self.compress:
+                            np.savez_compressed(output_file, attention=aggregated_map.cpu().numpy())
+                        else:
+                            np.save(output_file, aggregated_map.cpu().numpy())
+                    elif self.aggregated_storage_format == "torch":
+                        torch.save(aggregated_map, output_file)
+                    
+                    # Store metadata for aggregated map
+                    metadata = AttentionMetadata(
+                        video_id=self.current_video_id,
+                        step=-1,  # Aggregated across all steps
+                        timestep=-1,  # Not applicable for aggregated
+                        total_steps=len(valid_steps),
+                        token_word=token_word,
+                        token_ids=self.target_tokens.get(token_word, []),
+                        token_texts=[token_word],  # Simplified for aggregated
+                        aggregation_method="mean",
+                        attention_shape=list(aggregated_map.shape),
+                        spatial_resolution=(self.current_generation_params.get('video_height', 480), 
+                                          self.current_generation_params.get('video_width', 848)),
+                        num_blocks=30,  # Standard for WAN
+                        num_heads=1,   # Averaged across heads
+                        dtype=str(aggregated_map.dtype),
+                        prompt=self.current_prompt or "",
+                        seed=self.current_generation_params.get('seed'),
+                        cfg_scale=self.current_generation_params.get('cfg_scale'),
+                        video_width=self.current_generation_params.get('video_width'),
+                        video_height=self.current_generation_params.get('video_height'),
+                        video_frames=self.current_generation_params.get('video_frames')
+                    )
+                    
+                    metadata_file = aggregated_dir / f"{token_word}_aggregated_metadata.json"
+                    with open(metadata_file, 'w') as f:
+                        import dataclasses
+                        json.dump(dataclasses.asdict(metadata), f, indent=2)
+                    
+                    self.logger.info(f"Stored aggregated attention map for '{token_word}' from {len(valid_steps)} steps")
+                        
+            except Exception as e:
+                self.logger.error(f"Error generating aggregated attention for token '{token_word}': {e}")
+    
+    def _load_step_attention_map(self, token_dir: Path, step: int) -> Optional[torch.Tensor]:
+        """Load attention map for a specific step and token."""
+        try:
+            # Look for step file
+            step_pattern = f"step_{step:03d}"
+            
+            # Try different possible file formats
+            for ext in ['.npy.gz', '.npz', '.npy', '.pt']:
+                step_file = token_dir / f"{step_pattern}{ext}"
+                if step_file.exists():
+                    if ext == '.npy.gz':
+                        # Handle compressed numpy files
+                        import gzip
+                        with gzip.open(step_file, 'rb') as f:
+                            return torch.from_numpy(np.load(f, allow_pickle=False))
+                    elif ext == '.npz':
+                        data = np.load(step_file)
+                        if 'attention' in data:
+                            return torch.from_numpy(data['attention'])
+                        else:
+                            # Take first array if 'attention' key not found
+                            return torch.from_numpy(data[data.files[0]])
+                    elif ext == '.npy':
+                        return torch.from_numpy(np.load(step_file))
+                    elif ext == '.pt':
+                        return torch.load(step_file, map_location='cpu')
+            
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Error loading attention map for step {step}: {e}")
+            return None
+
     def load_attention_map(self, video_id: str, token_word: str, step: int,
                           block_idx: Optional[int] = None, head_idx: Optional[int] = None) -> Optional[torch.Tensor]:
         """Load a stored attention map."""

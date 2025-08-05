@@ -5,7 +5,7 @@ Handles loading, validation, and management of generation settings.
 import yaml
 import os
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 from pathlib import Path
 
 
@@ -58,8 +58,26 @@ class AttentionAnalysisSettings:
     store_individual_tokens: bool = False  # Store individual token attention
     attention_threshold: Optional[float] = None  # Threshold for filtering attention values
     spatial_downsample_factor: int = 1  # Factor to downsample spatial dimensions
-
-
+    
+    # NEW: Aggregated attention storage
+    store_aggregated_attention: bool = False
+    aggregated_storage_format: str = "numpy"  # numpy, torch
+    
+    # NEW: Auto-visualization settings 
+    auto_generate_videos: bool = False        # Generate videos after batch completion
+    auto_generate_per_video: bool = False     # Generate videos after each individual video completes
+    
+    # NEW: Visualization parameters
+    visualization_params: Dict[str, Any] = field(default_factory=lambda: {
+        "figsize": [12, 8],
+        "colormap": "hot", 
+        "overlay_alpha": 0.6,
+        "static_duration": 3.0,
+        "fps": 10,
+        "interpolation_steps": 2,
+        "include_colorbar": True,
+        "video_format": "mp4"
+    })
 @dataclass
 class PromptSettings:
     """Prompt weighting and processing settings."""
@@ -205,7 +223,17 @@ class ConfigManager:
             store_per_block=attention_data.get('store_per_block', False),
             store_individual_tokens=attention_data.get('store_individual_tokens', False),
             attention_threshold=attention_data.get('attention_threshold'),
-            spatial_downsample_factor=attention_data.get('spatial_downsample_factor', 1)
+            spatial_downsample_factor=attention_data.get('spatial_downsample_factor', 1),
+            store_aggregated_attention=attention_data.get('store_aggregated_attention', False),
+            aggregated_storage_format=attention_data.get('aggregated_storage_format', 'numpy'),
+            auto_generate_videos=attention_data.get('auto_generate_videos', False),
+            auto_generate_per_video=attention_data.get('auto_generate_per_video', False),
+            visualization_params=attention_data.get('visualization_params', {
+                "figsize": [12, 8],
+                "colormap": "hot", 
+                "overlay_alpha": 0.6,
+                "static_duration": 3.0,
+            })
         )
         
         return GenerationConfig(
@@ -273,7 +301,12 @@ class ConfigManager:
                 'store_per_block': config.attention_analysis_settings.store_per_block,
                 'store_individual_tokens': config.attention_analysis_settings.store_individual_tokens,
                 'attention_threshold': config.attention_analysis_settings.attention_threshold,
-                'spatial_downsample_factor': config.attention_analysis_settings.spatial_downsample_factor
+                'spatial_downsample_factor': config.attention_analysis_settings.spatial_downsample_factor,
+                'store_aggregated_attention': config.attention_analysis_settings.store_aggregated_attention,
+                'aggregated_storage_format': config.attention_analysis_settings.aggregated_storage_format,
+                'auto_generate_videos': config.attention_analysis_settings.auto_generate_videos,
+                'auto_generate_per_video': config.attention_analysis_settings.auto_generate_per_video,
+                'visualization_params': config.attention_analysis_settings.visualization_params
             },
             'videos_per_variation': config.videos_per_variation,
             'output_dir': config.output_dir,

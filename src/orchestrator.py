@@ -166,7 +166,10 @@ class VideoGenerationOrchestrator:
                 store_per_block=self.config.attention_analysis_settings.store_per_block,
                 store_individual_tokens=self.config.attention_analysis_settings.store_individual_tokens,
                 attention_threshold=self.config.attention_analysis_settings.attention_threshold,
-                spatial_downsample_factor=self.config.attention_analysis_settings.spatial_downsample_factor
+                spatial_downsample_factor=self.config.attention_analysis_settings.spatial_downsample_factor,
+                # NEW: Aggregated storage settings
+                store_aggregated_attention=self.config.attention_analysis_settings.store_aggregated_attention,
+                aggregated_storage_format=self.config.attention_analysis_settings.aggregated_storage_format
             )
             self.logger.info(f"Attention storage enabled: {attention_storage.storage_dir}")
             self.logger.info(f"Storage format: {attention_storage.storage_format}, compress: {attention_storage.compress}, interval: {attention_storage.storage_interval}")
@@ -259,6 +262,10 @@ class VideoGenerationOrchestrator:
             self.logger.info(f"Attention Storage Summary:")
             self.logger.info(f"  Attention maps stored in: {attention_storage.storage_dir}")
             self.logger.info(f"  Target tokens processed for each video")
+            
+            # NEW: Auto-generate attention videos if enabled
+            if self.config.attention_analysis_settings.auto_generate_videos:
+                self._generate_attention_videos(attention_storage)
         
         return results
     
@@ -761,3 +768,144 @@ class VideoGenerationOrchestrator:
             self.progress_tracker.finish("Video continuation complete")
         
         return results
+    
+    def _generate_attention_videos(self, attention_storage: AttentionStorage):
+        """Auto-generate attention videos using the visualization system."""
+        try:
+            from src.visualization.attention_analyzer import AttentionAnalyzer
+            from src.visualization.attention_visualizer import AttentionVisualizer
+            
+            self.logger.info("Starting automatic attention video generation...")
+            
+            # Create visualization output directory
+            viz_dir = self.batch_dirs["root"] / "attention_videos"
+            viz_dir.mkdir(exist_ok=True)
+            
+            # Initialize analyzer and visualizer
+            analyzer = AttentionAnalyzer(attention_storage.storage_dir)
+            
+            # Extract supported parameters for AttentionVisualizer
+            viz_params = self.config.attention_analysis_settings.visualization_params
+            supported_params = {}
+            for param in ['figsize', 'colormap', 'fps', 'overlay_alpha', 'interpolation_steps', 'include_colorbar']:
+                if param in viz_params:
+                    supported_params[param] = viz_params[param]
+            
+            visualizer = AttentionVisualizer(
+                analyzer=analyzer,
+                output_dir=str(viz_dir),  # Set output directory explicitly
+                **supported_params
+            )
+            
+            # Find all stored videos - handle nested structure (prompt_000/vid001/)
+            video_paths = []
+            for prompt_dir in attention_storage.storage_dir.iterdir():
+                if prompt_dir.is_dir() and not prompt_dir.name.startswith('.'):
+                    # Look for vid directories inside prompt directories
+                    for vid_dir in prompt_dir.iterdir():
+                        if vid_dir.is_dir() and vid_dir.name.startswith('vid'):
+                            # This is a video directory with the format: prompt_000/vid001/
+                            video_id = f"{prompt_dir.name}_{vid_dir.name}"
+                            video_paths.append((video_id, vid_dir))
+            
+            if not video_paths:
+                self.logger.warning("No attention data found for video generation")
+                return
+            
+            total_videos = 0
+            successful_videos = 0
+            
+            for video_id, video_dir in video_paths:
+                try:
+                    self.logger.info(f"Processing attention video for: {video_id}")
+                    
+                    # Find available tokens (directories that start with 'token_')
+                    token_dirs = [d for d in video_dir.iterdir() if d.is_dir() and d.name.startswith('token_')]
+                    
+                    for token_dir in token_dirs:
+                        # Extract actual token name from directory name (remove 'token_' prefix)
+                        token_name = token_dir.name[6:]  # Remove 'token_' prefix
+                        
+                        try:
+                            # Generate attention video for this token
+                            output_filename = f"{video_id}_{token_name}_attention.mp4"
+                            
+                            # Find the original video file for overlay
+                            original_video_path = None
+                            if hasattr(self, 'batch_dirs') and self.batch_dirs:
+                                videos_dir = self.batch_dirs["videos"]
+                                # Look for corresponding video file
+                                prompt_match = video_id.split('_vid')[0]  # Extract prompt_000 from prompt_000_vid001
+                                prompt_dir = videos_dir / prompt_match
+                                if prompt_dir.exists():
+                                    video_files = list(prompt_dir.glob("*.mp4"))
+                                    if video_files:
+                                        # Try to match the video number
+                                        if '_vid' in video_id:
+                                            vid_num = video_id.split('_vid')[1]
+                                            try:
+                                                vid_int = int(vid_num)
+                                                target_video = prompt_dir / f"video_{vid_int:03d}.mp4"
+                                                if target_video.exists():
+                                                    original_video_path = target_video
+                                                else:
+                                                    # Fall back to first video
+                                                    original_video_path = video_files[0]
+                                            except ValueError:
+                                                original_video_path = video_files[0]
+                                        else:
+                                            original_video_path = video_files[0]
+                            
+                            # Use aggregated attention if available, otherwise use step-by-step
+                            aggregated_dir = video_dir / "aggregated"
+                            if aggregated_dir.exists() and (aggregated_dir / f"{token_name}_aggregated.npz").exists():
+                                # Create a simple static video from aggregated attention
+                                self.logger.info(f"Using aggregated attention for {video_id}:{token_name}")
+                                # Load aggregated attention and create static visualization
+                                aggregated_file = aggregated_dir / f"{token_name}_aggregated.npz"
+                                # Check if visualizer has create_static_video_from_aggregated method
+                                if hasattr(visualizer, 'create_static_video_from_aggregated'):
+                                    visualizer.create_static_video_from_aggregated(
+                                        aggregated_file, 
+                                        output_filename,
+                                        duration=self.config.attention_analysis_settings.visualization_params.get('static_duration', 3.0)
+                                    )
+                                else:
+                                    # Fall back to regular attention video generation
+                                    visualizer.generate_attention_video(
+                                        video_id=video_id,
+                                        token_word=token_name,
+                                        output_filename=output_filename,
+                                        source_video_path=str(original_video_path) if original_video_path else None
+                                    )
+                            else:
+                                # Generate step-by-step attention video
+                                self.logger.info(f"Generating step-by-step attention video for {video_id}:{token_name}")
+                                visualizer.generate_attention_video(
+                                    video_id=video_id,
+                                    token_word=token_name,
+                                    output_filename=output_filename,
+                                    source_video_path=str(original_video_path) if original_video_path else None
+                                )
+                            
+                            # Check if the video was created
+                            output_path = viz_dir / output_filename
+                            if output_path.exists():
+                                successful_videos += 1
+                                self.logger.info(f"Generated attention video: {output_path}")
+                            
+                            total_videos += 1
+                            
+                        except Exception as e:
+                            self.logger.error(f"Error generating attention video for {video_id}:{token_name}: {e}")
+                            total_videos += 1
+                
+                except Exception as e:
+                    self.logger.error(f"Error processing attention data for {video_id}: {e}")
+            
+            self.logger.info(f"Attention video generation complete: {successful_videos}/{total_videos} successful")
+            
+        except ImportError as e:
+            self.logger.error(f"Cannot import visualization modules for auto-generation: {e}")
+        except Exception as e:
+            self.logger.error(f"Error during automatic attention video generation: {e}")
