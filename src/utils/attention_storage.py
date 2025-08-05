@@ -251,36 +251,109 @@ class AttentionStorage:
         
         return token_mapping
     
-    def start_video_storage(self, video_id: str, prompt: str, **generation_params):
-        """Start storing attention maps for a new video."""
+    def _map_target_words_to_tokens(self, target_words: List[str], prompt: str) -> Dict[str, List[int]]:
+        """
+        Map target words to their token positions in the processed prompt.
+        
+        Args:
+            target_words: List of words/phrases to track (e.g., ["flower", "tree"])
+            prompt: Final processed prompt that will be sent to the model
+            
+        Returns:
+            Mapped tokens: word -> token_ids
+        """
+        if not self.tokenizer or not target_words:
+            return {}
+        
+        mapped_tokens = {}
+        
+        # Tokenize the prompt to get the actual context
+        prompt_tokens = self.tokenizer.encode(prompt, add_special_tokens=False)
+        prompt_text_tokens = [self.tokenizer.decode([tid]) for tid in prompt_tokens]
+        
+        self.logger.debug(f"Mapping target words to prompt tokens:")
+        self.logger.debug(f"  Prompt: '{prompt}'")
+        self.logger.debug(f"  Target words: {target_words}")
+        
+        for target_word in target_words:
+            # Clean the target word (remove weight syntax if any)
+            clean_word = target_word.split(':')[0].strip()
+            
+            # Find the word in the prompt tokens
+            word_token_ids = []
+            word_positions = []
+            
+            # Method 1: Look for the word in the tokenized sequence
+            for i, token_text in enumerate(prompt_text_tokens):
+                if clean_word.lower() in token_text.lower() or token_text.lower() in clean_word.lower():
+                    word_token_ids.append(prompt_tokens[i])
+                    word_positions.append(i)
+            
+            # Method 2: If not found, try tokenizing the word and finding matches
+            if not word_token_ids:
+                individual_tokens = self.tokenizer.encode(clean_word, add_special_tokens=False)
+                for token_id in individual_tokens:
+                    if token_id in prompt_tokens:
+                        idx = prompt_tokens.index(token_id)
+                        word_token_ids.append(token_id)
+                        word_positions.append(idx)
+            
+            if word_token_ids:
+                # Use original target_word as key to preserve any weight info for metadata
+                mapped_tokens[target_word] = word_token_ids
+                self.logger.info(f"Mapped target word '{target_word}' -> '{clean_word}' -> tokens {word_token_ids} at positions {word_positions}")
+            else:
+                self.logger.warning(f"Could not find target word '{target_word}' in prompt '{prompt}'")
+        
+        return mapped_tokens
+    
+    def _sanitize_video_id(self, video_id: str) -> str:
+        """Sanitize video ID for filesystem use."""
+        # Replace problematic characters
+        sanitized = video_id.replace(':', '_').replace('/', '_').replace('\\', '_')
+        return sanitized
+    
+    def start_video_storage(self, video_id: str, prompt: str, target_words: List[str] = None, **generation_params):
+        """Start storage for a new video.
+        
+        Args:
+            video_id: Unique identifier for this video
+            prompt: Final processed prompt that will be sent to the model
+            target_words: List of specific words/phrases to track attention for (e.g., ["flower", "tree"])
+            **generation_params: Additional generation parameters
+        """
         self.current_video_id = video_id
         self.current_prompt = prompt
         self.current_generation_params = generation_params
         self.stored_steps = []
-        self.steps_processed = set()  # Clear step tracking for new video
         
-        # Parse parenthetical tokens from prompt
-        self.target_tokens = self.parse_parenthetical_tokens(prompt)
+        # Clear previous state
+        self.target_tokens = {}
+        self.current_attention_maps = {}
+        self.steps_processed = set()
         
-        if not self.target_tokens:
-            self.logger.warning(f"No parenthetical tokens found in prompt: {prompt}")
-            return
-        
-        # Extract prompt and video parts from video_id
-        if "_vid" in video_id:
-            prompt_part, vid_part = video_id.split("_vid")
-            vid_part = f"vid_{vid_part}"
-        else:
-            prompt_part = video_id
-            vid_part = "vid_001"
-        
-        # Create video-specific directory structure: prompt_000/vid_001/
-        self.current_video_dir = self.attention_dir / prompt_part / vid_part
+        # Create video directory
+        self.current_video_dir = self.attention_dir / self._sanitize_video_id(video_id)
         self.current_video_dir.mkdir(parents=True, exist_ok=True)
         
-        self.logger.info(f"Starting attention storage for video: {video_id}")
-        self.logger.info(f"Attention maps will be stored in: {self.current_video_dir}")
-        self.logger.info(f"Target tokens: {self.target_tokens}")
+        # Map target words to tokens in the processed prompt
+        if target_words:
+            self.target_tokens = self._map_target_words_to_tokens(target_words, prompt)
+        else:
+            # Fallback: parse parenthetical tokens from the prompt itself
+            self.target_tokens = self.parse_parenthetical_tokens(prompt)
+        
+        self.logger.info(f"Started attention storage for video: {video_id}")
+        self.logger.info(f"Prompt: {prompt}")
+        if target_words:
+            self.logger.info(f"Target words specified: {target_words}")
+        
+        if self.target_tokens:
+            self.logger.info(f"Found {len(self.target_tokens)} target tokens for attention tracking:")
+            for word, token_ids in self.target_tokens.items():
+                self.logger.info(f"  '{word}' -> tokens {token_ids}")
+        else:
+            self.logger.info("No target words or parenthetical tokens found - no attention maps will be stored")
     
     def set_scheduler(self, scheduler):
         """Set scheduler reference for step tracking in attention wrappers."""

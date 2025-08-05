@@ -568,6 +568,7 @@ class WanVideoGenerator:
             latent_storage = kwargs.get('latent_storage', None)
             attention_storage = kwargs.get('attention_storage', None)
             video_id = kwargs.get('video_id', None)
+            attention_target_words = kwargs.get('attention_target_words', None)  # NEW: Target words for attention tracking
             
             # Create generator for reproducibility
             generator = torch.Generator(device=self.device).manual_seed(generator_seed)
@@ -662,7 +663,8 @@ class WanVideoGenerator:
                 # Start attention storage for this video
                 attention_storage.start_video_storage(
                     video_id=video_id,
-                    prompt=prompt,
+                    prompt=processed_prompt,  # Use processed prompt (the actual prompt sent to model)
+                    target_words=attention_target_words,  # Pass specific target words for attention tracking
                     seed=generator_seed,
                     cfg_scale=guidance_scale,
                     width=width,
@@ -1097,6 +1099,7 @@ class BatchVideoGenerator:
                       filename_template: str = "{prompt_id}_{video_num:03d}",
                       latent_storage: Optional[LatentStorage] = None,
                       attention_storage: Optional['AttentionStorage'] = None,
+                      original_template: Optional[str] = None,  # NEW: Original template for attention token parsing
                       **generation_kwargs) -> Dict[str, List[GenerationResult]]:
         """
         Generate multiple videos for each prompt.
@@ -1108,6 +1111,7 @@ class BatchVideoGenerator:
             filename_template: Template for video filenames
             latent_storage: Optional LatentStorage instance for saving latents
             attention_storage: Optional AttentionStorage instance for saving attention maps
+            original_template: Optional original template prompt for attention token parsing
             **generation_kwargs: Additional generation parameters
         
         Returns:
@@ -1166,6 +1170,9 @@ class BatchVideoGenerator:
                 if attention_storage:
                     current_kwargs['attention_storage'] = attention_storage
                     current_kwargs['video_id'] = video_id
+                    # Pass target words for attention tracking if available
+                    if original_template:
+                        current_kwargs['attention_target_words'] = self._extract_target_words_from_template(original_template)
                 
                 output_path = prompt_dir / filename
                 
@@ -1205,6 +1212,37 @@ class BatchVideoGenerator:
             results[prompt] = prompt_results
         
         return results
+    
+    def _extract_target_words_from_template(self, template: str) -> List[str]:
+        """
+        Extract target words for attention tracking from template.
+        
+        Examples:
+            "a beautiful [(flower:2.5)|(tree:2.5)]" -> ["flower", "tree"]
+            "a (cat) playing with a (ball)" -> ["cat", "ball"]
+        
+        Args:
+            template: Original template with parenthetical syntax
+            
+        Returns:
+            List of target words to track attention for
+        """
+        target_words = []
+        
+        # Pattern to find words in parentheses, handling both:
+        # - Simple: (word)
+        # - Weighted: (word:weight)
+        # - In variations: [(word1:weight)|(word2:weight)]
+        parenthetical_pattern = r'\(([^:)]+)(?::[0-9]*\.?[0-9]+)?\)'
+        
+        matches = re.findall(parenthetical_pattern, template)
+        for match in matches:
+            word = match.strip()
+            if word and word not in target_words:
+                target_words.append(word)
+        
+        self.logger.debug(f"Extracted target words from template '{template}': {target_words}")
+        return target_words
     
     def generate_summary_report(self, 
                                results: Dict[str, List[GenerationResult]], 

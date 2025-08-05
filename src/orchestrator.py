@@ -127,7 +127,8 @@ class VideoGenerationOrchestrator:
     
     def generate_videos(self, 
                        variations: List[PromptVariation],
-                       videos_per_variation: Optional[int] = None) -> Dict[str, List]:
+                       videos_per_variation: Optional[int] = None,
+                       original_template: Optional[str] = None) -> Dict[str, List]:
         """Generate videos for all prompt variations."""
         if not self.batch_dirs:
             raise ValueError("Batch not setup. Call setup_batch() first.")
@@ -214,6 +215,7 @@ class VideoGenerationOrchestrator:
             filename_template="video_{video_num:03d}",
             latent_storage=latent_storage,
             attention_storage=attention_storage,
+            original_template=original_template,  # Pass original template for attention token extraction
             # Pass model settings as generation parameters
             seed=self.config.model_settings.seed,
             sampler=self.config.model_settings.sampler,
@@ -285,7 +287,7 @@ class VideoGenerationOrchestrator:
             variations = self.process_prompt_template(template, max_variations)
             
             # Generate videos
-            results = self.generate_videos(variations, videos_per_variation)
+            results = self.generate_videos(variations, videos_per_variation, template)
             
             # Create final metadata
             batch_metadata = {
