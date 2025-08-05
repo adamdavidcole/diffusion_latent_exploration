@@ -1170,9 +1170,11 @@ class BatchVideoGenerator:
                 if attention_storage:
                     current_kwargs['attention_storage'] = attention_storage
                     current_kwargs['video_id'] = video_id
-                    # Pass target words for attention tracking if available
+                    # Extract target words specific to this prompt variation
                     if original_template:
-                        current_kwargs['attention_target_words'] = self._extract_target_words_from_template(original_template)
+                        prompt_target_words = self._extract_target_words_for_prompt(prompt, original_template)
+                        if prompt_target_words:
+                            current_kwargs['attention_target_words'] = prompt_target_words
                 
                 output_path = prompt_dir / filename
                 
@@ -1243,6 +1245,54 @@ class BatchVideoGenerator:
         
         self.logger.debug(f"Extracted target words from template '{template}': {target_words}")
         return target_words
+    
+    def _extract_target_words_for_prompt(self, prompt: str, template: str) -> List[str]:
+        """
+        Extract target words that are actually present in this specific prompt variation.
+        
+        Examples:
+            prompt: "a beautiful flower near a tree"
+            template: "a beautiful [(flower:2.5) near a tree|(tree:3) next to a flower]"
+            -> ["flower"] (only flower is in this variation)
+            
+            prompt: "a beautiful tree next to a flower"  
+            template: "a beautiful [(flower:2.5) near a tree|(tree:3) next to a flower]"
+            -> ["tree"] (only tree should be weighted/tracked in this variation)
+        
+        Args:
+            prompt: Final processed prompt for this specific variation
+            template: Original template with parenthetical syntax
+            
+        Returns:
+            List of target words that are actually present and should be tracked for this prompt
+        """
+        # First, find all parenthetical tokens in the prompt itself
+        prompt_parenthetical = []
+        parenthetical_pattern = r'\(([^:)]+)(?::[0-9]*\.?[0-9]+)?\)'
+        matches = re.findall(parenthetical_pattern, prompt)
+        for match in matches:
+            word = match.strip()
+            if word:
+                prompt_parenthetical.append(word)
+        
+        if prompt_parenthetical:
+            # If the prompt itself has parenthetical syntax, use those
+            self.logger.debug(f"Found parenthetical tokens in prompt '{prompt}': {prompt_parenthetical}")
+            return prompt_parenthetical
+        
+        # Otherwise, extract all possible target words from template and filter by what's in the prompt
+        all_template_words = self._extract_target_words_from_template(template)
+        prompt_target_words = []
+        
+        # Check which template target words are actually present in this prompt
+        prompt_lower = prompt.lower()
+        for word in all_template_words:
+            clean_word = word.split(':')[0].strip().lower()
+            if clean_word in prompt_lower:
+                prompt_target_words.append(word)
+        
+        self.logger.debug(f"Filtered target words for prompt '{prompt}': {prompt_target_words}")
+        return prompt_target_words
     
     def generate_summary_report(self, 
                                results: Dict[str, List[GenerationResult]], 

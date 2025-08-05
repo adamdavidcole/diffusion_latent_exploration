@@ -13,6 +13,7 @@ A comprehensive tool for generating video sets using WAN video models (1.3B and 
 - **Progress Tracking**: Monitor generation progress and handle errors gracefully
 - **GPU Memory Optimization**: Automatic memory management for CUDA devices
 - **🆕 Latent Trajectory Analysis**: Store and analyze latent representations during diffusion to study model geometry and potential biases
+- **🆕 Attention Map Storage**: Capture and analyze cross-attention patterns between text tokens and spatial regions during generation
 
 ## Project Structure
 
@@ -60,6 +61,15 @@ python main.py --template "a [romantic|platonic] kiss between [two people|two me
 python analyze_latent_trajectories.py --batch-dir outputs/your_batch_20250804_123456
 ```
 
+### 🆕 With Attention Map Analysis
+```bash
+# Generate videos while capturing attention maps for specific tokens
+python main.py --template "a beautiful (flower:2.5) in a garden" --store-attention
+
+# Generate with template variations tracking different tokens per variation
+python main.py --template "a beautiful [(flower:2.5) near a tree|(tree:3) next to a flower]" --store-attention
+```
+
 ### Available Configurations
 - `configs/default.yaml` - Standard WAN 1.3B settings
 - `configs/wan_14b_optimized.yaml` - Optimized for WAN 14B with memory management
@@ -74,7 +84,14 @@ This project includes advanced tools for studying the latent space geometry of d
 ### Key Hypothesis
 Dominant representations may occupy more area in the latent space, while "marginal" or "othered" representations might occupy less area. By analyzing trajectories, we can potentially measure the relative scale of certain representations.
 
-### Quick Start
+### Documentation
+
+- **[Latent Trajectory Analysis](docs/LATENT_TRAJECTORY_ANALYSIS.md)**: Comprehensive guide to latent space analysis and geometry studies
+- **[Attention Map Storage](docs/ATTENTION_MAP_STORAGE.md)**: Complete documentation of attention map capture, storage format, and analysis
+- **[FP16 Latent Storage](docs/FP16_LATENT_STORAGE.md)**: Memory-efficient storage with half precision
+- **[Latent Storage Fix](docs/LATENT_STORAGE_FIX.md)**: Technical details on storage improvements
+
+## Quick Start
 1. **Generate with latent storage**: Add `--store-latents` flag
 2. **Analyze trajectories**: Use `analyze_latent_trajectories.py` script
 3. **Study results**: Examine metrics like trajectory linearity, volume, and dynamics

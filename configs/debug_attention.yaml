@@ -1,0 +1,46 @@
+# Quick test configuration for debugging attention storage
+model_settings:
+  seed: 999
+  sampler: "unipc"
+  cfg_scale: 6.5
+  steps: 3  # Very few steps for quick testing
+  eta: 0.0
+  clip_skip: 1
+  model_id: "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
+
+memory_settings:
+  enable_memory_optimization: true
+  clear_cache_between_videos: true
+  reload_model_for_large_models: false
+  use_gradient_checkpointing: true
+  enable_memory_efficient_attention: true
+
+video_settings:
+  width: 416  # Divisible by 16
+  height: 240 # Divisible by 16
+  fps: 12
+  duration: 1  # Very short for quick test
+  frames: null
+
+videos_per_variation: 1  # Just one video for testing
+output_dir: "outputs"
+batch_name: "debug_attention_test"
+use_timestamp: true
+
+prompt_settings:
+  enable_weighting: false
+  variation_weight: 1.0
+  base_weight: 1.0
+  use_weighted_embeddings: true
+
+latent_analysis_settings:
+  store_latents: false
+
+attention_analysis_settings:
+  store_attention: true  # Enable for debugging
+  tokenizer_name: "google/umt5-xxl"
+  storage_format: "numpy"
+  compress_attention: false  # Easier to debug without compression
+  storage_interval: 1
+  storage_dtype: "float16"
+  spatial_downsample_factor: 1
