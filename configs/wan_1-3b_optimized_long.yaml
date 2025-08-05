@@ -51,3 +51,20 @@ latent_analysis_settings:
   storage_interval: 1                      # Store every N steps (1 = all steps)
   compress_latents: true                   # Use gzip compression
   storage_dtype: "float16"                 # "float32" or "float16" (FP16 saves ~50% storage)
+
+
+# Attention map analysis settings
+attention_analysis_settings:
+  store_attention: false                    # Enable attention map storage
+  tokenizer_name: "google/umt5-xxl"        # T5 tokenizer used by WAN pipeline
+  storage_format: "numpy"                  # "numpy" or "torch"
+  compress_attention: true                 # Use gzip compression
+  storage_interval: 1                      # Store every 2 steps (attention maps are larger)
+  storage_dtype: "float16"                 # Use FP16 for memory efficiency
+  
+  # Advanced settings (normally keep false for basic usage)
+  store_per_head: false                    # Store individual attention heads
+  store_per_block: false                   # Store individual transformer blocks
+  store_individual_tokens: false          # Store individual token attention
+  attention_threshold: 0.01                # Filter out weak attention values
+  spatial_downsample_factor: 2             # Downsample spatial dimensions 2x

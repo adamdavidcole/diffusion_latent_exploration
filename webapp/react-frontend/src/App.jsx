@@ -89,13 +89,63 @@ const findExperimentInTree = (tree, targetPath) => {
         if (result) return result;
       }
     }
-  return null;
+    return null;
+  };
+
+  // Helper function to find the first experiment alphabetically (matching TreeExperimentList logic)
+  const findFirstExperimentAlphabetically = (tree) => {
+    if (!tree) return null;
+
+    const sortChildren = (children) => {
+      return children.sort((a, b) => {
+        // Always folders first
+        if (a.type !== b.type) {
+          return a.type === 'folder' ? -1 : 1;
+        }
+        // Sort alphabetically
+        return a.name.localeCompare(b.name);
+      });
+    };
+
+    const findFirst = (node) => {
+      if (node.type === 'experiment') {
+        // Apply same filters as TreeExperimentList (default: minVideoCount = 20, no model filter, no search)
+        if (node.experiment_data.videos_count >= 20) {
+          return node;
+        }
+        return null;
+      }
+
+      if (node.type === 'folder' && node.children) {
+        const sortedChildren = sortChildren(node.children);
+        for (const child of sortedChildren) {
+          const result = findFirst(child);
+          if (result) return result;
+        }
+      }
+
+      return null;
+    };
+
+    // Skip the top-level "outputs" folder and search its children
+    if (tree.name === 'outputs' && tree.children) {
+      const sortedChildren = sortChildren(tree.children);
+      for (const child of sortedChildren) {
+        const result = findFirst(child);
+        if (result) return result;
+      }
+    } else {
+      return findFirst(tree);
+    }
+
+    return null;
+  }; return traverse(tree);
 };
 
 // Helper function to find the first experiment alphabetically (matching TreeExperimentList logic)
 const findFirstExperimentAlphabetically = (tree) => {
   if (!tree) return null;
-  
+
   const sortChildren = (children) => {
     return children.sort((a, b) => {
       // Always folders first
@@ -106,57 +156,7 @@ const findFirstExperimentAlphabetically = (tree) => {
       return a.name.localeCompare(b.name);
     });
   };
-  
-  const findFirst = (node) => {
-    if (node.type === 'experiment') {
-      // Apply same filters as TreeExperimentList (default: minVideoCount = 20, no model filter, no search)
-      if (node.experiment_data.videos_count >= 20) {
-        return node;
-      }
-      return null;
-    }
-    
-    if (node.type === 'folder' && node.children) {
-      const sortedChildren = sortChildren(node.children);
-      for (const child of sortedChildren) {
-        const result = findFirst(child);
-        if (result) return result;
-      }
-    }
-    
-    return null;
-  };
-  
-  // Skip the top-level "outputs" folder and search its children
-  if (tree.name === 'outputs' && tree.children) {
-    const sortedChildren = sortChildren(tree.children);
-    for (const child of sortedChildren) {
-      const result = findFirst(child);
-      if (result) return result;
-    }
-  } else {
-    return findFirst(tree);
-  }
-  
-  return null;
-};  return traverse(tree);
-};
 
-// Helper function to find the first experiment alphabetically (matching TreeExperimentList logic)
-const findFirstExperimentAlphabetically = (tree) => {
-  if (!tree) return null;
-  
-  const sortChildren = (children) => {
-    return children.sort((a, b) => {
-      // Always folders first
-      if (a.type !== b.type) {
-        return a.type === 'folder' ? -1 : 1;
-      }
-      // Sort alphabetically
-      return a.name.localeCompare(b.name);
-    });
-  };
-  
   const findFirst = (node) => {
     if (node.type === 'experiment') {
       // Apply same filters as TreeExperimentList (default: minVideoCount = 20, no model filter, no search)
@@ -165,7 +165,7 @@ const findFirstExperimentAlphabetically = (tree) => {
       }
       return null;
     }
-    
+
     if (node.type === 'folder' && node.children) {
       const sortedChildren = sortChildren(node.children);
       for (const child of sortedChildren) {
@@ -173,10 +173,10 @@ const findFirstExperimentAlphabetically = (tree) => {
         if (result) return result;
       }
     }
-    
+
     return null;
   };
-  
+
   // Skip the top-level "outputs" folder and search its children
   if (tree.name === 'outputs' && tree.children) {
     const sortedChildren = sortChildren(tree.children);
@@ -187,7 +187,7 @@ const findFirstExperimentAlphabetically = (tree) => {
   } else {
     return findFirst(tree);
   }
-  
+
   return null;
 };
 

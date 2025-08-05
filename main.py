@@ -29,8 +29,14 @@ Examples:
   # Basic usage with prompt template
   python main.py --template "a romantic kiss between [two people|two men|two women|a man and a woman]"
   
+  # Use parenthetical tokens for attention map extraction
+  python main.py --template "a romantic (kiss) between two (men)" --store-attention
+  
   # Use custom config and specify output
   python main.py --config configs/romantic.yaml --template "a [gentle|passionate] kiss" --output outputs/kiss_series
+  
+  # Store both latents and attention maps
+  python main.py --template "a (cat) playing with a (ball)" --store-latents --store-attention
   
   # Continue from existing batch (same template)
   python main.py --continue-from outputs/14b_kiss_5frame_weighted_20250726_020105
@@ -121,6 +127,10 @@ Examples:
     parser.add_argument('--store-latents', action='store_true',
                        help='Store latent representations at each denoising step for trajectory analysis')
     
+    # Attention map analysis
+    parser.add_argument('--store-attention', action='store_true',
+                       help='Store attention maps for tokens in parentheses in prompts (e.g., "(kiss)" in "romantic (kiss)")')
+    
     # Verbose output
     parser.add_argument('--verbose', '-v', action='store_true',
                        help='Verbose output')
@@ -188,6 +198,10 @@ def load_or_create_config(config_path: str, args) -> GenerationConfig:
     if args.store_latents:
         config.latent_analysis_settings.store_latents = True
     
+    # Apply attention analysis settings  
+    if args.store_attention:
+        config.attention_analysis_settings.store_attention = True
+    
     return config
 
 
@@ -234,6 +248,19 @@ def preview_batch(orchestrator: VideoGenerationOrchestrator, template: str, max_
     print(f"  Total variations: {preview['total_variations']}")
     print(f"  Videos per variation: {preview['videos_per_variation']}")
     print(f"  Total videos to generate: {preview['total_videos']}")
+    
+    # Check for parenthetical tokens for attention analysis
+    import re
+    parenthetical_tokens = re.findall(r'\(([^)]+)\)', template)
+    if parenthetical_tokens:
+        print(f"  Parenthetical tokens found: {parenthetical_tokens}")
+        if orchestrator.config.attention_analysis_settings.store_attention:
+            print(f"  ✓ Attention maps will be stored for these tokens")
+        else:
+            print(f"  ⚠️ Use --store-attention to capture attention maps for these tokens")
+    elif orchestrator.config.attention_analysis_settings.store_attention:
+        print(f"  ⚠️ Attention storage enabled but no parenthetical tokens found in template")
+        print(f"    Use format like 'romantic (kiss) between two (men)' to capture attention")
     
     # Estimate disk space
     config = orchestrator.config

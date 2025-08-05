@@ -134,7 +134,10 @@ class AttentionStorage:
                  store_per_block: bool = False,
                  store_individual_tokens: bool = False,
                  attention_threshold: Optional[float] = None,
-                 spatial_downsample_factor: int = 1):
+                 spatial_downsample_factor: int = 1,
+                 # NEW: Consistent storage options
+                 store_full_per_step: bool = True,     # Store [blocks, heads, spatial, tokens] per step
+                 store_aggregated: bool = False):      # Also store aggregated [1, spatial, tokens] for quick access
         """
         Initialize attention storage manager.
         
@@ -164,6 +167,10 @@ class AttentionStorage:
         self.store_individual_tokens = store_individual_tokens
         self.attention_threshold = attention_threshold
         self.spatial_downsample_factor = spatial_downsample_factor
+        
+        # NEW: Consistent storage configuration
+        self.store_full_per_step = store_full_per_step
+        self.store_aggregated = store_aggregated
         
         # Use storage_dir directly as the attention directory
         self.attention_dir = self.storage_dir
@@ -500,32 +507,49 @@ class AttentionStorage:
         self.logger.debug(f"Number of block attentions: {len(block_attentions)}")
         self.logger.debug(f"First block attention shape: {block_attentions[0].shape}")
         
-        # Stack and average across blocks and heads (default behavior)
-        stacked_attention = torch.stack(block_attentions, dim=0)  # [blocks, batch, heads, seq_len_spatial, 1]
-        self.logger.debug(f"Stacked attention shape: {stacked_attention.shape}")
-        
-        # Average across blocks and heads
-        averaged_attention = stacked_attention.mean(dim=[0, 2])  # [batch, seq_len_spatial, 1]
-        self.logger.debug(f"Averaged attention shape: {averaged_attention.shape}")
-        
-        # Apply thresholding if configured
-        if self.attention_threshold is not None:
-            averaged_attention = torch.where(
-                averaged_attention > self.attention_threshold,
-                averaged_attention,
-                torch.zeros_like(averaged_attention)
+        # Store the full per-step tensor with consistent shape: [blocks, heads, spatial, tokens]
+        # This maintains consistency regardless of aggregation settings
+        if block_attentions:
+            # Stack to create [blocks, batch, heads, spatial, tokens]
+            stacked_attention = torch.stack(block_attentions, dim=0)
+            
+            # Remove batch dimension to get [blocks, heads, spatial, tokens]
+            full_step_attention = stacked_attention.squeeze(1)  # Remove batch dim
+            
+            self.logger.debug(f"Full step attention shape: {full_step_attention.shape}")
+            
+            # Store the full per-step tensor
+            self._store_attention_tensor(
+                full_step_attention, word_dir, filename_base,
+                word, token_ids, step, timestep, total_steps,
+                aggregation_method="per_step_full"
             )
         
-        # Apply spatial downsampling if configured
-        if self.spatial_downsample_factor > 1:
-            averaged_attention = self._downsample_attention(averaged_attention)
-        
-        # Store the averaged result
-        self._store_attention_tensor(
-            averaged_attention, word_dir, filename_base,
-            word, token_ids, step, timestep, total_steps,
-            aggregation_method="averaged"
-        )
+        # Optionally also store aggregated version for quick access (if requested)
+        if hasattr(self, 'store_aggregated') and self.store_aggregated:
+            # Average across blocks and heads for quick visualization
+            averaged_attention = stacked_attention.mean(dim=[0, 2])  # [batch, spatial, tokens]
+            
+            # Apply thresholding if configured
+            if self.attention_threshold is not None:
+                averaged_attention = torch.where(
+                    averaged_attention > self.attention_threshold,
+                    averaged_attention,
+                    torch.zeros_like(averaged_attention)
+                )
+            
+            # Apply spatial downsampling if configured
+            if self.spatial_downsample_factor > 1:
+                averaged_attention = self._downsample_attention(averaged_attention)
+            
+            # Store the aggregated result in a subdirectory
+            aggregated_dir = word_dir / "aggregated"
+            aggregated_dir.mkdir(exist_ok=True)
+            self._store_attention_tensor(
+                averaged_attention, aggregated_dir, filename_base,
+                word, token_ids, step, timestep, total_steps,
+                aggregation_method="averaged"
+            )
     
     def _extract_token_attention(self, attention: torch.Tensor, token_ids: List[int]) -> torch.Tensor:
         """Extract attention weights for specific tokens."""
@@ -657,8 +681,9 @@ class AttentionStorage:
             attention_shape=tuple(attention.shape),
             spatial_resolution=(attention.shape[-2], attention.shape[-1]),
             num_blocks=len(self.current_attention_maps),
-            # After aggregation, num_heads should be 1 (averaged), and spatial is the second dimension
-            num_heads=1 if aggregation_method == "averaged" else (attention.shape[1] if len(attention.shape) > 2 else 1),
+            # For per_step_full: shape is [blocks, heads, spatial, tokens] 
+            # For aggregated: shape is [batch, spatial, tokens] with heads=1
+            num_heads=attention.shape[1] if aggregation_method == "per_step_full" else 1,
             threshold_applied=self.attention_threshold,
             block_idx=block_idx,
             head_idx=head_idx,
@@ -709,12 +734,20 @@ class AttentionStorage:
             "storage_dir": str(self.storage_dir),
             "storage_format": self.storage_format,
             "compressed": self.compress,
+            "storage_type": "consistent_per_step",  # NEW: Indicate storage approach
+            "attention_shape_per_step": "[blocks, heads, spatial, tokens]",  # NEW: Document shape
             "config": {
-                "store_per_head": self.store_per_head,
-                "store_per_block": self.store_per_block,
+                # NEW: Updated config that reflects actual storage behavior
+                "store_full_per_step": self.store_full_per_step,  # Always stores [blocks, heads, spatial, tokens]
+                "store_aggregated": self.store_aggregated,        # Optionally also stores aggregated version
+                "stores_all_blocks": True,   # Always true with new format
+                "stores_all_heads": True,    # Always true with new format  
                 "store_individual_tokens": self.store_individual_tokens,
                 "attention_threshold": self.attention_threshold,
-                "spatial_downsample_factor": self.spatial_downsample_factor
+                "spatial_downsample_factor": self.spatial_downsample_factor,
+                # Legacy fields for backward compatibility
+                "store_per_head": True,      # Always true now (stored in consistent format)
+                "store_per_block": True,     # Always true now (stored in consistent format)
             }
         }
         
