@@ -1007,6 +1007,11 @@ p#base-prompt:hover {
     transition: transform 0.2s;
 }
 
+.video-thumbnail {
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
 .video-cell:hover .video-element {
     transform: scale(1.02);
 }
@@ -1832,6 +1837,88 @@ p#base-prompt:hover {
     text-align: center;
     margin-top: 0.25rem;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Lightbox Attention Controls */
+.lightbox-attention-controls {
+    background: rgba(40, 40, 40, 0.95);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 1rem 0;
+    backdrop-filter: blur(10px);
+}
+
+.lightbox-attention-controls .attention-toggle {
+    margin-bottom: 0.75rem;
+}
+
+.lightbox-attention-controls .attention-toggle label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.lightbox-attention-controls .token-selector {
+    margin-bottom: 0;
+}
+
+.lightbox-attention-controls .token-selector label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.lightbox-attention-controls .token-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.lightbox-attention-controls .token-button {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.4rem 0.8rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.lightbox-attention-controls .token-button:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent);
+    color: var(--text-primary);
+}
+
+.lightbox-attention-controls .token-button.selected {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg-primary);
+    font-weight: 600;
+}
+
+/* Attention Video Indicator in Lightbox */
+.attention-video-indicator {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    background: rgba(0, 0, 0, 0.8);
+    color: var(--accent);
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    z-index: 10;
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--accent);
 }
 
 /* Main controls container */

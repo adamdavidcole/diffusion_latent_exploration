@@ -5,13 +5,11 @@ import { useVideoCache } from '../../hooks/useVideoCache';
 
 const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLightbox }) => {
     const videoRef = useRef(null);
+    const imageRef = useRef(null);
+    const hoverTimeoutRef = useRef(null);
     const [isLoaded, setIsLoaded] = useState(false);
-    const [isPlaying, setIsPlaying] = useState(false);
-    const [isLoadingOnHover, setIsLoadingOnHover] = useState(false);
-    const [preloadMode, setPreloadMode] = useState('none'); // Track preload state
-    const [showPoster, setShowPoster] = useState(true); // Track poster visibility
+    const [useVideoElement, setUseVideoElement] = useState(false); // Simple boolean switch
     const { state } = useApp();
-    // const { loadVideo } = useVideoCache(); // Commented out to preserve thumbnail performance
 
     // Get the current video source based on attention mode
     const getCurrentVideoPath = useCallback(() => {
@@ -55,184 +53,75 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
         }
     }, []);
 
-    // Update video source when attention mode or token changes
+    // Simple cleanup function for timeouts
     useEffect(() => {
-        const videoElement = videoRef.current;
-        if (!videoElement) return;
+        return () => {
+            if (hoverTimeoutRef.current) {
+                clearTimeout(hoverTimeoutRef.current);
+            }
+        };
+    }, []);
 
-        const newVideoPath = getCurrentVideoPath();
-        const newVideoUrl = getVideoUrl(newVideoPath);
-
-        // Only update if the source actually changed
-        if (videoElement.src !== newVideoUrl) {
-            // Pause current video and reset
-            videoElement.pause();
-            videoElement.currentTime = 0;
-            setIsPlaying(false);
-            setIsLoaded(false);
-
-            // Update source
-            videoElement.src = newVideoUrl;
-            videoElement.load();
-        }
-    }, [getCurrentVideoPath]);
-
-    // Function to preload video metadata (for programmatic play all)
-    const loadVideoMetadata = useCallback(() => {
-        const videoElement = videoRef.current;
-        const currentVideoPath = getCurrentVideoPath();
-        if (!videoElement || !currentVideoPath) return Promise.resolve();
-
-        // If video already has metadata loaded, resolve immediately
-        if (videoElement.readyState >= 1) { // HAVE_METADATA or higher
-            return Promise.resolve();
-        }
-
-        return new Promise((resolve, reject) => {
-            const handleLoadedMetadata = () => {
-                videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
-                videoElement.removeEventListener('error', handleError);
-                resolve();
-            };
-
-            const handleError = (error) => {
-                videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
-                videoElement.removeEventListener('error', handleError);
-                console.warn('Failed to preload video metadata:', error);
-                reject(error);
-            };
-
-            videoElement.addEventListener('loadedmetadata', handleLoadedMetadata);
-            videoElement.addEventListener('error', handleError);
-
-            // Set preload to metadata for basic playback
-            setPreloadMode('metadata');
-            videoElement.load(); // Trigger loading
-        });
-    }, [getCurrentVideoPath]);
-
-    // Function to fully load video data (for scrubbing)
-    const loadVideoSource = useCallback(() => {
-        const videoElement = videoRef.current;
-        const currentVideoPath = getCurrentVideoPath();
-        if (!videoElement || !currentVideoPath) return Promise.resolve();
-
-        // If video is already fully loaded, resolve immediately
-        if (videoElement.readyState >= 3) { // HAVE_FUTURE_DATA or higher
-            return Promise.resolve();
-        }
-
-        return new Promise((resolve, reject) => {
-            const handleCanPlayThrough = () => {
-                videoElement.removeEventListener('canplaythrough', handleCanPlayThrough);
-                videoElement.removeEventListener('error', handleError);
-                console.log('Video fully loaded for scrubbing:', currentVideoPath);
-                resolve();
-            };
-
-            const handleError = (error) => {
-                videoElement.removeEventListener('canplaythrough', handleCanPlayThrough);
-                videoElement.removeEventListener('error', handleError);
-                console.warn('Failed to fully load video for scrubbing:', error);
-                reject(error);
-            };
-
-            videoElement.addEventListener('canplaythrough', handleCanPlayThrough);
-            videoElement.addEventListener('error', handleError);
-
-            // Set preload to auto to fully load video data for scrubbing
-            console.log('Fully loading video for scrubbing:', currentVideoPath);
-            setPreloadMode('auto');
-            setShowPoster(false); // Hide poster when fully loading
-            videoElement.load(); // Trigger loading
-        });
-    }, [getCurrentVideoPath]); const handleClick = useCallback(() => {
+    const handleClick = useCallback(() => {
         if (onOpenLightbox && video) {
             onOpenLightbox(video);
         }
     }, [onOpenLightbox, video]);
 
     const handleMouseEnter = useCallback(() => {
-        const videoElement = videoRef.current;
-        if (!videoElement || isPlaying || state.isScrubbingActive) return;
+        if (state.isScrubbingActive) return;
 
-        // Show loading spinner immediately
-        setIsLoadingOnHover(true);
+        // Clear any pending timeout
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+            hoverTimeoutRef.current = null;
+        }
 
-        // Simply play the video - src is already set, preload="none" means it loads on demand
-        videoElement.play().then(() => {
-            // Hide loading spinner when playback starts
-            setIsLoadingOnHover(false);
-            setIsPlaying(true);
-        }).catch(err => {
-            console.warn('Failed to play video on hover:', err);
-            setIsLoadingOnHover(false);
-        });
-    }, [isPlaying, state.isScrubbingActive]);
-
-    const handleMouseLeave = useCallback(() => {
-        const videoElement = videoRef.current;
-        if (!videoElement || state.isScrubbingActive) return;
-
-        // Clear loading state and stop playback
-        setIsLoadingOnHover(false);
-        videoElement.pause();
-        videoElement.currentTime = 0;
-        setIsPlaying(false);
+        // Simply switch to video element - autoplay will handle the rest
+        setUseVideoElement(true);
     }, [state.isScrubbingActive]);
 
-    const handleLoadedMetadata = useCallback(() => {
-        const videoElement = videoRef.current;
-        if (!videoElement) return;
+    const handleMouseLeave = useCallback(() => {
+        if (state.isScrubbingActive) return;
 
-        // Only set loaded state once to avoid multiple calls
+        // Clear any pending timeout
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+        }
+
+        // Switch back to image after a short delay
+        hoverTimeoutRef.current = setTimeout(() => {
+            if (!state.isScrubbingActive) {
+                setUseVideoElement(false);
+            }
+        }, 300);
+    }, [state.isScrubbingActive]);
+
+    // Simple metadata handler
+    const handleLoadedMetadata = useCallback(() => {
         if (!isLoaded) {
             setIsLoaded(true);
-            if (onMetadataLoaded && videoElement.duration) {
-                onMetadataLoaded(videoElement.duration);
+            if (onMetadataLoaded && videoRef.current?.duration) {
+                onMetadataLoaded(videoRef.current.duration);
             }
         }
     }, [onMetadataLoaded, isLoaded]);
 
-    // Load video when component mounts and when video prop changes
-    // COMMENTED OUT: This was preloading all videos and defeating thumbnail performance
-    // useEffect(() => {
-    //     const videoElement = videoRef.current;
-    //     if (videoElement && video?.video_path) {
-    //         loadVideo(videoElement, video.video_path);
-    //     }
-    // }, [video?.video_path, loadVideo]);
-
-    // Set up event listeners
+    // Expose loadVideoMetadata for play all functionality
     useEffect(() => {
         const videoElement = videoRef.current;
-        if (!videoElement) return;
+        if (videoElement && useVideoElement) {
+            // Simple function to switch to video for play all
+            videoElement.loadVideoMetadata = () => {
+                setUseVideoElement(true);
+                return Promise.resolve();
+            };
 
-        videoElement.addEventListener('loadedmetadata', handleLoadedMetadata);
-
-        return () => {
-            videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
-        };
-    }, [handleLoadedMetadata]);
-
-    // Expose functions to parent components for play all and scrubber functionality
-    useEffect(() => {
-        const videoElement = videoRef.current;
-        if (videoElement) {
-            videoElement.loadVideoMetadata = loadVideoMetadata; // For play all
-            videoElement.loadVideoSource = loadVideoSource;     // For scrubbing (full load)
-            // Expose poster control functions for scrubbing
-            videoElement.hidePoster = () => setShowPoster(false);
-            videoElement.showPoster = () => setShowPoster(true);
+            if (onVideoLoaded) {
+                onVideoLoaded(videoElement);
+            }
         }
-    }, [loadVideoMetadata, loadVideoSource]);
-
-    // Notify parent when loaded
-    useEffect(() => {
-        if (isLoaded && onVideoLoaded) {
-            onVideoLoaded(videoRef.current);
-        }
-    }, [isLoaded, onVideoLoaded]);
+    }, [useVideoElement, onVideoLoaded]);
 
     if (!video) {
         return (
@@ -255,19 +144,36 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
         >
-            <video
-                ref={videoRef}
-                className="video-element"
-                style={{
-                    width: `${videoSize}px`,
-                    height: `${Math.round(videoSize * 0.56)}px`
-                }}
-                src={getVideoUrl(getCurrentVideoPath())}
-                muted
-                loop
-                preload={preloadMode}
-                poster={showPoster ? getThumbnailPath(getCurrentVideoPath()) : ''}
-            />
+            {useVideoElement ? (
+                <video
+                    ref={videoRef}
+                    className="video-element"
+                    style={{
+                        width: `${videoSize}px`,
+                        height: `${Math.round(videoSize * 0.56)}px`
+                    }}
+                    src={getVideoUrl(getCurrentVideoPath())}
+                    muted
+                    loop
+                    autoPlay
+                    preload="auto"
+                    playsInline
+                    onLoadedMetadata={handleLoadedMetadata}
+                    poster={getThumbnailPath(getCurrentVideoPath())}
+                />
+            ) : (
+                <img
+                    ref={imageRef}
+                    className="video-element video-thumbnail"
+                    style={{
+                        width: `${videoSize}px`,
+                        height: `${Math.round(videoSize * 0.56)}px`,
+                        objectFit: 'cover'
+                    }}
+                    src={getThumbnailPath(getCurrentVideoPath())}
+                    alt={`Video thumbnail - Seed ${video.seed}`}
+                />
+            )}
             <div className="video-overlay">
                 <div>Seed: {video.seed}</div>
                 <div>{video.width}x{video.height}, {video.num_frames}f</div>
@@ -276,7 +182,6 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
                     <div>🎯 {state.selectedToken}</div>
                 )}
             </div>
-            {isLoadingOnHover && <div className="hover-loading-spinner" />}
         </div>
     );
 };
