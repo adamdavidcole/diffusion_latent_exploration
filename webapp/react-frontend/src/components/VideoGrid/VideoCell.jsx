@@ -13,6 +13,35 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
     const { state } = useApp();
     // const { loadVideo } = useVideoCache(); // Commented out to preserve thumbnail performance
 
+    // Get the current video source based on attention mode
+    const getCurrentVideoPath = useCallback(() => {
+        if (!video?.video_path) return null;
+
+        // If attention mode is off, return normal video
+        if (!state.attentionMode || !state.selectedToken || !state.currentExperiment?.attention_videos?.available) {
+            return video.video_path;
+        }
+
+        // Try to find matching attention video
+        const attentionVideos = state.currentExperiment.attention_videos;
+        const promptNum = video.variation_num; // This should match prompt_XXX format
+        const videoNum = video.video_number;
+
+        const promptKey = `prompt_${promptNum.toString().padStart(3, '0')}`;
+        const videoKey = `vid${videoNum.toString().padStart(3, '0')}`;
+
+        const promptData = attentionVideos.prompts[promptKey];
+        if (promptData && promptData.videos[videoKey]) {
+            const tokenData = promptData.videos[videoKey].tokens[state.selectedToken];
+            if (tokenData && tokenData.aggregate_overlay_path) {
+                return tokenData.aggregate_overlay_path;
+            }
+        }
+
+        // Fallback to normal video if attention video not found
+        return video.video_path;
+    }, [video, state.attentionMode, state.selectedToken, state.currentExperiment?.attention_videos]);
+
     // Calculate thumbnail path from video path
     const getThumbnailPath = useCallback((videoPath) => {
         if (!videoPath) return null;
@@ -26,10 +55,33 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
         }
     }, []);
 
+    // Update video source when attention mode or token changes
+    useEffect(() => {
+        const videoElement = videoRef.current;
+        if (!videoElement) return;
+
+        const newVideoPath = getCurrentVideoPath();
+        const newVideoUrl = getVideoUrl(newVideoPath);
+
+        // Only update if the source actually changed
+        if (videoElement.src !== newVideoUrl) {
+            // Pause current video and reset
+            videoElement.pause();
+            videoElement.currentTime = 0;
+            setIsPlaying(false);
+            setIsLoaded(false);
+
+            // Update source
+            videoElement.src = newVideoUrl;
+            videoElement.load();
+        }
+    }, [getCurrentVideoPath]);
+
     // Function to preload video metadata (for programmatic play all)
     const loadVideoMetadata = useCallback(() => {
         const videoElement = videoRef.current;
-        if (!videoElement || !video?.video_path) return Promise.resolve();
+        const currentVideoPath = getCurrentVideoPath();
+        if (!videoElement || !currentVideoPath) return Promise.resolve();
 
         // If video already has metadata loaded, resolve immediately
         if (videoElement.readyState >= 1) { // HAVE_METADATA or higher
@@ -57,12 +109,13 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
             setPreloadMode('metadata');
             videoElement.load(); // Trigger loading
         });
-    }, [video?.video_path]);
+    }, [getCurrentVideoPath]);
 
     // Function to fully load video data (for scrubbing)
     const loadVideoSource = useCallback(() => {
         const videoElement = videoRef.current;
-        if (!videoElement || !video?.video_path) return Promise.resolve();
+        const currentVideoPath = getCurrentVideoPath();
+        if (!videoElement || !currentVideoPath) return Promise.resolve();
 
         // If video is already fully loaded, resolve immediately
         if (videoElement.readyState >= 3) { // HAVE_FUTURE_DATA or higher
@@ -73,7 +126,7 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
             const handleCanPlayThrough = () => {
                 videoElement.removeEventListener('canplaythrough', handleCanPlayThrough);
                 videoElement.removeEventListener('error', handleError);
-                console.log('Video fully loaded for scrubbing:', video.video_path);
+                console.log('Video fully loaded for scrubbing:', currentVideoPath);
                 resolve();
             };
 
@@ -88,12 +141,12 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
             videoElement.addEventListener('error', handleError);
 
             // Set preload to auto to fully load video data for scrubbing
-            console.log('Fully loading video for scrubbing:', video.video_path);
+            console.log('Fully loading video for scrubbing:', currentVideoPath);
             setPreloadMode('auto');
             setShowPoster(false); // Hide poster when fully loading
             videoElement.load(); // Trigger loading
         });
-    }, [video?.video_path]); const handleClick = useCallback(() => {
+    }, [getCurrentVideoPath]); const handleClick = useCallback(() => {
         if (onOpenLightbox && video) {
             onOpenLightbox(video);
         }
@@ -209,16 +262,19 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
                     width: `${videoSize}px`,
                     height: `${Math.round(videoSize * 0.56)}px`
                 }}
-                src={getVideoUrl(video.video_path)}
+                src={getVideoUrl(getCurrentVideoPath())}
                 muted
                 loop
                 preload={preloadMode}
-                poster={showPoster ? getThumbnailPath(video.video_path) : ''}
+                poster={showPoster ? getThumbnailPath(getCurrentVideoPath()) : ''}
             />
             <div className="video-overlay">
                 <div>Seed: {video.seed}</div>
                 <div>{video.width}x{video.height}, {video.num_frames}f</div>
                 <div>Steps: {video.steps}, CFG: {video.cfg_scale}</div>
+                {state.attentionMode && state.selectedToken && (
+                    <div>🎯 {state.selectedToken}</div>
+                )}
             </div>
             {isLoadingOnHover && <div className="hover-loading-spinner" />}
         </div>

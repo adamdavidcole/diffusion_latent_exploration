@@ -1191,9 +1191,6 @@ p#base-prompt:hover {
 
 /* Sync Controls */
 .sync-controls {
-    position: fixed;
-    bottom: 2rem;
-    right: 2rem;
     background: rgba(26, 26, 26, 0.92);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -1202,7 +1199,6 @@ p#base-prompt:hover {
     flex-direction: column;
     gap: 0.5rem;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-    z-index: 50;
     opacity: 0;
     transform: translateY(20px);
     transition: all 0.3s ease;
@@ -1736,4 +1732,115 @@ p#base-prompt:hover {
 
 .sidebar.collapsed .tree-container .experiment-item {
     margin-bottom: 0.3rem;
+}
+
+/* Attention Controls */
+.attention-controls {
+    background: rgba(26, 26, 26, 0.92);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+    min-width: 280px;
+}
+
+.attention-toggle {
+    margin-bottom: 0.75rem;
+}
+
+.attention-toggle label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.attention-toggle input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
+}
+
+.token-selector {
+    margin-bottom: 0.75rem;
+}
+
+.token-selector label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.token-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.token-button {
+    background: var(--bg-tertiary);
+    border: 2px solid var(--border);
+    color: var(--text-secondary);
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.token-button:hover {
+    background: var(--bg-secondary);
+    border-color: var(--border-light);
+    color: var(--text-primary);
+}
+
+.token-button.selected {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.3);
+}
+
+.token-button.selected:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+}
+
+.attention-info {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    text-align: center;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+}
+
+/* Attention indicator in video overlay */
+.video-overlay .attention-indicator {
+    background: rgba(74, 144, 226, 0.9);
+    color: white;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-align: center;
+    margin-top: 0.25rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Main controls container */
+.main-controls {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    z-index: 50;
 }

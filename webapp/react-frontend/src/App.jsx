@@ -6,6 +6,7 @@ import { api } from './services/api';
 import Sidebar from './components/Sidebar/Sidebar';
 import VideoGrid from './components/VideoGrid/VideoGrid';
 import SyncControls from './components/Controls/SyncControls';
+import AttentionControls from './components/Controls/AttentionControls';
 import './styles.css';
 
 // Experiment Route Handler
@@ -312,7 +313,10 @@ const AppContent = () => {
           )}
         </div>
 
-        <SyncControls />
+        <div className="main-controls">
+          <AttentionControls />
+          <SyncControls />
+        </div>
       </div>
     </div>
   );

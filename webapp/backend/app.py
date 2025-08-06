@@ -209,6 +209,9 @@ class VideoAnalyzer:
             seeds = sorted(list(set(v['seed'] for v in videos)))
             variations = sorted(list(set(v['variation'] for v in videos)))
             
+            # Scan for attention videos
+            attention_videos = self._scan_attention_videos(exp_dir)
+            
             return {
                 'name': exp_dir.name,
                 'base_prompt': base_prompt,
@@ -223,7 +226,8 @@ class VideoAnalyzer:
                 'duration_seconds': duration_seconds,
                 'path': str(exp_dir),
                 'created_at': creation_datetime.isoformat(),
-                'created_timestamp': creation_time
+                'created_timestamp': creation_time,
+                'attention_videos': attention_videos
             }
             
         except Exception as e:
@@ -288,6 +292,83 @@ class VideoAnalyzer:
             grid.append(row)
             
         return grid
+    
+    def _scan_attention_videos(self, exp_dir):
+        """Scan experiment directory for attention videos and return metadata"""
+        attention_videos_dir = exp_dir / 'attention_videos'
+        
+        if not attention_videos_dir.exists():
+            return {
+                'available': False,
+                'prompts': {},
+                'total_count': 0
+            }
+        
+        attention_data = {
+            'available': True,
+            'prompts': {},
+            'total_count': 0
+        }
+        
+        try:
+            # Scan each prompt directory
+            for prompt_dir in sorted(attention_videos_dir.iterdir()):
+                if not prompt_dir.is_dir() or not prompt_dir.name.startswith('prompt_'):
+                    continue
+                
+                prompt_id = prompt_dir.name
+                attention_data['prompts'][prompt_id] = {
+                    'videos': {}
+                }
+                
+                # Scan each video directory within the prompt
+                for video_dir in sorted(prompt_dir.iterdir()):
+                    if not video_dir.is_dir() or not video_dir.name.startswith('vid'):
+                        continue
+                    
+                    video_id = video_dir.name
+                    video_num = int(video_id.replace('vid', '').lstrip('0') or '1')
+                    
+                    attention_data['prompts'][prompt_id]['videos'][video_id] = {
+                        'video_number': video_num,
+                        'tokens': {}
+                    }
+                    
+                    # Scan each token directory
+                    for token_dir in sorted(video_dir.iterdir()):
+                        if not token_dir.is_dir() or not token_dir.name.startswith('token_'):
+                            continue
+                        
+                        token_name = token_dir.name.replace('token_', '')
+                        
+                        # Check for attention video files
+                        aggregate_overlay = token_dir / 'aggregate_overlay.mp4'
+                        aggregate_attention = token_dir / 'aggregate_attention.mp4'
+                        
+                        if aggregate_overlay.exists():
+                            # Create relative path from outputs directory
+                            rel_path = aggregate_overlay.relative_to(self.outputs_dir)
+                            attention_data['prompts'][prompt_id]['videos'][video_id]['tokens'][token_name] = {
+                                'aggregate_overlay_path': str(rel_path),
+                                'has_aggregate_attention': aggregate_attention.exists()
+                            }
+                            
+                            if aggregate_attention.exists():
+                                rel_attention_path = aggregate_attention.relative_to(self.outputs_dir)
+                                attention_data['prompts'][prompt_id]['videos'][video_id]['tokens'][token_name]['aggregate_attention_path'] = str(rel_attention_path)
+                            
+                            attention_data['total_count'] += 1
+        
+        except Exception as e:
+            print(f"Error scanning attention videos for {exp_dir.name}: {e}")
+            return {
+                'available': False,
+                'prompts': {},
+                'total_count': 0,
+                'error': str(e)
+            }
+        
+        return attention_data
 
 
 def create_app():
@@ -381,6 +462,29 @@ def create_app():
             tree = analyzer.scan_outputs()
             experiment_count = analyzer._count_experiments(tree)
             return jsonify({'message': f'Scanned {experiment_count} experiments'})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/video/<path:video_path>')
+    def serve_video(video_path):
+        """Serve video files from the outputs directory"""
+        try:
+            # Construct full path to video file
+            full_path = Path(app.config['VIDEO_OUTPUTS_DIR']) / video_path
+            
+            # Security check - ensure the path is within outputs directory
+            if not str(full_path.resolve()).startswith(str(Path(app.config['VIDEO_OUTPUTS_DIR']).resolve())):
+                return jsonify({'error': 'Invalid video path'}), 403
+            
+            if not full_path.exists():
+                return jsonify({'error': 'Video not found'}), 404
+            
+            # Serve the video file
+            directory = str(full_path.parent)
+            filename = full_path.name
+            
+            return send_from_directory(directory, filename, mimetype='video/mp4')
+            
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     

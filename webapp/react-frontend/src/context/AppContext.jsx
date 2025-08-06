@@ -1,5 +1,25 @@
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
 
+// Helper function to extract available tokens from attention videos
+const getAvailableTokensFromAttentionVideos = (attentionVideos) => {
+    if (!attentionVideos || !attentionVideos.available || !attentionVideos.prompts) {
+        return [];
+    }
+
+    const tokenSet = new Set();
+    
+    // Iterate through all prompts and videos to collect unique tokens
+    Object.values(attentionVideos.prompts).forEach(promptData => {
+        Object.values(promptData.videos).forEach(videoData => {
+            Object.keys(videoData.tokens).forEach(token => {
+                tokenSet.add(token);
+            });
+        });
+    });
+    
+    return Array.from(tokenSet).sort();
+};
+
 // Initial state
 const initialState = {
     currentExperiment: null,
@@ -11,7 +31,11 @@ const initialState = {
     videoDuration: 0,
     isScrubbingActive: false,
     isLoading: true, // Start with loading true for initial skeleton
-    error: null
+    error: null,
+    // Attention video state
+    attentionMode: false,
+    selectedToken: null,
+    availableTokens: []
 };
 
 // Action types
@@ -26,7 +50,11 @@ const ActionTypes = {
     SET_SCRUBBING_ACTIVE: 'SET_SCRUBBING_ACTIVE',
     SET_LOADING: 'SET_LOADING',
     SET_ERROR: 'SET_ERROR',
-    CLEAR_ERROR: 'CLEAR_ERROR'
+    CLEAR_ERROR: 'CLEAR_ERROR',
+    // Attention video actions
+    TOGGLE_ATTENTION_MODE: 'TOGGLE_ATTENTION_MODE',
+    SET_SELECTED_TOKEN: 'SET_SELECTED_TOKEN',
+    SET_AVAILABLE_TOKENS: 'SET_AVAILABLE_TOKENS'
 };
 
 // Reducer
@@ -43,7 +71,11 @@ const appReducer = (state, action) => {
                 ...state,
                 currentExperiment: action.payload,
                 videoDuration: 0, // Reset duration for new experiment
-                error: null
+                error: null,
+                // Reset attention mode state when switching experiments
+                selectedToken: null,
+                availableTokens: action.payload?.attention_videos?.available ? 
+                    getAvailableTokensFromAttentionVideos(action.payload.attention_videos) : []
             };
 
         case ActionTypes.SET_VIDEO_SIZE:
@@ -69,6 +101,15 @@ const appReducer = (state, action) => {
 
         case ActionTypes.CLEAR_ERROR:
             return { ...state, error: null };
+
+        case ActionTypes.TOGGLE_ATTENTION_MODE:
+            return { ...state, attentionMode: !state.attentionMode };
+
+        case ActionTypes.SET_SELECTED_TOKEN:
+            return { ...state, selectedToken: action.payload };
+
+        case ActionTypes.SET_AVAILABLE_TOKENS:
+            return { ...state, availableTokens: action.payload };
 
         default:
             return state;
@@ -115,7 +156,17 @@ export const AppProvider = ({ children }) => {
             dispatch({ type: ActionTypes.SET_ERROR, payload: error }), []),
 
         clearError: useCallback(() =>
-            dispatch({ type: ActionTypes.CLEAR_ERROR }), [])
+            dispatch({ type: ActionTypes.CLEAR_ERROR }), []),
+
+        // Attention video actions
+        toggleAttentionMode: useCallback(() =>
+            dispatch({ type: ActionTypes.TOGGLE_ATTENTION_MODE }), []),
+
+        setSelectedToken: useCallback((token) =>
+            dispatch({ type: ActionTypes.SET_SELECTED_TOKEN, payload: token }), []),
+
+        setAvailableTokens: useCallback((tokens) =>
+            dispatch({ type: ActionTypes.SET_AVAILABLE_TOKENS, payload: tokens }), [])
     };
 
     return (
