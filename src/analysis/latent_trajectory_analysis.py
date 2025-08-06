@@ -408,36 +408,39 @@ class LatentTrajectoryAnalyzer:
         try:
             fig, axes = plt.subplots(2, 2, figsize=(15, 10))
             
+            # Format timesteps for clear plotting
+            plot_timesteps, timestep_label = self._format_timesteps_for_plotting(timesteps)
+            
             # Variance evolution
             variances = [np.var(arr.flatten()) for arr in latent_arrays]
-            axes[0, 0].plot(timesteps, variances, 'b-o', alpha=0.7)
-            axes[0, 0].set_xlabel('Timestep')
+            axes[0, 0].plot(plot_timesteps, variances, 'b-o', alpha=0.7)
+            axes[0, 0].set_xlabel(timestep_label)
             axes[0, 0].set_ylabel('Latent Variance')
-            axes[0, 0].set_title('Variance Evolution')
+            axes[0, 0].set_title('Variance Evolution During Diffusion')
             axes[0, 0].grid(True, alpha=0.3)
             
             # Mean evolution
             means = [np.mean(arr.flatten()) for arr in latent_arrays]
-            axes[0, 1].plot(timesteps, means, 'g-o', alpha=0.7)
-            axes[0, 1].set_xlabel('Timestep')
+            axes[0, 1].plot(plot_timesteps, means, 'g-o', alpha=0.7)
+            axes[0, 1].set_xlabel(timestep_label)
             axes[0, 1].set_ylabel('Latent Mean')
-            axes[0, 1].set_title('Mean Evolution')
+            axes[0, 1].set_title('Mean Evolution During Diffusion')
             axes[0, 1].grid(True, alpha=0.3)
             
             # Step distances
             if len(step_distances) > 0:
-                axes[1, 0].plot(timesteps[1:], step_distances, 'r-o', alpha=0.7)
-                axes[1, 0].set_xlabel('Timestep')
+                axes[1, 0].plot(plot_timesteps[1:], step_distances, 'r-o', alpha=0.7)
+                axes[1, 0].set_xlabel(timestep_label)
                 axes[1, 0].set_ylabel('Step Distance')
-                axes[1, 0].set_title('Movement Speed')
+                axes[1, 0].set_title('Trajectory Velocity (Step-wise Movement)')
                 axes[1, 0].grid(True, alpha=0.3)
             
             # Cumulative distance
             cumulative_distance = np.cumsum([0] + step_distances)
-            axes[1, 1].plot(timesteps, cumulative_distance, 'm-o', alpha=0.7)
-            axes[1, 1].set_xlabel('Timestep')
+            axes[1, 1].plot(plot_timesteps, cumulative_distance, 'm-o', alpha=0.7)
+            axes[1, 1].set_xlabel(timestep_label)
             axes[1, 1].set_ylabel('Cumulative Distance')
-            axes[1, 1].set_title('Total Path Length')
+            axes[1, 1].set_title('Total Path Length from Start')
             axes[1, 1].grid(True, alpha=0.3)
             
             plt.tight_layout()
@@ -451,6 +454,595 @@ class LatentTrajectoryAnalyzer:
         
         return visualization_paths
     
+    def _create_group_comparison_visualizations(self, group_results: Dict[str, Any], 
+                                              metrics: List[str]) -> List[str]:
+        """Create visualizations comparing metrics across prompt groups."""
+        viz_paths = []
+        
+        try:
+            # Extract data for plotting
+            group_names = list(group_results.keys())
+            n_groups = len(group_names)
+            n_metrics = len(metrics)
+            
+            # Create comprehensive comparison plot
+            fig, axes = plt.subplots(2, 3, figsize=(20, 12))
+            axes = axes.flatten()
+            
+            colors = plt.cm.Set3(np.linspace(0, 1, n_groups))
+            
+            for i, metric in enumerate(metrics):
+                if i >= len(axes):
+                    break
+                    
+                ax = axes[i]
+                
+                # Collect data for this metric across groups
+                group_data = []
+                group_labels = []
+                
+                for j, (group_name, group_info) in enumerate(group_results.items()):
+                    if metric in group_info['stats'] and group_info['stats'][metric]['count'] > 0:
+                        values = group_info['stats'][metric]['values']
+                        group_data.extend(values)
+                        group_labels.extend([group_name] * len(values))
+                
+                if group_data:
+                    # Box plot for this metric
+                    unique_groups = list(set(group_labels))
+                    
+                    # Reorganize data by group
+                    plot_data = []
+                    plot_labels = []
+                    for group in unique_groups:
+                        group_values = [group_data[j] for j in range(len(group_data)) 
+                                      if group_labels[j] == group]
+                        if group_values:
+                            plot_data.append(group_values)
+                            plot_labels.append(group)
+                    
+                    if plot_data:
+                        box_plot = ax.boxplot(plot_data, labels=plot_labels, patch_artist=True)
+                        
+                        # Color the boxes
+                        for patch, color in zip(box_plot['boxes'], colors):
+                            patch.set_facecolor(color)
+                            patch.set_alpha(0.7)
+                        
+                        ax.set_title(f'{metric.replace("_", " ").title()}', fontsize=12, fontweight='bold')
+                        ax.set_ylabel('Value')
+                        ax.grid(True, alpha=0.3)
+                        
+                        # Rotate x-axis labels if many groups
+                        if len(plot_labels) > 3:
+                            ax.tick_params(axis='x', rotation=45)
+                
+                else:
+                    ax.text(0.5, 0.5, f'No data for\n{metric}', 
+                           ha='center', va='center', transform=ax.transAxes)
+                    ax.set_title(f'{metric.replace("_", " ").title()}')
+            
+            # Hide unused subplots
+            for i in range(len(metrics), len(axes)):
+                axes[i].set_visible(False)
+            
+            plt.suptitle('Prompt Group Comparison: Latent Trajectory Metrics', 
+                        fontsize=16, fontweight='bold')
+            plt.tight_layout()
+            
+            comparison_path = self.visualizations_dir / "prompt_groups_comparison.png"
+            plt.savefig(comparison_path, dpi=150, bbox_inches='tight')
+            plt.close()
+            viz_paths.append(str(comparison_path))
+            
+            # Create detailed metric-by-metric comparisons
+            for metric in metrics:
+                try:
+                    self._create_detailed_metric_comparison(group_results, metric, viz_paths)
+                except Exception as e:
+                    self.logger.warning(f"Failed to create detailed comparison for {metric}: {e}")
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to create group comparison visualizations: {e}")
+        
+        return viz_paths
+    
+    def _create_detailed_metric_comparison(self, group_results: Dict[str, Any], 
+                                         metric: str, viz_paths: List[str]) -> None:
+        """Create detailed comparison plot for a single metric."""
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+        
+        group_names = []
+        means = []
+        stds = []
+        all_values = []
+        group_labels = []
+        
+        for group_name, group_info in group_results.items():
+            if metric in group_info['stats'] and group_info['stats'][metric]['count'] > 0:
+                stats = group_info['stats'][metric]
+                group_names.append(group_name)
+                means.append(stats['mean'])
+                stds.append(stats['std'])
+                
+                # Collect individual values for distribution plot
+                values = stats['values']
+                all_values.extend(values)
+                group_labels.extend([group_name] * len(values))
+        
+        if means:
+            # Bar plot with error bars
+            colors = plt.cm.Set3(np.linspace(0, 1, len(group_names)))
+            bars = ax1.bar(group_names, means, yerr=stds, capsize=5, 
+                          color=colors, alpha=0.7, edgecolor='black')
+            ax1.set_title(f'{metric.replace("_", " ").title()} - Group Means ± Std')
+            ax1.set_ylabel('Value')
+            ax1.grid(True, alpha=0.3)
+            
+            # Add value labels on bars
+            for bar, mean, std in zip(bars, means, stds):
+                height = bar.get_height()
+                ax1.text(bar.get_x() + bar.get_width()/2., height + std + 0.01*height,
+                        f'{mean:.3f}', ha='center', va='bottom', fontsize=10)
+            
+            if len(group_names) > 3:
+                ax1.tick_params(axis='x', rotation=45)
+            
+            # Distribution plot (violin or scatter)
+            unique_groups = list(set(group_labels))
+            for i, group in enumerate(unique_groups):
+                group_values = [all_values[j] for j in range(len(all_values)) 
+                              if group_labels[j] == group]
+                y_pos = [i] * len(group_values)
+                ax2.scatter(group_values, y_pos, alpha=0.6, s=30, 
+                           color=colors[i % len(colors)])
+            
+            ax2.set_yticks(range(len(unique_groups)))
+            ax2.set_yticklabels(unique_groups)
+            ax2.set_xlabel('Value')
+            ax2.set_title(f'{metric.replace("_", " ").title()} - Value Distributions')
+            ax2.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        
+        metric_path = self.visualizations_dir / f"detailed_{metric}_comparison.png"
+        plt.savefig(metric_path, dpi=150, bbox_inches='tight')
+        plt.close()
+        viz_paths.append(str(metric_path))
+    
+    def _create_revealing_group_visualizations(self, group_results: Dict[str, Any], 
+                                             metrics: List[str]) -> List[str]:
+        """Create additional revealing visualizations for group analysis."""
+        viz_paths = []
+        
+        try:
+            # 1. Correlation heatmap between metrics
+            self._create_metric_correlation_heatmap(group_results, metrics, viz_paths)
+            
+            # 2. Radar/Spider chart comparing group profiles
+            self._create_group_radar_chart(group_results, metrics, viz_paths)
+            
+            # 3. Trajectory fingerprint comparison
+            self._create_trajectory_fingerprints(group_results, metrics, viz_paths)
+            
+            # 4. Distribution overlap analysis
+            self._create_distribution_overlap_analysis(group_results, metrics, viz_paths)
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to create revealing visualizations: {e}")
+        
+        return viz_paths
+    
+    def _create_metric_correlation_heatmap(self, group_results: Dict[str, Any], 
+                                         metrics: List[str], viz_paths: List[str]) -> None:
+        """Create correlation heatmap between different metrics."""
+        try:
+            # Collect all data for correlation analysis
+            all_data = {}
+            for metric in metrics:
+                all_values = []
+                for group_info in group_results.values():
+                    if metric in group_info['stats'] and group_info['stats'][metric]['count'] > 0:
+                        all_values.extend(group_info['stats'][metric]['values'])
+                if all_values:
+                    all_data[metric] = all_values
+            
+            if len(all_data) > 1:
+                # Create dataframe for correlation
+                import pandas as pd
+                # Make all arrays same length by truncating to minimum
+                min_length = min(len(values) for values in all_data.values())
+                df_data = {metric: values[:min_length] for metric, values in all_data.items()}
+                df = pd.DataFrame(df_data)
+                
+                # Create correlation matrix
+                corr_matrix = df.corr()
+                
+                plt.figure(figsize=(10, 8))
+                plt.imshow(corr_matrix, cmap='coolwarm', aspect='auto', vmin=-1, vmax=1)
+                plt.colorbar(label='Correlation Coefficient')
+                
+                # Add correlation values as text
+                for i in range(len(metrics)):
+                    for j in range(len(metrics)):
+                        if i < corr_matrix.shape[0] and j < corr_matrix.shape[1]:
+                            plt.text(j, i, f'{corr_matrix.iloc[i, j]:.2f}', 
+                                   ha='center', va='center', fontweight='bold')
+                
+                plt.xticks(range(len(corr_matrix.columns)), corr_matrix.columns, rotation=45)
+                plt.yticks(range(len(corr_matrix.index)), corr_matrix.index)
+                plt.title('Metric Correlation Matrix', fontsize=14, fontweight='bold')
+                plt.tight_layout()
+                
+                heatmap_path = self.visualizations_dir / "metric_correlation_heatmap.png"
+                plt.savefig(heatmap_path, dpi=150, bbox_inches='tight')
+                plt.close()
+                viz_paths.append(str(heatmap_path))
+                
+        except ImportError:
+            self.logger.warning("pandas not available for correlation analysis")
+        except Exception as e:
+            self.logger.warning(f"Failed to create correlation heatmap: {e}")
+    
+    def _create_group_radar_chart(self, group_results: Dict[str, Any], 
+                                metrics: List[str], viz_paths: List[str]) -> None:
+        """Create radar chart comparing group profiles."""
+        try:
+            fig, ax = plt.subplots(figsize=(10, 10), subplot_kw=dict(projection='polar'))
+            
+            # Prepare angles for radar chart
+            angles = np.linspace(0, 2 * np.pi, len(metrics), endpoint=False).tolist()
+            angles += angles[:1]  # Complete the circle
+            
+            colors = plt.cm.Set3(np.linspace(0, 1, len(group_results)))
+            
+            # Normalize metrics to 0-1 scale for comparison
+            metric_ranges = {}
+            for metric in metrics:
+                all_values = []
+                for group_info in group_results.values():
+                    if metric in group_info['stats'] and group_info['stats'][metric]['count'] > 0:
+                        all_values.extend(group_info['stats'][metric]['values'])
+                if all_values:
+                    metric_ranges[metric] = (min(all_values), max(all_values))
+            
+            for i, (group_name, group_info) in enumerate(group_results.items()):
+                values = []
+                for metric in metrics:
+                    if metric in group_info['stats'] and group_info['stats'][metric]['count'] > 0:
+                        mean_val = group_info['stats'][metric]['mean']
+                        # Normalize to 0-1
+                        min_val, max_val = metric_ranges.get(metric, (mean_val, mean_val))
+                        if max_val > min_val:
+                            normalized = (mean_val - min_val) / (max_val - min_val)
+                        else:
+                            normalized = 0.5
+                        values.append(normalized)
+                    else:
+                        values.append(0)
+                
+                values += values[:1]  # Complete the circle
+                
+                ax.plot(angles, values, 'o-', linewidth=2, label=group_name, color=colors[i])
+                ax.fill(angles, values, alpha=0.25, color=colors[i])
+            
+            # Add metric labels
+            ax.set_xticks(angles[:-1])
+            ax.set_xticklabels([metric.replace('_', '\n') for metric in metrics])
+            ax.set_ylim(0, 1)
+            ax.set_yticks([0.2, 0.4, 0.6, 0.8, 1.0])
+            ax.set_yticklabels(['0.2', '0.4', '0.6', '0.8', '1.0'])
+            ax.grid(True)
+            
+            plt.legend(loc='upper right', bbox_to_anchor=(1.2, 1.0))
+            plt.title('Group Profile Comparison (Normalized Metrics)', 
+                     fontsize=14, fontweight='bold', pad=20)
+            
+            radar_path = self.visualizations_dir / "group_radar_chart.png"
+            plt.savefig(radar_path, dpi=150, bbox_inches='tight')
+            plt.close()
+            viz_paths.append(str(radar_path))
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to create radar chart: {e}")
+    
+    def _create_trajectory_fingerprints(self, group_results: Dict[str, Any], 
+                                      metrics: List[str], viz_paths: List[str]) -> None:
+        """Create trajectory fingerprint visualization."""
+        try:
+            n_groups = len(group_results)
+            fig, axes = plt.subplots(1, n_groups, figsize=(5*n_groups, 6))
+            if n_groups == 1:
+                axes = [axes]
+            
+            for i, (group_name, group_info) in enumerate(group_results.items()):
+                ax = axes[i]
+                
+                # Create a fingerprint pattern
+                metric_values = []
+                metric_stds = []
+                for metric in metrics:
+                    if metric in group_info['stats'] and group_info['stats'][metric]['count'] > 0:
+                        metric_values.append(group_info['stats'][metric]['mean'])
+                        metric_stds.append(group_info['stats'][metric]['std'])
+                    else:
+                        metric_values.append(0)
+                        metric_stds.append(0)
+                
+                # Normalize values
+                if metric_values:
+                    max_val = max(metric_values) if max(metric_values) > 0 else 1
+                    normalized_values = [v/max_val for v in metric_values]
+                    normalized_stds = [s/max_val for s in metric_stds]
+                    
+                    # Create bar chart with error bars
+                    bars = ax.bar(range(len(metrics)), normalized_values, 
+                                 yerr=normalized_stds, capsize=5, alpha=0.7,
+                                 color=plt.cm.Set3(i/n_groups))
+                    
+                    ax.set_xticks(range(len(metrics)))
+                    ax.set_xticklabels([m.replace('_', '\n') for m in metrics], rotation=45)
+                    ax.set_ylabel('Normalized Value')
+                    ax.set_title(f'{group_name}\nTrajectory Fingerprint')
+                    ax.grid(True, alpha=0.3)
+                    
+                    # Add value labels on bars
+                    for bar, val in zip(bars, metric_values):
+                        height = bar.get_height()
+                        ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                               f'{val:.3f}', ha='center', va='bottom', fontsize=8)
+            
+            plt.tight_layout()
+            fingerprint_path = self.visualizations_dir / "trajectory_fingerprints.png"
+            plt.savefig(fingerprint_path, dpi=150, bbox_inches='tight')
+            plt.close()
+            viz_paths.append(str(fingerprint_path))
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to create fingerprints: {e}")
+    
+    def _create_distribution_overlap_analysis(self, group_results: Dict[str, Any], 
+                                            metrics: List[str], viz_paths: List[str]) -> None:
+        """Create distribution overlap analysis visualization."""
+        try:
+            n_metrics = len(metrics)
+            n_cols = min(3, n_metrics)
+            n_rows = (n_metrics + n_cols - 1) // n_cols
+            
+            fig, axes = plt.subplots(n_rows, n_cols, figsize=(6*n_cols, 4*n_rows))
+            if n_rows == 1 and n_cols == 1:
+                axes = [axes]
+            elif n_rows == 1:
+                axes = axes
+            else:
+                axes = axes.flatten()
+            
+            colors = plt.cm.Set3(np.linspace(0, 1, len(group_results)))
+            
+            for i, metric in enumerate(metrics):
+                if i >= len(axes):
+                    break
+                    
+                ax = axes[i]
+                
+                # Plot distributions for each group
+                for j, (group_name, group_info) in enumerate(group_results.items()):
+                    if metric in group_info['stats'] and group_info['stats'][metric]['count'] > 0:
+                        values = group_info['stats'][metric]['values']
+                        
+                        # Create histogram/density plot
+                        ax.hist(values, bins=15, alpha=0.6, label=group_name, 
+                               color=colors[j], density=True)
+                
+                ax.set_xlabel('Value')
+                ax.set_ylabel('Density')
+                ax.set_title(f'{metric.replace("_", " ").title()}\nDistribution Overlap')
+                ax.legend()
+                ax.grid(True, alpha=0.3)
+            
+            # Hide unused subplots
+            for i in range(len(metrics), len(axes)):
+                axes[i].set_visible(False)
+            
+            plt.suptitle('Distribution Overlap Analysis', fontsize=16, fontweight='bold')
+            plt.tight_layout()
+            
+            overlap_path = self.visualizations_dir / "distribution_overlap_analysis.png"
+            plt.savefig(overlap_path, dpi=150, bbox_inches='tight')
+            plt.close()
+            viz_paths.append(str(overlap_path))
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to create overlap analysis: {e}")
+
+    def _perform_group_statistical_tests(self, group_results: Dict[str, Any],
+                                       metrics: List[str]) -> Dict[str, Any]:
+        """Perform statistical tests to compare groups."""
+        try:
+            from scipy import stats
+        except ImportError:
+            self.logger.warning("scipy not available for statistical tests")
+            return {}
+        
+        statistical_results = {}
+        
+        for metric in metrics:
+            # Collect values from all groups
+            group_values = {}
+            for group_name, group_info in group_results.items():
+                if (metric in group_info['stats'] and 
+                    group_info['stats'][metric]['count'] > 0):
+                    group_values[group_name] = group_info['stats'][metric]['values']
+            
+            if len(group_values) < 2:
+                continue
+                
+            metric_tests = {}
+            
+            # Perform pairwise t-tests
+            group_names = list(group_values.keys())
+            pairwise_tests = {}
+            
+            for i in range(len(group_names)):
+                for j in range(i+1, len(group_names)):
+                    group1, group2 = group_names[i], group_names[j]
+                    values1, values2 = group_values[group1], group_values[group2]
+                    
+                    if len(values1) > 1 and len(values2) > 1:
+                        # Welch's t-test (unequal variances)
+                        t_stat, p_value = stats.ttest_ind(values1, values2, equal_var=False)
+                        pairwise_tests[f"{group1}_vs_{group2}"] = {
+                            't_statistic': float(t_stat),
+                            'p_value': float(p_value),
+                            'significant': p_value < 0.05
+                        }
+            
+            # ANOVA if more than 2 groups
+            if len(group_values) > 2:
+                all_group_values = list(group_values.values())
+                try:
+                    f_stat, p_value = stats.f_oneway(*all_group_values)
+                    metric_tests['anova'] = {
+                        'f_statistic': float(f_stat),
+                        'p_value': float(p_value),
+                        'significant': p_value < 0.05
+                    }
+                except Exception as e:
+                    self.logger.warning(f"ANOVA failed for {metric}: {e}")
+            
+            metric_tests['pairwise_ttests'] = pairwise_tests
+            statistical_results[metric] = metric_tests
+        
+        return statistical_results
+    
+    def _format_timesteps_for_plotting(self, timesteps: List[int]) -> Tuple[List[int], str]:
+        """
+        Format timesteps for clear plotting with proper diffusion direction.
+        
+        Args:
+            timesteps: Raw timesteps from metadata
+            
+        Returns:
+            Tuple of (formatted_timesteps, x_label)
+        """
+        # Check if timesteps are in descending order (typical diffusion: 1000→0)
+        if len(timesteps) > 1 and timesteps[0] > timesteps[-1]:
+            # Diffusion direction: noise → clean
+            # Keep original order but clarify the interpretation
+            formatted_steps = timesteps.copy()
+            x_label = 'Diffusion Timestep (Noise → Clean Image)'
+        else:
+            # Ascending order or single timestep
+            formatted_steps = timesteps.copy()
+            x_label = 'Timestep'
+        
+        return formatted_steps, x_label
+    
+    def compare_prompt_groups(self, group_comparison: Dict[str, List[str]] = None,
+                            comparison_metrics: List[str] = None) -> Dict[str, Any]:
+        """
+        Compare latent trajectory metrics across different prompt groups.
+        
+        Args:
+            group_comparison: Dict mapping group names to lists of video IDs or prompt dirs
+                             If None, automatically groups by prompt directory
+            comparison_metrics: Specific metrics to compare
+            
+        Returns:
+            Dictionary with group comparison results and visualizations
+        """
+        if comparison_metrics is None:
+            comparison_metrics = [
+                'trajectory_linearity', 'total_trajectory_distance', 
+                'trajectory_volume_estimate', 'mean_velocity', 'variance_change'
+            ]
+        
+        # Auto-generate groups if not provided
+        if group_comparison is None:
+            prompt_dirs = self.get_available_prompt_dirs()
+            group_comparison = {}
+            for prompt_dir in prompt_dirs:
+                videos = self.discover_videos_in_prompt(prompt_dir)
+                if videos:  # Only include groups with videos
+                    group_comparison[prompt_dir] = videos
+        
+        self.logger.info(f"Comparing {len(group_comparison)} prompt groups across {len(comparison_metrics)} metrics")
+        
+        # Analyze all videos in all groups
+        group_results = {}
+        for group_name, video_ids in group_comparison.items():
+            self.logger.info(f"Analyzing group '{group_name}' with {len(video_ids)} videos")
+            
+            group_metrics = {metric: [] for metric in comparison_metrics}
+            group_prompts = []
+            successful_analyses = 0
+            
+            for video_id in video_ids:
+                try:
+                    result = self.analyze_single_video(video_id, create_visualizations=False)
+                    group_prompts.append(result.prompt)
+                    successful_analyses += 1
+                    
+                    # Extract metrics for this video
+                    for metric in comparison_metrics:
+                        if metric in result.metrics:
+                            group_metrics[metric].append(result.metrics[metric])
+                        else:
+                            self.logger.warning(f"Metric {metric} not found for video {video_id}")
+                            
+                except Exception as e:
+                    self.logger.error(f"Failed to analyze video {video_id} in group {group_name}: {e}")
+            
+            # Compute group statistics
+            group_stats = {}
+            for metric, values in group_metrics.items():
+                if values:
+                    group_stats[metric] = {
+                        'values': values,
+                        'mean': np.mean(values),
+                        'std': np.std(values),
+                        'median': np.median(values),
+                        'min': np.min(values),
+                        'max': np.max(values),
+                        'count': len(values)
+                    }
+                else:
+                    group_stats[metric] = {'count': 0}
+            
+            group_results[group_name] = {
+                'stats': group_stats,
+                'prompts': group_prompts,
+                'total_videos': len(video_ids),
+                'successful_analyses': successful_analyses
+            }
+        
+        # Create group comparison visualizations
+        viz_paths = self._create_group_comparison_visualizations(
+            group_results, comparison_metrics
+        )
+        
+        # Create additional revealing visualizations
+        revealing_viz_paths = self._create_revealing_group_visualizations(
+            group_results, comparison_metrics
+        )
+        viz_paths.extend(revealing_viz_paths)
+        
+        # Perform statistical tests between groups
+        statistical_tests = self._perform_group_statistical_tests(
+            group_results, comparison_metrics
+        )
+        
+        return {
+            'group_results': group_results,
+            'comparison_metrics': comparison_metrics,
+            'visualization_paths': viz_paths,
+            'statistical_tests': statistical_tests,
+            'analysis_summary': {
+                'total_groups': len(group_comparison),
+                'total_videos_analyzed': sum(gr['successful_analyses'] for gr in group_results.values())
+            }
+        }
+
     def compare_trajectories(self, video_ids: List[str], 
                            comparison_metrics: List[str] = None) -> Dict[str, Any]:
         """

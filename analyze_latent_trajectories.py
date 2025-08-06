@@ -49,6 +49,9 @@ Examples:
   
   # Compare specific videos
   python analyze_latent_trajectories.py --batch-dir outputs/romantic_kiss_20250804_123456 --compare-videos prompt_001_vid001 prompt_002_vid001
+  
+  # Compare prompt groups across directories
+  python analyze_latent_trajectories.py --batch-dir outputs/romantic_kiss_20250804_123456 --compare-groups
         """
     )
     
@@ -66,6 +69,9 @@ Examples:
     parser.add_argument('--compare-videos', nargs='+',
                        help='Compare specific video IDs')
     
+    parser.add_argument('--compare-groups', action='store_true',
+                       help='Compare different prompt groups (auto-discovered from directories)')
+    
     parser.add_argument('--no-visualizations', action='store_true',
                        help='Skip creating visualization plots')
     
@@ -76,7 +82,8 @@ Examples:
     parser.add_argument('--metrics', nargs='+',
                        choices=['trajectory_linearity', 'total_trajectory_distance', 
                                'trajectory_volume_estimate', 'mean_velocity', 'variance_change'],
-                       default=['trajectory_linearity', 'total_trajectory_distance', 'trajectory_volume_estimate'],
+                       default=['trajectory_linearity', 'total_trajectory_distance', 
+                               'trajectory_volume_estimate', 'mean_velocity', 'variance_change'],
                        help='Metrics to use for comparison analysis')
     
     # Utility options
@@ -197,6 +204,52 @@ Examples:
                     for i, (video_id, value) in enumerate(zip(args.compare_videos, data['values'])):
                         prompt = data['prompts'][i] if i < len(data['prompts']) else "Unknown"
                         print(f"    {video_id}: {value:.6f} ('{prompt[:50]}...')")
+        
+        elif args.compare_groups:
+            # Compare prompt groups
+            logger.info("Comparing prompt groups")
+            
+            group_results = analyzer.compare_prompt_groups(
+                comparison_metrics=args.metrics
+            )
+            
+            # Save results
+            analyzer.save_analysis_results(group_results, "prompt_groups_comparison.json")
+            
+            # Print group comparison summary
+            print(f"\n=== Prompt Group Comparison Results ===")
+            print(f"Total groups analyzed: {group_results['analysis_summary']['total_groups']}")
+            print(f"Total videos analyzed: {group_results['analysis_summary']['total_videos_analyzed']}")
+            
+            # Show group statistics
+            for group_name, group_info in group_results['group_results'].items():
+                print(f"\n{group_name}:")
+                print(f"  Videos analyzed: {group_info['successful_analyses']}/{group_info['total_videos']}")
+                
+                for metric in args.metrics:
+                    if metric in group_info['stats'] and group_info['stats'][metric]['count'] > 0:
+                        stats = group_info['stats'][metric]
+                        print(f"  {metric}: {stats['mean']:.4f} ± {stats['std']:.4f} (n={stats['count']})")
+            
+            # Show statistical test results
+            if group_results['statistical_tests']:
+                print(f"\n=== Statistical Significance Tests ===")
+                for metric, tests in group_results['statistical_tests'].items():
+                    if 'anova' in tests:
+                        anova = tests['anova']
+                        significance = "***" if anova['significant'] else "n.s."
+                        print(f"\n{metric} ANOVA: F={anova['f_statistic']:.3f}, p={anova['p_value']:.4f} {significance}")
+                    
+                    if 'pairwise_ttests' in tests:
+                        for comparison, test in tests['pairwise_ttests'].items():
+                            significance = "**" if test['significant'] else "n.s."
+                            print(f"  {comparison}: t={test['t_statistic']:.3f}, p={test['p_value']:.4f} {significance}")
+            
+            # Show visualization paths
+            if group_results['visualization_paths']:
+                print(f"\nVisualizations created: {len(group_results['visualization_paths'])}")
+                for path in group_results['visualization_paths']:
+                    print(f"  - {Path(path).name}")
         
         else:
             # Full batch analysis
