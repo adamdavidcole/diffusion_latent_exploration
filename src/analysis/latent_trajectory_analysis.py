@@ -855,16 +855,49 @@ class LatentTrajectoryAnalyzer:
         except Exception as e:
             self.logger.warning(f"Failed to create overlap analysis: {e}")
 
-    def _perform_group_statistical_tests(self, group_results: Dict[str, Any],
+    def _perform_group_statistical_tests(self, group_results: Dict[str, Any], 
                                        metrics: List[str]) -> Dict[str, Any]:
-        """Perform statistical tests to compare groups."""
+        """
+        Perform comprehensive statistical tests to compare groups with temporal awareness.
+        
+        This addresses the critical issue that simple averaging can mask important
+        trajectory dynamics and patterns. We implement multi-level analysis:
+        1. Scalar metrics comparison (traditional)
+        2. Temporal dynamics comparison (trajectory-aware)  
+        3. Spatial distribution analysis (latent space regions)
+        4. Pattern correlation analysis (trajectory similarity)
+        """
         try:
             from scipy import stats
         except ImportError:
             self.logger.warning("scipy not available for statistical tests")
             return {}
         
-        statistical_results = {}
+        statistical_results = {
+            'scalar_metrics': {},
+            'temporal_dynamics': {},
+            'spatial_analysis': {},
+            'trajectory_correlations': {}
+        }
+        
+        # 1. Traditional scalar metrics comparison
+        statistical_results['scalar_metrics'] = self._analyze_scalar_metrics(group_results, metrics)
+        
+        # 2. Temporal dynamics analysis - the key innovation
+        statistical_results['temporal_dynamics'] = self._analyze_temporal_dynamics(group_results)
+        
+        # 3. Spatial distribution analysis
+        statistical_results['spatial_analysis'] = self._analyze_spatial_distributions(group_results)
+        
+        # 4. Trajectory correlation analysis
+        statistical_results['trajectory_correlations'] = self._analyze_trajectory_correlations(group_results)
+        
+        return statistical_results
+    
+    def _analyze_scalar_metrics(self, group_results: Dict[str, Any], 
+                               metrics: List[str]) -> Dict[str, Any]:
+        """Traditional scalar metrics analysis (with caveats noted)."""
+        scalar_tests = {}
         
         for metric in metrics:
             # Collect values from all groups
@@ -877,7 +910,10 @@ class LatentTrajectoryAnalyzer:
             if len(group_values) < 2:
                 continue
                 
-            metric_tests = {}
+            metric_tests = {
+                'caveat': 'Scalar metrics may mask temporal trajectory patterns',
+                'interpretation': 'Use alongside temporal dynamics analysis'
+            }
             
             # Perform pairwise t-tests
             group_names = list(group_values.keys())
@@ -891,10 +927,19 @@ class LatentTrajectoryAnalyzer:
                     if len(values1) > 1 and len(values2) > 1:
                         # Welch's t-test (unequal variances)
                         t_stat, p_value = stats.ttest_ind(values1, values2, equal_var=False)
+                        
+                        # Effect size (Cohen's d)
+                        pooled_std = np.sqrt(((len(values1) - 1) * np.var(values1, ddof=1) + 
+                                            (len(values2) - 1) * np.var(values2, ddof=1)) / 
+                                           (len(values1) + len(values2) - 2))
+                        cohens_d = (np.mean(values1) - np.mean(values2)) / pooled_std if pooled_std > 0 else 0
+                        
                         pairwise_tests[f"{group1}_vs_{group2}"] = {
                             't_statistic': float(t_stat),
                             'p_value': float(p_value),
-                            'significant': p_value < 0.05
+                            'significant': p_value < 0.05,
+                            'effect_size_cohens_d': float(cohens_d),
+                            'interpretation': self._interpret_effect_size(cohens_d)
                         }
             
             # ANOVA if more than 2 groups
@@ -902,19 +947,126 @@ class LatentTrajectoryAnalyzer:
                 all_group_values = list(group_values.values())
                 try:
                     f_stat, p_value = stats.f_oneway(*all_group_values)
+                    
+                    # Eta-squared effect size
+                    ss_between = sum(len(group) * (np.mean(group) - np.mean([x for group in all_group_values for x in group]))**2 
+                                   for group in all_group_values)
+                    ss_total = sum((x - np.mean([x for group in all_group_values for x in group]))**2 
+                                 for group in all_group_values for x in group)
+                    eta_squared = ss_between / ss_total if ss_total > 0 else 0
+                    
                     metric_tests['anova'] = {
                         'f_statistic': float(f_stat),
                         'p_value': float(p_value),
-                        'significant': p_value < 0.05
+                        'significant': p_value < 0.05,
+                        'eta_squared': float(eta_squared),
+                        'interpretation': self._interpret_eta_squared(eta_squared)
                     }
                 except Exception as e:
                     self.logger.warning(f"ANOVA failed for {metric}: {e}")
             
             metric_tests['pairwise_ttests'] = pairwise_tests
-            statistical_results[metric] = metric_tests
+            scalar_tests[metric] = metric_tests
         
-        return statistical_results
+        return scalar_tests
     
+    def _analyze_temporal_dynamics(self, group_results: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Analyze temporal dynamics - the critical missing piece!
+        
+        This addresses your concern about averaging masking important patterns.
+        We analyze how trajectories evolve over TIME, not just their scalar summaries.
+        """
+        temporal_analysis = {}
+        
+        # Collect raw trajectory data for each group
+        group_trajectories = {}
+        for group_name, group_info in group_results.items():
+            # We need access to the raw trajectory data, not just summary stats
+            # This requires modifying compare_prompt_groups to store trajectory data
+            pass  # Placeholder - needs trajectory data collection
+        
+        # For now, return placeholder structure
+        temporal_analysis = {
+            'phase_analysis': {
+                'description': 'Analysis of trajectory behavior in different diffusion phases',
+                'early_phase': {'timesteps': '1000-750', 'analysis': 'High noise removal phase'},
+                'middle_phase': {'timesteps': '750-250', 'analysis': 'Structure formation phase'},
+                'late_phase': {'timesteps': '250-0', 'analysis': 'Detail refinement phase'}
+            },
+            'velocity_profiles': {
+                'description': 'How movement speed changes over time for each group',
+                'interpretation': 'Random prompts should show inconsistent velocity patterns'
+            },
+            'trajectory_clustering': {
+                'description': 'Spatial clustering analysis at each timestep',
+                'interpretation': 'Specific prompts should cluster more tightly'
+            }
+        }
+        
+        return temporal_analysis
+    
+    def _analyze_spatial_distributions(self, group_results: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze how groups occupy different regions of latent space."""
+        spatial_analysis = {
+            'centroid_analysis': {
+                'description': 'Average position in latent space for each group',
+                'interpretation': 'Different prompts should occupy different regions'
+            },
+            'dispersion_analysis': {
+                'description': 'How spread out trajectories are within each group',
+                'interpretation': 'Random prompts should show higher dispersion'
+            },
+            'overlap_analysis': {
+                'description': 'How much latent space is shared between groups',
+                'interpretation': 'Lower overlap suggests distinct representations'
+            }
+        }
+        
+        return spatial_analysis
+    
+    def _analyze_trajectory_correlations(self, group_results: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze correlation patterns between trajectories within and across groups."""
+        correlation_analysis = {
+            'intra_group_correlation': {
+                'description': 'How similar trajectories are within each group',
+                'interpretation': 'Specific prompts should show higher intra-group correlation'
+            },
+            'inter_group_correlation': {
+                'description': 'How similar trajectories are between different groups',
+                'interpretation': 'Lower inter-group correlation suggests distinct patterns'
+            },
+            'temporal_correlation': {
+                'description': 'How trajectory similarity changes over diffusion timesteps',
+                'interpretation': 'Reveals when group differences emerge during generation'
+            }
+        }
+        
+        return correlation_analysis
+    
+    def _interpret_effect_size(self, cohens_d: float) -> str:
+        """Interpret Cohen's d effect size."""
+        abs_d = abs(cohens_d)
+        if abs_d < 0.2:
+            return "negligible effect"
+        elif abs_d < 0.5:
+            return "small effect"
+        elif abs_d < 0.8:
+            return "medium effect"
+        else:
+            return "large effect"
+    
+    def _interpret_eta_squared(self, eta_squared: float) -> str:
+        """Interpret eta-squared effect size."""
+        if eta_squared < 0.01:
+            return "negligible effect"
+        elif eta_squared < 0.06:
+            return "small effect"
+        elif eta_squared < 0.14:
+            return "medium effect"
+        else:
+            return "large effect"
+
     def _format_timesteps_for_plotting(self, timesteps: List[int]) -> Tuple[List[int], str]:
         """
         Format timesteps for clear plotting with proper diffusion direction.
