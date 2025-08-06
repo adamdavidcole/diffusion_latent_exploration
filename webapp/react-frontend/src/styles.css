@@ -1744,15 +1744,13 @@ p#base-prompt:hover {
     background: rgba(26, 26, 26, 0.92);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 0.75rem;
+    padding: 0.5rem;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     backdrop-filter: blur(10px);
     min-width: 280px;
+    font-size: 0.9rem;
 }
 
-.attention-toggle {
-    margin-bottom: 0.75rem;
-}
 
 .attention-toggle label {
     display: flex;
@@ -1764,8 +1762,8 @@ p#base-prompt:hover {
 }
 
 .attention-toggle input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
+    width: 12px;
+    height: 12px;
     accent-color: var(--accent);
 }
 
@@ -1844,14 +1842,13 @@ p#base-prompt:hover {
     background: rgba(40, 40, 40, 0.95);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 1rem;
+    padding: 0.5rem;
     margin: 1rem 0;
     backdrop-filter: blur(10px);
+    font-size: 0.9rem;
 }
 
-.lightbox-attention-controls .attention-toggle {
-    margin-bottom: 0.75rem;
-}
+
 
 .lightbox-attention-controls .attention-toggle label {
     display: flex;

@@ -10,21 +10,23 @@ export const useVideoControls = () => {
 
 
   const playAllVideos = useCallback(async (onLoadingChange) => {
-    const videos = Array.from(document.querySelectorAll('video'));
-    console.log('Play all videos called, found:', videos.length);
+    console.log('Play all videos called');
     
     // Notify about loading start
     onLoadingChange && onLoadingChange(true);
     
-    // First pause all videos and reset scrubber
-    videos.forEach(video => {
-      video.pause();
-      video.currentTime = 0;
-    });
+    // First, send event to all VideoCell components to force video mode
+    console.log('Dispatching forceVideoMode event');
+    document.dispatchEvent(new CustomEvent('forceVideoMode'));
     
-    document.dispatchEvent(new CustomEvent('resetScrubber'));
-
-    // Get visible videos only for performance
+    // Wait a bit for React components to re-render with video elements
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Now find all video elements that were created
+    const videos = Array.from(document.querySelectorAll('video'));
+    console.log('Found video elements after force mode:', videos.length);
+    
+    // Get the video grid for visibility checking
     const videoGrid = document.querySelector('#video-grid');
     if (!videoGrid) {
       onLoadingChange && onLoadingChange(false);
@@ -34,6 +36,7 @@ export const useVideoControls = () => {
     const gridRect = videoGrid.getBoundingClientRect();
     const margin = 200;
 
+    // Filter to visible videos only
     const visibleVideos = videos.filter(video => {
       const rect = video.getBoundingClientRect();
       return (
@@ -46,27 +49,19 @@ export const useVideoControls = () => {
 
     console.log('Visible videos for play all:', visibleVideos.length);
 
-    // Load all visible videos that need loading (don't play yet)
-    const loadPromises = visibleVideos.map(async (video) => {
-      // If video doesn't have metadata, try to load it
-      if (video.loadVideoMetadata && video.readyState < 1) { // Less than HAVE_METADATA
-        try {
-          console.log('Loading video for play all:', video.src);
-          await video.loadVideoMetadata();
-        } catch (error) {
-          console.warn('Failed to load video for play all:', error);
-          return null;
-        }
-      }
-      return video;
+    // Reset all videos first
+    visibleVideos.forEach(video => {
+      video.pause();
+      video.currentTime = 0;
     });
+    
+    document.dispatchEvent(new CustomEvent('resetScrubber'));
 
-    // Wait for ALL videos to finish loading
-    const loadedVideos = await Promise.all(loadPromises);
-    console.log('All videos loaded, starting synchronized playback');
-
+    // Wait for autoplay to settle, then play all simultaneously
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
     // Now play all loaded videos simultaneously
-    loadedVideos.forEach(video => {
+    visibleVideos.forEach(video => {
       if (video && video.duration && !isNaN(video.duration)) {
         video.currentTime = 0;
         video.play().catch(err => {
@@ -86,6 +81,10 @@ export const useVideoControls = () => {
       video.pause();
       video.currentTime = 0;
     });
+    
+    // Send event to exit force mode so cells can return to thumbnails
+    console.log('Dispatching exitForceMode event');
+    document.dispatchEvent(new CustomEvent('exitForceMode'));
   }, []);
 
   const muteAllVideos = useCallback(() => {

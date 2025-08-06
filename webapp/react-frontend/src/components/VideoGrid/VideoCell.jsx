@@ -9,6 +9,7 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
     const hoverTimeoutRef = useRef(null);
     const [isLoaded, setIsLoaded] = useState(false);
     const [useVideoElement, setUseVideoElement] = useState(false); // Simple boolean switch
+    const [forceVideoMode, setForceVideoMode] = useState(false); // Force video mode for playAll/scrubbing
     const { state } = useApp();
 
     // Get the current video source based on attention mode
@@ -62,6 +63,28 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
         };
     }, []);
 
+    // Listen for global playAll and pauseAll events
+    useEffect(() => {
+        const handleForceVideoMode = (event) => {
+            console.log('VideoCell received forceVideoMode event');
+            setForceVideoMode(true);
+            setUseVideoElement(true);
+        };
+
+        const handleExitForceMode = (event) => {
+            console.log('VideoCell received exitForceMode event');
+            setForceVideoMode(false);
+        };
+
+        document.addEventListener('forceVideoMode', handleForceVideoMode);
+        document.addEventListener('exitForceMode', handleExitForceMode);
+
+        return () => {
+            document.removeEventListener('forceVideoMode', handleForceVideoMode);
+            document.removeEventListener('exitForceMode', handleExitForceMode);
+        };
+    }, []);
+
     const handleClick = useCallback(() => {
         if (onOpenLightbox && video) {
             onOpenLightbox(video);
@@ -82,20 +105,20 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
     }, [state.isScrubbingActive]);
 
     const handleMouseLeave = useCallback(() => {
-        if (state.isScrubbingActive) return;
+        if (state.isScrubbingActive || forceVideoMode) return;
 
         // Clear any pending timeout
         if (hoverTimeoutRef.current) {
             clearTimeout(hoverTimeoutRef.current);
         }
 
-        // Switch back to image after a short delay
+        // Switch back to image after a short delay (only if not forced)
         hoverTimeoutRef.current = setTimeout(() => {
-            if (!state.isScrubbingActive) {
+            if (!state.isScrubbingActive && !forceVideoMode) {
                 setUseVideoElement(false);
             }
         }, 300);
-    }, [state.isScrubbingActive]);
+    }, [state.isScrubbingActive, forceVideoMode]);
 
     // Simple metadata handler
     const handleLoadedMetadata = useCallback(() => {
@@ -144,7 +167,7 @@ const VideoCell = ({ video, videoSize, onVideoLoaded, onMetadataLoaded, onOpenLi
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
         >
-            {useVideoElement ? (
+            {(useVideoElement || forceVideoMode) ? (
                 <video
                     ref={videoRef}
                     className="video-element"

@@ -12,10 +12,10 @@ const VideoLightbox = ({ video, isOpen, onClose, onNavigate, getPreviewInfo }) =
     // Get the current video source based on attention mode (either global or lightbox-specific)
     const getCurrentVideoPath = useCallback(() => {
         if (!video?.video_path) return null;
-        
+
         const attentionMode = lightboxAttentionMode || state.attentionMode;
         const selectedToken = lightboxSelectedToken || state.selectedToken;
-        
+
         // If attention mode is off, return normal video
         if (!attentionMode || !selectedToken || !state.currentExperiment?.attention_videos?.available) {
             return video.video_path;
@@ -25,10 +25,10 @@ const VideoLightbox = ({ video, isOpen, onClose, onNavigate, getPreviewInfo }) =
         const attentionVideos = state.currentExperiment.attention_videos;
         const promptNum = video.variation_num;
         const videoNum = video.video_number;
-        
+
         const promptKey = `prompt_${promptNum.toString().padStart(3, '0')}`;
         const videoKey = `vid${videoNum.toString().padStart(3, '0')}`;
-        
+
         const promptData = attentionVideos.prompts[promptKey];
         if (promptData && promptData.videos[videoKey]) {
             const tokenData = promptData.videos[videoKey].tokens[selectedToken];
@@ -36,7 +36,7 @@ const VideoLightbox = ({ video, isOpen, onClose, onNavigate, getPreviewInfo }) =
                 return tokenData.aggregate_overlay_path;
             }
         }
-        
+
         // Fallback to normal video if attention video not found
         return video.video_path;
     }, [video, lightboxAttentionMode, lightboxSelectedToken, state.attentionMode, state.selectedToken, state.currentExperiment?.attention_videos]);
@@ -236,7 +236,7 @@ const VideoLightbox = ({ video, isOpen, onClose, onNavigate, getPreviewInfo }) =
                                         }
                                     }}
                                 />
-                                🎯 Attention Mode (Lightbox)
+                                🎯 Attention Mode
                             </label>
                         </div>
 
