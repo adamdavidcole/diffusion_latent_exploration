@@ -1001,38 +1001,38 @@ class GPUVisualizationSuite:
                     ha='center', va='center', transform=ax1.transAxes)
             ax1.set_title('Spatial Coherence Evolution (No Data)')
         
-        # Plot 2: Mean coherence trajectory (using mean_coherence_trajectory)
+        # Plot 2: Mean coherence trajectory evolution over diffusion steps
         trajectory_data_available = any('mean_coherence_trajectory' in coherence_data[prompt] and 
                                        coherence_data[prompt]['mean_coherence_trajectory'] is not None 
                                        for prompt in prompt_names)
         
         if trajectory_data_available:
-            mean_trajectories = []
-            valid_prompts = []
-            for prompt in prompt_names:
+            has_trajectory_evolution = False
+            for i, prompt in enumerate(prompt_names):
                 if 'mean_coherence_trajectory' in coherence_data[prompt] and coherence_data[prompt]['mean_coherence_trajectory'] is not None:
                     trajectory = coherence_data[prompt]['mean_coherence_trajectory']
                     if isinstance(trajectory, (list, np.ndarray)) and len(trajectory) > 0:
-                        # Take the mean value across the trajectory for bar plot
-                        mean_value = np.mean(trajectory)
-                        mean_trajectories.append(mean_value)
-                        valid_prompts.append(prompt)
+                        # Plot the trajectory evolution over diffusion steps
+                        trajectory_array = np.array(trajectory)
+                        if trajectory_array.ndim > 1:
+                            # If multidimensional, take mean across non-time dimensions
+                            trajectory_1d = np.mean(trajectory_array.reshape(trajectory_array.shape[0], -1), axis=1)
+                        else:
+                            trajectory_1d = trajectory_array
+                        
+                        steps = range(len(trajectory_1d))
+                        ax2.plot(steps, trajectory_1d, 'o-', label=prompt, 
+                                color=colors[i], alpha=0.8, linewidth=2, markersize=3)
+                        has_trajectory_evolution = True
             
-            if mean_trajectories:
-                bars2 = ax2.bar(valid_prompts, mean_trajectories, alpha=0.7, 
-                               color=colors[:len(valid_prompts)])
-                ax2.set_xlabel('Prompt ID')
+            if has_trajectory_evolution:
+                ax2.set_xlabel('Diffusion Step')
                 ax2.set_ylabel('Mean Coherence Value')
-                ax2.set_title('Average Spatial Coherence by Prompt')
-                ax2.tick_params(axis='x', rotation=45)
-                
-                # Add value labels
-                for bar, val in zip(bars2, mean_trajectories):
-                    height = bar.get_height()
-                    ax2.text(bar.get_x() + bar.get_width()/2., height + max(mean_trajectories) * 0.01,
-                            f'{val:.3f}', ha='center', va='bottom', fontsize=8)
+                ax2.set_title('Mean Coherence Trajectory Evolution\n(By Prompt Over Diffusion Steps)')
+                ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
+                ax2.grid(True, alpha=0.3)
             else:
-                ax2.text(0.5, 0.5, 'No valid trajectory data', 
+                ax2.text(0.5, 0.5, 'No valid trajectory evolution data', 
                         ha='center', va='center', transform=ax2.transAxes)
                 ax2.set_title('Mean Coherence Trajectory (No Data)')
         else:
@@ -1109,7 +1109,7 @@ class GPUVisualizationSuite:
                         ax4.set_yticklabels(valid_prompts)
                         ax4.set_xlabel('Diffusion Step')
                         ax4.set_ylabel('Prompt ID')
-                        ax4.set_title('Spatial Coherence Evolution Heatmap\n(All Prompts)')
+                        ax4.set_title('Spatial Coherence Evolution Heatmap\n(By Prompt Over Diffusion Steps)')
                         plt.colorbar(im, ax=ax4, label='Coherence Value')
                     else:
                         ax4.text(0.5, 0.5, f'Data shape not suitable for heatmap: {evolution_2d.shape}', 
