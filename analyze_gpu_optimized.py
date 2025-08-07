@@ -221,9 +221,11 @@ def compare_analysis_methods():
     logger.info("🏁 Running performance comparison...")
     
     # Small test dataset for comparison
-    test_latents_dir = "outputs/flower_latents"  # Use same directory
-    test_groups = ["flower", "empty"]
-    test_descriptions = ["Flower prompt", "Empty prompt"]
+    test_latents_dir = "outputs/flower_gen_1-3b_long_latents_20250805_200633"  # Use same directory
+    test_groups = ["promot_000", "promot_001", "promot_002", "promot_003", "promot_004", "promot_008"]
+    test_descriptions = ["Empty prompt", "flower", "(flower) blossoming",
+                         " red (flower) blossoming", "red (flower) blossoming on table",
+                         " red (flower) blossoming on table in front of window, morning sunlight, close-up, nature documentary photography"]
     
     results = {}
     
