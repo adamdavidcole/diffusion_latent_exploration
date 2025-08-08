@@ -74,7 +74,8 @@ def run_gpu_optimized_analysis():
     
     # Analysis configuration
     latents_dir = "outputs/flower_gen_1-3b_long_latents_20250805_200633/latents"
-    prompt_groups = ["prompt_000", "prompt_001", "prompt_002", "prompt_003", "prompt_004", "prompt_008"]
+    # prompt_groups = ["prompt_000", "prompt_001", "prompt_002", "prompt_003", "prompt_004", "prompt_008"]
+    prompt_groups = ["prompt_000", "prompt_001", "prompt_008"]
     prompt_descriptions = [
         "Empty/random prompt - unstructured generation",
         "flower",

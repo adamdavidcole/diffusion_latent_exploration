@@ -321,8 +321,14 @@ class GPUOptimizedStructureAnalyzer:
             # 8. Edge Density Evolution
             self._plot_edge_density_evolution(results, viz_dir)
             
+            # 8b. Edge Formation Trends Dashboard (extracted from spatial progression)
+            self._plot_edge_formation_trends_dashboard(results, viz_dir)
+            
             # 9. Spatial Coherence Patterns
             self._plot_spatial_coherence_patterns(results, viz_dir)
+            
+            # 9b. Individual Video Coherence Dashboard (extracted from spatial coherence)
+            self._plot_individual_video_coherence_dashboard(results, viz_dir)
             
             # 10. Temporal Stability Windows
             self._plot_temporal_stability_windows(results, viz_dir)
@@ -354,7 +360,9 @@ class GPUOptimizedStructureAnalyzer:
             self.logger.info(f"✅ Visualizations saved to: {viz_dir}")
             
         except Exception as e:
-            self.logger.warning(f"Visualization creation failed: {e}")
+            import traceback
+            self.logger.error(f"Visualization creation failed: {e}")
+            self.logger.error(f"Full traceback:\n{traceback.format_exc()}")
 
     def _plot_trajectory_spatial_evolution(self, results: GPUOptimizedAnalysis, viz_dir: Path):
         """Plot the U-shaped trajectory spatial evolution pattern."""
@@ -372,12 +380,13 @@ class GPUOptimizedStructureAnalyzer:
             data = spatial_data[group_name]
             trajectory_pattern = data['trajectory_pattern']
             steps = list(range(len(trajectory_pattern)))
-            ax1.plot(steps, trajectory_pattern, 'o-', label=group_name, alpha=0.7, linewidth=2, color=colors[i])
+            ax1.plot(steps, trajectory_pattern, 'o-', label=group_name, alpha=0.8, linewidth=2, 
+                    markersize=3, color=colors[i])
         
         ax1.set_xlabel('Diffusion Step')
         ax1.set_ylabel('Spatial Variance')
         ax1.set_title('Trajectory Spatial Evolution Patterns\n(Universal U-Shaped Denoising Pattern)')
-        ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
         ax1.grid(True, alpha=0.3)
         
         # Plot 2: Evolution ratio comparison
@@ -391,8 +400,9 @@ class GPUOptimizedStructureAnalyzer:
         
         # Add value labels on bars
         for bar, ratio in zip(bars, evolution_ratios):
-            ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01, 
-                    f'{ratio:.3f}', ha='center', va='bottom')
+            height = bar.get_height()
+            ax2.text(bar.get_x() + bar.get_width()/2., height + max(evolution_ratios) * 0.01,
+                    f'{ratio:.3f}', ha='center', va='bottom', fontsize=8)
         
         plt.tight_layout()
         plt.savefig(viz_dir / "trajectory_spatial_evolution.png", dpi=300, bbox_inches='tight')
@@ -404,27 +414,29 @@ class GPUOptimizedStructureAnalyzer:
         
         sync_data = results.temporal_coherence['cross_trajectory_synchronization']
         
-        # Extract data
-        group_names = list(sync_data.keys())
-        mean_correlations = [data['mean_correlation'] for data in sync_data.values()]
-        correlation_stds = [data['correlation_std'] for data in sync_data.values()]
-        high_sync_ratios = [data['high_sync_ratio'] for data in sync_data.values()]
+        # Extract data with alphabetical ordering
+        group_names = sorted(sync_data.keys())
+        mean_correlations = [sync_data[group]['mean_correlation'] for group in group_names]
+        correlation_stds = [sync_data[group]['correlation_std'] for group in group_names]
+        high_sync_ratios = [sync_data[group]['high_sync_ratio'] for group in group_names]
+        
+        colors = sns.color_palette("husl", len(group_names))
         
         # Plot 1: Mean correlation by group
-        bars1 = ax1.bar(group_names, mean_correlations, alpha=0.7, 
-                       color=sns.color_palette("viridis", len(group_names)))
+        bars1 = ax1.bar(group_names, mean_correlations, alpha=0.7, color=colors)
         ax1.set_ylabel('Mean Cross-Trajectory Correlation')
         ax1.set_title('Cross-Trajectory Synchronization Strength')
         ax1.tick_params(axis='x', rotation=45)
         
         # Add value labels
         for bar, corr in zip(bars1, mean_correlations):
-            ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01, 
-                    f'{corr:.3f}', ha='center', va='bottom')
+            height = bar.get_height()
+            ax1.text(bar.get_x() + bar.get_width()/2., height + max(mean_correlations) * 0.01,
+                    f'{corr:.3f}', ha='center', va='bottom', fontsize=8)
         
         # Plot 2: Correlation variability
         ax2.errorbar(group_names, mean_correlations, yerr=correlation_stds, 
-                    fmt='o', capsize=5, capthick=2, linewidth=2)
+                    fmt='o', capsize=5, capthick=2, linewidth=2, markersize=4, alpha=0.8)
         ax2.set_ylabel('Correlation ± Std Dev')
         ax2.set_title('Synchronization Consistency')
         ax2.tick_params(axis='x', rotation=45)
@@ -439,8 +451,9 @@ class GPUOptimizedStructureAnalyzer:
         
         # Add percentage labels
         for bar, ratio in zip(bars3, high_sync_ratios):
-            ax3.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01, 
-                    f'{ratio*100:.1f}%', ha='center', va='bottom')
+            height = bar.get_height()
+            ax3.text(bar.get_x() + bar.get_width()/2., height + max(high_sync_ratios) * 0.01,
+                    f'{ratio:.1%}', ha='center', va='bottom', fontsize=8)
         
         # Plot 4: Synchronization ranking
         sync_ranking = sorted(zip(group_names, mean_correlations), key=lambda x: x[1], reverse=True)
@@ -458,106 +471,252 @@ class GPUOptimizedStructureAnalyzer:
         plt.close()
 
     def _plot_temporal_momentum_analysis(self, results: GPUOptimizedAnalysis, viz_dir: Path):
-        """Plot temporal momentum patterns."""
-        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
-        
+        """Plot temporal momentum patterns with improved clarity and individual group views."""
         momentum_data = results.temporal_coherence['temporal_momentum_analysis']
+        group_names = sorted(momentum_data.keys())
+        colors = sns.color_palette("husl", len(group_names))
         
-        # Plot 1: Velocity patterns across steps
-        for group_name in sorted(momentum_data.keys()):
-            data = momentum_data[group_name]
-            velocity_mean = data['velocity_mean']
-            steps = list(range(len(velocity_mean)))
-            ax1.plot(steps, velocity_mean, 'o-', label=group_name, alpha=0.7, linewidth=2)
+        # Create main overlaid analysis figure
+        fig_main = plt.figure(figsize=(16, 12))
         
-        ax1.set_xlabel('Diffusion Step')
-        ax1.set_ylabel('Mean Velocity')
-        ax1.set_title('Temporal Velocity Patterns\n(Denoising Speed Over Time)')
-        ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-        ax1.grid(True, alpha=0.3)
+        # Main plots (2x2 grid)
+        ax1 = plt.subplot(2, 2, 1)
+        ax2 = plt.subplot(2, 2, 2)
+        ax3 = plt.subplot(2, 2, 3)
+        ax4 = plt.subplot(2, 2, 4)
         
-        # Plot 2: Acceleration patterns
-        for group_name in sorted(momentum_data.keys()):
-            data = momentum_data[group_name]
-            acceleration_mean = data['acceleration_mean']
-            steps = list(range(len(acceleration_mean)))
-            ax2.plot(steps, acceleration_mean, 's-', label=group_name, alpha=0.7, linewidth=2)
-        
-        ax2.set_xlabel('Diffusion Step')
-        ax2.set_ylabel('Mean Acceleration')
-        ax2.set_title('Temporal Acceleration Patterns\n(Denoising Rate Changes)')
-        ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-        ax2.grid(True, alpha=0.3)
-        
-        # Plot 3: Direction changes (momentum instability)
-        group_names = sorted(momentum_data.keys())  # Alphabetical ordering
+        # Plot 1: Velocity patterns with confidence intervals (overlaid)
         for i, group_name in enumerate(group_names):
             data = momentum_data[group_name]
-            direction_changes = data['momentum_direction_changes']
-            steps = list(range(len(direction_changes)))
-            # Use line plot instead of bar to avoid shape mismatch
-            ax3.plot(steps, direction_changes, 'o-', label=group_name, alpha=0.7, linewidth=2)
+            velocity_mean = np.array(data['velocity_mean']).flatten()
+            velocity_std = np.array(data['velocity_std']).flatten()
+            
+            # Ensure arrays have the same length
+            min_len = min(len(velocity_mean), len(velocity_std))
+            velocity_mean = velocity_mean[:min_len]
+            velocity_std = velocity_std[:min_len]
+            steps = np.arange(min_len)
+            
+            ax1.plot(steps, velocity_mean, 'o-', label=group_name, 
+                    color=colors[i], alpha=0.8, linewidth=2, markersize=3)
+            ax1.fill_between(steps, velocity_mean - velocity_std, velocity_mean + velocity_std,
+                           alpha=0.15, color=colors[i])
+        
+        ax1.set_xlabel('Diffusion Step')
+        ax1.set_ylabel('Mean Velocity (±1σ)')
+        ax1.set_title('Temporal Velocity Evolution - All Groups\n(Denoising Speed with Uncertainty)')
+        ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
+        ax1.grid(True, alpha=0.3)
+        
+        # Plot 2: Acceleration patterns with confidence intervals (overlaid)
+        for i, group_name in enumerate(group_names):
+            data = momentum_data[group_name]
+            accel_mean = np.array(data['acceleration_mean']).flatten()
+            accel_std = np.array(data['acceleration_std']).flatten()
+            
+            # Ensure arrays have the same length
+            min_len = min(len(accel_mean), len(accel_std))
+            accel_mean = accel_mean[:min_len]
+            accel_std = accel_std[:min_len]
+            steps = np.arange(min_len)
+            
+            ax2.plot(steps, accel_mean, 's-', label=group_name, 
+                    color=colors[i], alpha=0.8, linewidth=2, markersize=3)
+            ax2.fill_between(steps, accel_mean - accel_std, accel_mean + accel_std,
+                           alpha=0.15, color=colors[i])
+        
+        ax2.set_xlabel('Diffusion Step')
+        ax2.set_ylabel('Mean Acceleration (±1σ)')
+        ax2.set_title('Temporal Acceleration Evolution - All Groups\n(Denoising Rate Changes)')
+        ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
+        ax2.grid(True, alpha=0.3)
+        
+        # Plot 3: Direction instability patterns (overlaid)
+        for i, group_name in enumerate(group_names):
+            data = momentum_data[group_name]
+            direction_changes = np.array(data['momentum_direction_changes']).flatten()
+            steps = np.arange(len(direction_changes))
+            
+            ax3.plot(steps, direction_changes, '^-', label=group_name, 
+                    color=colors[i], alpha=0.8, linewidth=2, markersize=3)
         
         ax3.set_xlabel('Diffusion Step')
-        ax3.set_ylabel('Direction Changes Count')
-        ax3.set_title('Momentum Direction Changes\n(Trajectory Instability)')
-        ax3.legend()
+        ax3.set_ylabel('Direction Change Count')
+        ax3.set_title('Momentum Direction Changes - All Groups\n(Trajectory Instability)')
+        ax3.legend(fontsize=8)
+        ax3.grid(True, alpha=0.3)
         
-        # Plot 4: Overall momentum statistics
-        avg_velocities = [np.mean(data['velocity_mean']) for data in momentum_data.values()]
-        avg_accelerations = [np.mean(data['acceleration_mean']) for data in momentum_data.values()]
-        
-        ax4.scatter(avg_velocities, avg_accelerations, s=100, alpha=0.7, 
-                   c=range(len(group_names)), cmap='viridis')
-        
-        for i, group in enumerate(group_names):
-            ax4.annotate(group, (avg_velocities[i], avg_accelerations[i]), 
-                        xytext=(5, 5), textcoords='offset points')
+        # Plot 4: Momentum phase space with error ellipses
+        for i, group_name in enumerate(group_names):
+            data = momentum_data[group_name]
+            avg_velocity = np.mean(data['velocity_mean'])
+            avg_acceleration = np.mean(data['acceleration_mean'])
+            vel_uncertainty = np.mean(data['velocity_std'])
+            accel_uncertainty = np.mean(data['acceleration_std'])
+            
+            # Plot point
+            ax4.scatter(avg_velocity, avg_acceleration, s=120, 
+                       color=colors[i], alpha=0.8, edgecolors='black', linewidth=1)
+            
+            # Plot uncertainty ellipse
+            from matplotlib.patches import Ellipse
+            ellipse = Ellipse((avg_velocity, avg_acceleration), 
+                            2*vel_uncertainty, 2*accel_uncertainty,
+                            alpha=0.3, color=colors[i])
+            ax4.add_patch(ellipse)
+            
+            # Label
+            ax4.annotate(group_name, (avg_velocity, avg_acceleration), 
+                        xytext=(8, 8), textcoords='offset points', fontsize=8,
+                        bbox=dict(boxstyle='round,pad=0.3', facecolor=colors[i], alpha=0.3))
         
         ax4.set_xlabel('Average Velocity')
         ax4.set_ylabel('Average Acceleration')
-        ax4.set_title('Momentum Phase Space\n(Velocity vs Acceleration)')
+        ax4.set_title('Momentum Phase Space\n(Velocity vs Acceleration with Uncertainty)')
         ax4.grid(True, alpha=0.3)
         
         plt.tight_layout()
-        plt.savefig(viz_dir / "temporal_momentum_analysis.png", dpi=300, bbox_inches='tight')
-        plt.close()
+        output_path_main = viz_dir / "temporal_momentum_analysis.png"
+        plt.savefig(output_path_main, dpi=300, bbox_inches='tight')
+        plt.close(fig_main)
+        
+        # Create separate figure for individual group velocity plots
+        n_groups = len(group_names)
+        n_cols = min(3, n_groups)
+        n_rows = (n_groups + n_cols - 1) // n_cols
+        
+        fig_individual = plt.figure(figsize=(5 * n_cols, 4 * n_rows))
+        fig_individual.suptitle('Individual Group Velocity Evolution', fontsize=14, fontweight='bold')
+        
+        # Calculate global y-axis range for consistent scaling
+        all_velocities = []
+        all_stds = []
+        for group_name in group_names:
+            data = momentum_data[group_name]
+            velocity_mean = np.array(data['velocity_mean']).flatten()
+            velocity_std = np.array(data['velocity_std']).flatten()
+            all_velocities.extend(velocity_mean)
+            all_stds.extend(velocity_std)
+        
+        global_min = min(all_velocities) - max(all_stds)
+        global_max = max(all_velocities) + max(all_stds)
+        y_margin = (global_max - global_min) * 0.1
+        global_ylim = (global_min - y_margin, global_max + y_margin)
+        
+        for i, group_name in enumerate(group_names):
+            ax_ind = plt.subplot(n_rows, n_cols, i + 1)
+            
+            data = momentum_data[group_name]
+            velocity_mean = np.array(data['velocity_mean']).flatten()
+            velocity_std = np.array(data['velocity_std']).flatten()
+            
+            min_len = min(len(velocity_mean), len(velocity_std))
+            velocity_mean = velocity_mean[:min_len]
+            velocity_std = velocity_std[:min_len]
+            steps = np.arange(min_len)
+            
+            ax_ind.plot(steps, velocity_mean, 'o-', color=colors[i], 
+                       alpha=0.9, linewidth=2.5, markersize=4)
+            ax_ind.fill_between(steps, velocity_mean - velocity_std, velocity_mean + velocity_std,
+                              alpha=0.3, color=colors[i])
+            
+            ax_ind.set_xlabel('Diffusion Step')
+            ax_ind.set_ylabel('Velocity')
+            ax_ind.set_title(f'{group_name}\nVelocity Evolution')
+            ax_ind.set_ylim(global_ylim)  # Set consistent y-axis range
+            ax_ind.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        output_path_individual = viz_dir / "temporal_momentum_individual.png"
+        plt.savefig(output_path_individual, dpi=300, bbox_inches='tight')
+        plt.close(fig_individual)
 
     def _plot_phase_transition_detection(self, results: GPUOptimizedAnalysis, viz_dir: Path):
         """Plot phase transition patterns."""
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
         
         phase_data = results.temporal_coherence['phase_transition_detection']
+        group_names = sorted(phase_data.keys())
+        colors = sns.color_palette("husl", len(group_names))
+        
+        # Debug: Check data structure
+        sample_group = group_names[0]
+        sample_data = phase_data[sample_group]
+        self.logger.info(f"Phase transition data structure for {sample_group}: {list(sample_data.keys())}")
+        if 'p75_transitions' in sample_data:
+            p75_shape = np.array(sample_data['p75_transitions']).shape
+            self.logger.info(f"p75_transitions shape: {p75_shape}")
         
         # Plot 1: 75th percentile transitions
-        for group_name in sorted(phase_data.keys()):
+        for i, group_name in enumerate(group_names):
             data = phase_data[group_name]
             p75_transitions = data['p75_transitions']
+            
+            # Handle different data structures
+            if isinstance(p75_transitions, (list, np.ndarray)):
+                p75_array = np.array(p75_transitions)
+                if p75_array.ndim > 1:
+                    # If 2D, take mean across first dimension (videos)
+                    p75_transitions = np.mean(p75_array, axis=0)
+                else:
+                    p75_transitions = p75_array
+            
             steps = list(range(len(p75_transitions)))
-            ax1.plot(steps, p75_transitions, 'o-', label=group_name, alpha=0.7, linewidth=2)
+            ax1.plot(steps, p75_transitions, 'o-', label=group_name, 
+                    color=colors[i], alpha=0.8, linewidth=2, markersize=4)
         
         ax1.set_xlabel('Diffusion Step')
-        ax1.set_ylabel('Transition Count')
-        ax1.set_title('Phase Transitions (75th Percentile)\n(Moderate Changes)')
-        ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        ax1.set_ylabel('Mean Transition Count')
+        ax1.set_title('Phase Transitions (75th Percentile)\n(Moderate Changes - Average per Group)')
+        ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=9)
         ax1.grid(True, alpha=0.3)
         
         # Plot 2: 95th percentile transitions (major changes)
-        for group_name in sorted(phase_data.keys()):
+        for i, group_name in enumerate(group_names):
             data = phase_data[group_name]
             p95_transitions = data['p95_transitions']
+            
+            # Handle different data structures
+            if isinstance(p95_transitions, (list, np.ndarray)):
+                p95_array = np.array(p95_transitions)
+                if p95_array.ndim > 1:
+                    # If 2D, take mean across first dimension (videos)
+                    p95_transitions = np.mean(p95_array, axis=0)
+                else:
+                    p95_transitions = p95_array
+            
             steps = list(range(len(p95_transitions)))
-            ax2.plot(steps, p95_transitions, '^-', label=group_name, alpha=0.7, linewidth=2)
+            ax2.plot(steps, p95_transitions, '^-', label=group_name, 
+                    color=colors[i], alpha=0.8, linewidth=2, markersize=4)
         
         ax2.set_xlabel('Diffusion Step')
-        ax2.set_ylabel('Transition Count')
-        ax2.set_title('Major Phase Transitions (95th Percentile)\n(Dramatic Changes)')
-        ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        ax2.set_ylabel('Mean Transition Count')
+        ax2.set_title('Major Phase Transitions (95th Percentile)\n(Dramatic Changes - Average per Group)')
+        ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=9)
         ax2.grid(True, alpha=0.3)
         
         # Plot 3: Transition intensity heatmap
-        group_names = list(phase_data.keys())
-        p90_data = np.array([data['p90_transitions'] for data in phase_data.values()])
+        p90_data_list = []
+        for group_name in group_names:
+            p90_transitions = phase_data[group_name]['p90_transitions']
+            p90_array = np.array(p90_transitions)
+            
+            # Handle different data structures
+            if p90_array.ndim > 1:
+                # If shape is (steps, features), take mean across features
+                if p90_array.shape[1] > p90_array.shape[0]:
+                    # Likely (features, steps) - transpose and take mean
+                    p90_transitions = np.mean(p90_array.T, axis=1)
+                else:
+                    # Likely (steps, features) - take mean across features
+                    p90_transitions = np.mean(p90_array, axis=1)
+            else:
+                p90_transitions = p90_array
+                
+            p90_data_list.append(p90_transitions)
+        
+        # Create heatmap matrix
+        p90_data = np.array(p90_data_list)
         
         im = ax3.imshow(p90_data, cmap='YlOrRd', aspect='auto')
         ax3.set_yticks(range(len(group_names)))
@@ -567,13 +726,21 @@ class GPUOptimizedStructureAnalyzer:
         ax3.set_title('Phase Transition Intensity Map\n(90th Percentile)')
         plt.colorbar(im, ax=ax3, label='Transition Count')
         
-        # Plot 4: Total transitions by group
-        group_names = sorted(phase_data.keys())  # Alphabetical ordering
+        # Plot 4: Total transitions by group with better calculation
         total_transitions = []
         for group_name in group_names:
             data = phase_data[group_name]
-            total = sum(data['p75_transitions']) + sum(data['p90_transitions']) + sum(data['p95_transitions'])
+            
+            # Calculate totals more carefully
+            p75_total = np.sum(np.array(data['p75_transitions']).flatten())
+            p90_total = np.sum(np.array(data['p90_transitions']).flatten())
+            p95_total = np.sum(np.array(data['p95_transitions']).flatten())
+            
+            total = p75_total + p90_total + p95_total
             total_transitions.append(total)
+            
+            # Debug output
+            self.logger.info(f"{group_name}: p75={p75_total:.2f}, p90={p90_total:.2f}, p95={p95_total:.2f}, total={total:.2f}")
         
         bars = ax4.bar(group_names, total_transitions, alpha=0.7, 
                       color=sns.color_palette("rocket", len(group_names)))
@@ -584,8 +751,11 @@ class GPUOptimizedStructureAnalyzer:
         
         # Add value labels
         for bar, total in zip(bars, total_transitions):
-            ax4.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, 
-                    f'{total}', ha='center', va='bottom')
+            height = bar.get_height()
+            if total_transitions:  # Avoid division by zero
+                max_total = max(total_transitions)
+                ax4.text(bar.get_x() + bar.get_width()/2., height + max_total * 0.01,
+                        f'{total:.1f}', ha='center', va='bottom', fontsize=8)
         
         plt.tight_layout()
         plt.savefig(viz_dir / "phase_transition_detection.png", dpi=300, bbox_inches='tight')
@@ -599,24 +769,40 @@ class GPUOptimizedStructureAnalyzer:
         
         # Plot 1: Dominant frequencies
         group_names = sorted(freq_data.keys())  # Alphabetical ordering
+        colors = sns.color_palette("husl", len(group_names))
         dominant_freqs = []
         dominant_powers = []
         
         for group_name in group_names:
             data = freq_data[group_name]
             if data['dominant_frequencies']:
-                dominant_freqs.append(data['dominant_frequencies'][0])  # Primary frequency
-                dominant_powers.append(data['dominant_powers'][0])
+                # Ensure we get scalar values - handle both arrays and scalars
+                freq_val = data['dominant_frequencies'][0]
+                power_val = data['dominant_powers'][0]
+                
+                # If they're arrays, take the mean
+                if isinstance(freq_val, (list, tuple, np.ndarray)):
+                    freq_val = np.mean(freq_val)
+                if isinstance(power_val, (list, tuple, np.ndarray)):
+                    power_val = np.mean(power_val)
+                    
+                dominant_freqs.append(float(freq_val))
+                dominant_powers.append(float(power_val))
             else:
-                dominant_freqs.append(0)
-                dominant_powers.append(0)
+                dominant_freqs.append(0.0)
+                dominant_powers.append(0.0)
         
-        bars1 = ax1.bar(group_names, dominant_freqs, alpha=0.7,
-                       color=sns.color_palette("plasma", len(group_names)))
+        bars1 = ax1.bar(group_names, dominant_freqs, alpha=0.7, color=colors)
         ax1.set_xlabel('Prompt Group')
         ax1.set_ylabel('Dominant Frequency')
         ax1.set_title('Primary Temporal Frequency by Group')
         ax1.tick_params(axis='x', rotation=45)
+        
+        # Add value labels
+        for bar, freq in zip(bars1, dominant_freqs):
+            height = bar.get_height()
+            ax1.text(bar.get_x() + bar.get_width()/2., height + max(dominant_freqs) * 0.01,
+                    f'{freq:.3f}', ha='center', va='bottom', fontsize=8)
         
         # Plot 2: Spectral power
         bars2 = ax2.bar(group_names, dominant_powers, alpha=0.7,
@@ -626,8 +812,20 @@ class GPUOptimizedStructureAnalyzer:
         ax2.set_title('Dominant Frequency Power')
         ax2.tick_params(axis='x', rotation=45)
         
+        # Add value labels
+        for bar, power in zip(bars2, dominant_powers):
+            height = bar.get_height()
+            ax2.text(bar.get_x() + bar.get_width()/2., height + max(dominant_powers) * 0.01,
+                    f'{power:.3f}', ha='center', va='bottom', fontsize=8)
+        
         # Plot 3: Spectral centroid
-        centroids = [data['spectral_centroid'] for data in freq_data.values()]
+        centroids = []
+        for data in freq_data.values():
+            centroid = data['spectral_centroid']
+            if isinstance(centroid, (list, tuple, np.ndarray)):
+                centroid = np.mean(centroid)
+            centroids.append(float(centroid))
+            
         bars3 = ax3.bar(group_names, centroids, alpha=0.7,
                        color=sns.color_palette("coolwarm", len(group_names)))
         ax3.set_xlabel('Prompt Group')
@@ -635,14 +833,32 @@ class GPUOptimizedStructureAnalyzer:
         ax3.set_title('Frequency Distribution Center')
         ax3.tick_params(axis='x', rotation=45)
         
+        # Add value labels
+        for bar, centroid in zip(bars3, centroids):
+            height = bar.get_height()
+            ax3.text(bar.get_x() + bar.get_width()/2., height + max(centroids) * 0.01,
+                    f'{centroid:.3f}', ha='center', va='bottom', fontsize=8)
+        
         # Plot 4: Spectral entropy (frequency diversity)
-        entropies = [data['spectral_entropy'] for data in freq_data.values()]
+        entropies = []
+        for data in freq_data.values():
+            entropy = data['spectral_entropy']
+            if isinstance(entropy, (list, tuple, np.ndarray)):
+                entropy = np.mean(entropy)
+            entropies.append(float(entropy))
+            
         bars4 = ax4.bar(group_names, entropies, alpha=0.7,
                        color=sns.color_palette("rocket", len(group_names)))
         ax4.set_xlabel('Prompt Group')
         ax4.set_ylabel('Spectral Entropy')
         ax4.set_title('Temporal Frequency Diversity')
         ax4.tick_params(axis='x', rotation=45)
+        
+        # Add value labels
+        for bar, entropy in zip(bars4, entropies):
+            height = bar.get_height()
+            ax4.text(bar.get_x() + bar.get_width()/2., height + max(entropies) * 0.01,
+                    f'{entropy:.3f}', ha='center', va='bottom', fontsize=8)
         
         plt.tight_layout()
         plt.savefig(viz_dir / "temporal_frequency_signatures.png", dpi=300, bbox_inches='tight')
@@ -707,90 +923,312 @@ class GPUOptimizedStructureAnalyzer:
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
         
         spatial_data = results.spatial_patterns['spatial_progression_patterns']
-        sorted_group_names = sorted(spatial_data.keys())
-        colors = sns.color_palette("viridis", len(sorted_group_names))
+        group_names = sorted(spatial_data.keys())
+        colors = sns.color_palette("husl", len(group_names))
         
-        # Plot 1: Step deltas mean
-        for i, group_name in enumerate(sorted_group_names):
-            data = spatial_data[group_name]
-            step_deltas = data['step_deltas_mean']
-            steps = list(range(len(step_deltas)))
-            ax1.plot(steps, step_deltas, 'o-', label=group_name, alpha=0.7, color=colors[i])
+        # Plot 1: Progression consistency
+        consistency_values = [spatial_data[group]['progression_consistency'] for group in group_names]
+        bars1 = ax1.bar(group_names, consistency_values, alpha=0.7, color=colors)
+        ax1.set_xlabel('Prompt Group')
+        ax1.set_ylabel('Progression Consistency')
+        ax1.set_title('Spatial Progression Consistency')
+        ax1.tick_params(axis='x', rotation=45)
         
-        ax1.set_xlabel('Diffusion Step')
-        ax1.set_ylabel('Mean Step Delta')
-        ax1.set_title('Spatial Change Rate Between Steps')
-        ax1.legend()
-        ax1.grid(True, alpha=0.3)
-        
-        # Plot 2: Progression consistency
-        consistency_values = [spatial_data[group]['progression_consistency'] for group in sorted_group_names]
-        bars = ax2.bar(sorted_group_names, consistency_values, alpha=0.7, color=colors)
+        # Plot 2: Progression variability
+        variability_values = [spatial_data[group]['progression_variability'] for group in group_names]
+        bars2 = ax2.bar(group_names, variability_values, alpha=0.7, 
+                       color=sns.color_palette("viridis", len(group_names)))
         ax2.set_xlabel('Prompt Group')
-        ax2.set_ylabel('Progression Consistency')
-        ax2.set_title('Spatial Progression Consistency')
+        ax2.set_ylabel('Progression Variability')
+        ax2.set_title('Spatial Progression Variability')
         ax2.tick_params(axis='x', rotation=45)
         
-        # Plot 3: Progression variability
-        variability_values = [spatial_data[group]['progression_variability'] for group in sorted_group_names]
-        bars = ax3.bar(sorted_group_names, variability_values, alpha=0.7, color=colors)
-        ax3.set_xlabel('Prompt Group')
-        ax3.set_ylabel('Progression Variability')
-        ax3.set_title('Spatial Progression Variability')
-        ax3.tick_params(axis='x', rotation=45)
+        # Plot 3: Step deltas evolution over time
+        for i, group_name in enumerate(group_names):
+            step_deltas = spatial_data[group_name]['step_deltas_mean']
+            steps = range(len(step_deltas))
+            ax3.plot(steps, step_deltas, 'o-', label=group_name, 
+                    color=colors[i], alpha=0.8, linewidth=2)
         
-        # Plot 4: Edge evolution patterns
-        ax4.set_title('Edge Formation Trends by Group')
-        edge_data = []
-        for group_name in sorted_group_names:
-            data = spatial_data[group_name]
-            edge_patterns = data.get('edge_evolution_patterns', [])
-            if edge_patterns:
-                mean_pattern = np.mean(edge_patterns, axis=0)
-                steps = list(range(len(mean_pattern)))
-                ax4.plot(steps, mean_pattern, 'o-', label=group_name, alpha=0.7)
+        ax3.set_xlabel('Diffusion Step')
+        ax3.set_ylabel('Step Delta Mean')
+        ax3.set_title('Spatial Step Delta Evolution')
+        ax3.legend(fontsize=9)
+        ax3.grid(True, alpha=0.3)
+        
+        # Plot 4: Step delta standard deviation patterns
+        for i, group_name in enumerate(group_names):
+            step_deltas_std = spatial_data[group_name]['step_deltas_std']
+            steps = range(len(step_deltas_std))
+            ax4.plot(steps, step_deltas_std, '^-', label=group_name, 
+                    color=colors[i], alpha=0.8, linewidth=2, markersize=4)
         
         ax4.set_xlabel('Diffusion Step')
-        ax4.set_ylabel('Edge Density')
-        ax4.legend()
+        ax4.set_ylabel('Step Delta Std Dev')
+        ax4.set_title('Spatial Step Delta Variability')
+        ax4.legend(fontsize=9)
         ax4.grid(True, alpha=0.3)
         
         plt.tight_layout()
         plt.savefig(viz_dir / "spatial_progression_patterns.png", dpi=300, bbox_inches='tight')
         plt.close()
 
-    def _plot_edge_density_evolution(self, results: GPUOptimizedAnalysis, viz_dir: Path):
-        """Plot edge density evolution analysis."""
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+    def _plot_edge_formation_trends_dashboard(self, results: GPUOptimizedAnalysis, viz_dir: Path):
+        """Plot edge formation trends dashboard (extracted from spatial progression patterns)."""
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
         
+        # Get both spatial progression and edge density data
+        spatial_data = results.spatial_patterns['spatial_progression_patterns']
         edge_data = results.spatial_patterns['edge_density_evolution']
-        sorted_group_names = sorted(edge_data.keys())
+        sorted_group_names = sorted(spatial_data.keys())
         colors = sns.color_palette("plasma", len(sorted_group_names))
         
-        # Plot 1: Mean evolution patterns
+        # Plot 1: Edge evolution patterns from spatial progression data
+        ax1.set_title('Edge Formation Trends by Group\n(From Spatial Progression Analysis)')
         for i, group_name in enumerate(sorted_group_names):
-            data = edge_data[group_name]
-            evolution_pattern = data.get('mean_evolution_pattern', [])
-            if evolution_pattern:
-                steps = list(range(len(evolution_pattern)))
-                ax1.plot(steps, evolution_pattern, 'o-', label=group_name, alpha=0.7, color=colors[i])
+            data = spatial_data[group_name]
+            edge_patterns = data.get('edge_evolution_patterns', [])
+            if edge_patterns:
+                mean_pattern = np.mean(edge_patterns, axis=0)
+                steps = list(range(len(mean_pattern)))
+                ax1.plot(steps, mean_pattern, 'o-', label=group_name, 
+                        alpha=0.8, color=colors[i], linewidth=2)
         
         ax1.set_xlabel('Diffusion Step')
-        ax1.set_ylabel('Mean Edge Density')
-        ax1.set_title('Edge Density Evolution Patterns')
-        ax1.legend()
+        ax1.set_ylabel('Edge Density')
+        ax1.legend(fontsize=9)
         ax1.grid(True, alpha=0.3)
         
-        # Plot 2: Edge formation trends
+        # Plot 2: Mean evolution patterns from edge density analysis
+        ax2.set_title('Edge Density Evolution Patterns\n(From Edge Density Analysis)')
+        for i, group_name in enumerate(sorted_group_names):
+            if group_name in edge_data:
+                data = edge_data[group_name]
+                evolution_pattern = data.get('mean_evolution_pattern', [])
+                if evolution_pattern:
+                    steps = list(range(len(evolution_pattern)))
+                    ax2.plot(steps, evolution_pattern, 's-', label=group_name, 
+                            alpha=0.8, color=colors[i], linewidth=2)
+        
+        ax2.set_xlabel('Diffusion Step')
+        ax2.set_ylabel('Mean Edge Density')
+        ax2.legend(fontsize=9)
+        ax2.grid(True, alpha=0.3)
+        
+        # Plot 3: Edge formation trend distribution
         trend_counts = {'increasing': 0, 'decreasing': 0, 'stable': 0}
         for group_name in sorted_group_names:
-            trend = edge_data[group_name].get('edge_formation_trend', 'stable')
-            trend_counts[trend] = trend_counts.get(trend, 0) + 1
+            if group_name in edge_data:
+                data = edge_data[group_name]
+                trend = data.get('formation_trend', 'stable')
+                if trend in trend_counts:
+                    trend_counts[trend] += 1
         
-        ax2.pie(trend_counts.values(), labels=trend_counts.keys(), autopct='%1.1f%%')
-        ax2.set_title('Edge Formation Trend Distribution')
+        if sum(trend_counts.values()) > 0:
+            ax3.pie(trend_counts.values(), labels=trend_counts.keys(), autopct='%1.1f%%',
+                   colors=sns.color_palette("Set2", len(trend_counts)))
+            ax3.set_title('Edge Formation Trend Distribution\n(Across All Groups)')
+        else:
+            ax3.text(0.5, 0.5, 'No edge trend data available', 
+                    ha='center', va='center', transform=ax3.transAxes)
+            ax3.set_title('Edge Formation Trends (No Data)')
+        
+        # Plot 4: Edge density summary statistics
+        mean_densities = []
+        group_labels = []
+        for group_name in sorted_group_names:
+            if group_name in edge_data:
+                data = edge_data[group_name]
+                evolution_pattern = data.get('mean_evolution_pattern', [])
+                if evolution_pattern:
+                    mean_densities.append(np.mean(evolution_pattern))
+                    group_labels.append(group_name)
+        
+        if mean_densities:
+            bars = ax4.bar(group_labels, mean_densities, alpha=0.7, color=colors[:len(group_labels)])
+            ax4.set_xlabel('Prompt Group')
+            ax4.set_ylabel('Average Edge Density')
+            ax4.set_title('Average Edge Density by Group')
+            ax4.tick_params(axis='x', rotation=45)
+            
+            # Add value labels
+            for bar, density in zip(bars, mean_densities):
+                height = bar.get_height()
+                ax4.text(bar.get_x() + bar.get_width()/2., height + max(mean_densities) * 0.01,
+                        f'{density:.3f}', ha='center', va='bottom', fontsize=8)
+        else:
+            ax4.text(0.5, 0.5, 'No edge density data available', 
+                    ha='center', va='center', transform=ax4.transAxes)
+            ax4.set_title('Average Edge Density (No Data)')
         
         plt.tight_layout()
+        plt.savefig(viz_dir / "edge_formation_trends_dashboard.png", dpi=300, bbox_inches='tight')
+        plt.close()
+
+    def _plot_edge_density_evolution(self, results: GPUOptimizedAnalysis, viz_dir: Path):
+        """Plot edge density evolution analysis."""
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
+        
+        edge_data = results.spatial_patterns['edge_density_evolution']
+        prompt_names = sorted(edge_data.keys())
+        colors = sns.color_palette("husl", len(prompt_names))
+        
+        # Debug: Check actual data structure
+        sample_prompt = prompt_names[0]
+        sample_data = edge_data[sample_prompt]
+        self.logger.info(f"Edge density data structure for {sample_prompt}: {list(sample_data.keys())}")
+        
+        # Plot 1: Edge density evolution over diffusion steps (using mean_evolution_pattern)
+        has_evolution_data = False
+        for i, prompt_name in enumerate(prompt_names):
+            if 'mean_evolution_pattern' in edge_data[prompt_name] and edge_data[prompt_name]['mean_evolution_pattern']:
+                evolution = edge_data[prompt_name]['mean_evolution_pattern']
+                if evolution and len(evolution) > 0:
+                    steps = range(len(evolution))
+                    ax1.plot(steps, evolution, 'o-', label=prompt_name, 
+                            color=colors[i], alpha=0.8, linewidth=2, markersize=3)
+                    has_evolution_data = True
+        
+        if has_evolution_data:
+            ax1.set_xlabel('Diffusion Step')
+            ax1.set_ylabel('Mean Edge Density')
+            ax1.set_title('Edge Density Evolution by Prompt\n(Mean Evolution Pattern)')
+            ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
+            ax1.grid(True, alpha=0.3)
+        else:
+            ax1.text(0.5, 0.5, 'No edge density evolution data available', 
+                    ha='center', va='center', transform=ax1.transAxes)
+            ax1.set_title('Edge Density Evolution (No Data)')
+        
+        # Plot 2: Evolution variability 
+        variability_data_available = any('evolution_variability' in edge_data[prompt] and 
+                                        edge_data[prompt]['evolution_variability'] is not None 
+                                        for prompt in prompt_names)
+        
+        if variability_data_available:
+            variabilities = []
+            valid_prompts = []
+            for prompt in prompt_names:
+                if 'evolution_variability' in edge_data[prompt] and edge_data[prompt]['evolution_variability'] is not None:
+                    var_data = edge_data[prompt]['evolution_variability']
+                    # Handle both scalar and array data
+                    if isinstance(var_data, (list, np.ndarray)):
+                        # If it's an array, take the mean to get a scalar
+                        scalar_var = np.mean(var_data)
+                    else:
+                        # Already a scalar
+                        scalar_var = var_data
+                    variabilities.append(scalar_var)
+                    valid_prompts.append(prompt)
+            
+            if variabilities:
+                bars2 = ax2.bar(valid_prompts, variabilities, alpha=0.7, 
+                               color=colors[:len(valid_prompts)])
+                ax2.set_xlabel('Prompt ID')
+                ax2.set_ylabel('Evolution Variability')
+                ax2.set_title('Edge Density Evolution Variability')
+                ax2.tick_params(axis='x', rotation=45)
+                
+                # Add value labels
+                for bar, var in zip(bars2, variabilities):
+                    height = bar.get_height()
+                    ax2.text(bar.get_x() + bar.get_width()/2., height + max(variabilities) * 0.01,
+                            f'{var:.3f}', ha='center', va='bottom', fontsize=8)
+            else:
+                ax2.text(0.5, 0.5, 'No valid variability data', 
+                        ha='center', va='center', transform=ax2.transAxes)
+                ax2.set_title('Evolution Variability (No Data)')
+        else:
+            ax2.text(0.5, 0.5, 'No evolution variability data available', 
+                    ha='center', va='center', transform=ax2.transAxes)
+            ax2.set_title('Evolution Variability (No Data)')
+        
+        # Plot 3: Edge formation trend
+        trend_data_available = any('edge_formation_trend' in edge_data[prompt] and 
+                                  edge_data[prompt]['edge_formation_trend'] is not None 
+                                  for prompt in prompt_names)
+        
+        if trend_data_available:
+            trends = []
+            trend_labels = []
+            valid_prompts = []
+            for prompt in prompt_names:
+                if 'edge_formation_trend' in edge_data[prompt] and edge_data[prompt]['edge_formation_trend'] is not None:
+                    trend_value = edge_data[prompt]['edge_formation_trend']
+                    # Handle string trend values by converting to numeric
+                    if isinstance(trend_value, str):
+                        if trend_value.lower() in ['increasing', 'inc']:
+                            numeric_trend = 1.0
+                        elif trend_value.lower() in ['decreasing', 'dec']:
+                            numeric_trend = -1.0
+                        elif trend_value.lower() in ['stable', 'constant']:
+                            numeric_trend = 0.0
+                        else:
+                            numeric_trend = 0.0  # Default for unknown strings
+                        trend_labels.append(trend_value)
+                    else:
+                        # Already numeric
+                        numeric_trend = float(trend_value)
+                        trend_labels.append(f'{numeric_trend:.3f}')
+                    
+                    trends.append(numeric_trend)
+                    valid_prompts.append(prompt)
+            
+            if trends:
+                bars3 = ax3.bar(valid_prompts, trends, alpha=0.7,
+                               color=sns.color_palette("viridis", len(valid_prompts)))
+                ax3.set_xlabel('Prompt ID')
+                ax3.set_ylabel('Edge Formation Trend')
+                ax3.set_title('Edge Formation Trend Direction\n(+1=Increasing, 0=Stable, -1=Decreasing)')
+                ax3.tick_params(axis='x', rotation=45)
+                
+                # Add value labels with original trend descriptions
+                for bar, label in zip(bars3, trend_labels):
+                    height = bar.get_height()
+                    y_offset = 0.05 if height >= 0 else -0.15  # Adjust for negative values
+                    ax3.text(bar.get_x() + bar.get_width()/2., height + y_offset,
+                            label, ha='center', va='bottom' if height >= 0 else 'top', fontsize=8)
+            else:
+                ax3.text(0.5, 0.5, 'No valid trend data', 
+                        ha='center', va='center', transform=ax3.transAxes)
+                ax3.set_title('Edge Formation Trend (No Data)')
+        else:
+            ax3.text(0.5, 0.5, 'No edge formation trend data available', 
+                    ha='center', va='center', transform=ax3.transAxes)
+            ax3.set_title('Edge Formation Trend (No Data)')
+        
+        # Plot 4: Heatmap of edge evolution patterns
+        if has_evolution_data:
+            evolution_matrix = []
+            valid_prompts = []
+            for prompt_name in prompt_names:
+                if 'mean_evolution_pattern' in edge_data[prompt_name] and edge_data[prompt_name]['mean_evolution_pattern']:
+                    evolution = edge_data[prompt_name]['mean_evolution_pattern']
+                    if evolution and len(evolution) > 0:
+                        evolution_matrix.append(evolution)
+                        valid_prompts.append(prompt_name)
+            
+            if evolution_matrix:
+                evolution_array = np.array(evolution_matrix)
+                im = ax4.imshow(evolution_array, cmap='YlOrRd', aspect='auto')
+                ax4.set_yticks(range(len(valid_prompts)))
+                ax4.set_yticklabels(valid_prompts)
+                ax4.set_xlabel('Diffusion Step')
+                ax4.set_ylabel('Prompt ID')
+                ax4.set_title('Edge Density Evolution Heatmap\n(All Prompts)')
+                plt.colorbar(im, ax=ax4, label='Edge Density')
+            else:
+                ax4.text(0.5, 0.5, 'No evolution matrix data', 
+                        ha='center', va='center', transform=ax4.transAxes)
+                ax4.set_title('Edge Evolution Heatmap (No Data)')
+        else:
+            ax4.text(0.5, 0.5, 'No edge density evolution data available', 
+                    ha='center', va='center', transform=ax4.transAxes)
+            ax4.set_title('Edge Evolution Heatmap (No Data)')
+        
+        plt.tight_layout()
+        plt.savefig(viz_dir / "edge_density_evolution.png", dpi=300, bbox_inches='tight')
+        plt.close()
         plt.savefig(viz_dir / "edge_density_evolution.png", dpi=300, bbox_inches='tight')
         plt.close()
 
@@ -799,51 +1237,238 @@ class GPUOptimizedStructureAnalyzer:
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
         
         coherence_data = results.spatial_patterns['spatial_coherence_patterns']
-        sorted_group_names = sorted(coherence_data.keys())
-        colors = sns.color_palette("coolwarm", len(sorted_group_names))
+        prompt_names = sorted(coherence_data.keys())
+        colors = sns.color_palette("husl", len(prompt_names))
         
-        # Plot 1: Mean coherence trajectories
-        for i, group_name in enumerate(sorted_group_names):
-            data = coherence_data[group_name]
-            coherence_trajectory = data.get('mean_coherence_trajectory', [])
-            if coherence_trajectory:
-                steps = list(range(len(coherence_trajectory)))
-                ax1.plot(steps, coherence_trajectory, 'o-', label=group_name, alpha=0.7, color=colors[i])
+        # Debug: Check actual data structure
+        sample_prompt = prompt_names[0]
+        sample_data = coherence_data[sample_prompt]
+        self.logger.info(f"Spatial coherence data structure for {sample_prompt}: {list(sample_data.keys())}")
         
-        ax1.set_xlabel('Diffusion Step')
-        ax1.set_ylabel('Spatial Coherence')
-        ax1.set_title('Spatial Coherence Evolution')
-        ax1.legend()
-        ax1.grid(True, alpha=0.3)
+        # Plot 1: Spatial coherence evolution (using coherence_evolution)
+        has_evolution_data = False
+        for i, prompt_name in enumerate(prompt_names):
+            if 'coherence_evolution' in coherence_data[prompt_name] and coherence_data[prompt_name]['coherence_evolution']:
+                evolution = coherence_data[prompt_name]['coherence_evolution']
+                if evolution and len(evolution) > 0:
+                    steps = range(len(evolution))
+                    ax1.plot(steps, evolution, 'o-', label=prompt_name, 
+                            color=colors[i], alpha=0.8, linewidth=2, markersize=3)
+                    has_evolution_data = True
         
-        # Plot 2: Coherence stability
-        stability_values = [coherence_data[group]['coherence_stability'] for group in sorted_group_names]
-        bars = ax2.bar(sorted_group_names, stability_values, alpha=0.7, color=colors)
-        ax2.set_xlabel('Prompt Group')
-        ax2.set_ylabel('Coherence Stability')
-        ax2.set_title('Spatial Coherence Stability by Group')
-        ax2.tick_params(axis='x', rotation=45)
+        if has_evolution_data:
+            ax1.set_xlabel('Diffusion Step')
+            ax1.set_ylabel('Spatial Coherence')
+            ax1.set_title('Spatial Coherence Evolution by Prompt\n(Individual Trajectories)')
+            ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
+            ax1.grid(True, alpha=0.3)
+        else:
+            ax1.text(0.5, 0.5, 'No coherence evolution data available', 
+                    ha='center', va='center', transform=ax1.transAxes)
+            ax1.set_title('Spatial Coherence Evolution (No Data)')
         
-        # Plot 3-4: Individual coherence evolution examples
-        example_groups = sorted_group_names[:2]  # Show first two groups as examples
-        for idx, group_name in enumerate(example_groups):
-            ax = ax3 if idx == 0 else ax4
-            data = coherence_data[group_name]
-            coherence_evolution = data.get('coherence_evolution', [])
+        # Plot 2: Mean coherence trajectory evolution over diffusion steps
+        trajectory_data_available = any('mean_coherence_trajectory' in coherence_data[prompt] and 
+                                       coherence_data[prompt]['mean_coherence_trajectory'] is not None 
+                                       for prompt in prompt_names)
+        
+        if trajectory_data_available:
+            has_trajectory_evolution = False
+            for i, prompt in enumerate(prompt_names):
+                if 'mean_coherence_trajectory' in coherence_data[prompt] and coherence_data[prompt]['mean_coherence_trajectory'] is not None:
+                    trajectory = coherence_data[prompt]['mean_coherence_trajectory']
+                    if isinstance(trajectory, (list, np.ndarray)) and len(trajectory) > 0:
+                        # Plot the trajectory evolution over diffusion steps
+                        trajectory_array = np.array(trajectory)
+                        if trajectory_array.ndim > 1:
+                            # If multidimensional, take mean across non-time dimensions
+                            trajectory_1d = np.mean(trajectory_array.reshape(trajectory_array.shape[0], -1), axis=1)
+                        else:
+                            trajectory_1d = trajectory_array
+                        
+                        steps = range(len(trajectory_1d))
+                        ax2.plot(steps, trajectory_1d, 'o-', label=prompt, 
+                                color=colors[i], alpha=0.8, linewidth=2, markersize=3)
+                        has_trajectory_evolution = True
             
-            if coherence_evolution:
-                for i, video_coherence in enumerate(coherence_evolution[:3]):  # Show first 3 videos
-                    steps = list(range(len(video_coherence)))
-                    ax.plot(steps, video_coherence, alpha=0.6, label=f'Video {i+1}')
+            if has_trajectory_evolution:
+                ax2.set_xlabel('Diffusion Step')
+                ax2.set_ylabel('Mean Coherence Value')
+                ax2.set_title('Mean Coherence Trajectory Evolution\n(By Prompt Over Diffusion Steps)')
+                ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
+                ax2.grid(True, alpha=0.3)
+            else:
+                ax2.text(0.5, 0.5, 'No valid trajectory evolution data', 
+                        ha='center', va='center', transform=ax2.transAxes)
+                ax2.set_title('Mean Coherence Trajectory (No Data)')
+        else:
+            ax2.text(0.5, 0.5, 'No mean coherence trajectory data available', 
+                    ha='center', va='center', transform=ax2.transAxes)
+            ax2.set_title('Mean Coherence Trajectory (No Data)')
+        
+        # Plot 3: Coherence stability (using coherence_stability)
+        stability_data_available = any('coherence_stability' in coherence_data[prompt] and 
+                                      coherence_data[prompt]['coherence_stability'] is not None 
+                                      for prompt in prompt_names)
+        
+        if stability_data_available:
+            stabilities = []
+            valid_prompts = []
+            for prompt in prompt_names:
+                if 'coherence_stability' in coherence_data[prompt] and coherence_data[prompt]['coherence_stability'] is not None:
+                    stabilities.append(coherence_data[prompt]['coherence_stability'])
+                    valid_prompts.append(prompt)
             
-            ax.set_xlabel('Diffusion Step')
-            ax.set_ylabel('Coherence')
-            ax.set_title(f'Individual Video Coherence: {group_name}')
-            ax.legend()
-            ax.grid(True, alpha=0.3)
+            if stabilities:
+                bars3 = ax3.bar(valid_prompts, stabilities, alpha=0.7,
+                               color=sns.color_palette("viridis", len(valid_prompts)))
+                ax3.set_xlabel('Prompt ID')
+                ax3.set_ylabel('Coherence Stability')
+                ax3.set_title('Spatial Coherence Stability by Prompt')
+                ax3.tick_params(axis='x', rotation=45)
+                
+                # Add value labels
+                for bar, stab in zip(bars3, stabilities):
+                    height = bar.get_height()
+                    ax3.text(bar.get_x() + bar.get_width()/2., height + max(stabilities) * 0.01,
+                            f'{stab:.3f}', ha='center', va='bottom', fontsize=8)
+            else:
+                ax3.text(0.5, 0.5, 'No valid stability data', 
+                        ha='center', va='center', transform=ax3.transAxes)
+                ax3.set_title('Coherence Stability (No Data)')
+        else:
+            ax3.text(0.5, 0.5, 'No coherence stability data available', 
+                    ha='center', va='center', transform=ax3.transAxes)
+            ax3.set_title('Coherence Stability (No Data)')
+        
+        # Plot 4: Coherence evolution heatmap
+        if has_evolution_data:
+            evolution_matrix = []
+            valid_prompts = []
+            for prompt_name in prompt_names:
+                if 'coherence_evolution' in coherence_data[prompt_name] and coherence_data[prompt_name]['coherence_evolution']:
+                    evolution = coherence_data[prompt_name]['coherence_evolution']
+                    if evolution and len(evolution) > 0:
+                        # Handle multidimensional data by taking mean across extra dimensions
+                        evolution_array = np.array(evolution)
+                        if evolution_array.ndim > 1:
+                            # If 3D like (6, 6, 10), flatten the first two dimensions or take mean
+                            if evolution_array.ndim == 3:
+                                # Take mean across spatial dimensions (assuming first two are spatial)
+                                evolution_1d = np.mean(evolution_array, axis=(0, 1))
+                            elif evolution_array.ndim == 2:
+                                # Take mean across one dimension
+                                evolution_1d = np.mean(evolution_array, axis=0)
+                        else:
+                            evolution_1d = evolution_array
+                        
+                        evolution_matrix.append(evolution_1d)
+                        valid_prompts.append(prompt_name)
+            
+            if evolution_matrix:
+                try:
+                    evolution_2d = np.array(evolution_matrix)
+                    # Ensure we have a 2D array for imshow
+                    if evolution_2d.ndim == 2:
+                        im = ax4.imshow(evolution_2d, cmap='RdYlBu_r', aspect='auto')
+                        ax4.set_yticks(range(len(valid_prompts)))
+                        ax4.set_yticklabels(valid_prompts)
+                        ax4.set_xlabel('Diffusion Step')
+                        ax4.set_ylabel('Prompt ID')
+                        ax4.set_title('Spatial Coherence Evolution Heatmap\n(By Prompt Over Diffusion Steps)')
+                        plt.colorbar(im, ax=ax4, label='Coherence Value')
+                    else:
+                        ax4.text(0.5, 0.5, f'Data shape not suitable for heatmap: {evolution_2d.shape}', 
+                                ha='center', va='center', transform=ax4.transAxes)
+                        ax4.set_title('Coherence Evolution Heatmap (Incompatible Shape)')
+                except Exception as e:
+                    self.logger.warning(f"Failed to create coherence heatmap: {e}")
+                    ax4.text(0.5, 0.5, f'Failed to create heatmap: {str(e)}', 
+                            ha='center', va='center', transform=ax4.transAxes)
+                    ax4.set_title('Coherence Evolution Heatmap (Error)')
+            else:
+                ax4.text(0.5, 0.5, 'No evolution matrix data', 
+                        ha='center', va='center', transform=ax4.transAxes)
+                ax4.set_title('Coherence Evolution Heatmap (No Data)')
+        else:
+            ax4.text(0.5, 0.5, 'No coherence evolution data available', 
+                    ha='center', va='center', transform=ax4.transAxes)
+            ax4.set_title('Coherence Evolution Heatmap (No Data)')
         
         plt.tight_layout()
         plt.savefig(viz_dir / "spatial_coherence_patterns.png", dpi=300, bbox_inches='tight')
+        plt.close()
+
+    def _plot_individual_video_coherence_dashboard(self, results: GPUOptimizedAnalysis, viz_dir: Path):
+        """Plot individual video coherence trajectories by prompt group (extracted from spatial coherence)."""
+        coherence_data = results.spatial_patterns['spatial_coherence_patterns']
+        sorted_group_names = sorted(coherence_data.keys())
+        
+        # Determine the grid layout based on the number of groups
+        n_groups = len(sorted_group_names)
+        n_cols = min(3, n_groups)
+        n_rows = (n_groups + n_cols - 1) // n_cols
+        
+        # Create figure with appropriate size
+        fig = plt.figure(figsize=(6 * n_cols, 5 * n_rows))
+        fig.suptitle('Individual Video Coherence Trajectories by Prompt Group', 
+                    fontsize=16, fontweight='bold')
+        
+        # Color palette for videos within each group
+        video_colors = sns.color_palette("tab10", 10)  # Support up to 10 videos per group
+        
+        for idx, group_name in enumerate(sorted_group_names):
+            ax = plt.subplot(n_rows, n_cols, idx + 1)
+            data = coherence_data[group_name]
+            coherence_evolution = data.get('coherence_evolution', [])
+            
+            videos_plotted = 0
+            if coherence_evolution:
+                # Plot individual video trajectories
+                max_videos_to_show = min(8, len(coherence_evolution))  # Show up to 8 videos per group
+                
+                for i, video_coherence in enumerate(coherence_evolution[:max_videos_to_show]):
+                    if isinstance(video_coherence, (list, np.ndarray)) and len(video_coherence) > 0:
+                        # Handle multidimensional video coherence data
+                        coherence_array = np.array(video_coherence)
+                        if coherence_array.ndim > 1:
+                            # If multidimensional, take mean across spatial dimensions
+                            coherence_1d = np.mean(coherence_array.reshape(coherence_array.shape[0], -1), axis=1)
+                        else:
+                            coherence_1d = coherence_array
+                        
+                        steps = list(range(len(coherence_1d)))
+                        ax.plot(steps, coherence_1d, alpha=0.7, linewidth=1.5,
+                               color=video_colors[i % len(video_colors)], 
+                               label=f'Video {i+1}')
+                        videos_plotted += 1
+                
+                # Overlay mean trajectory if available
+                mean_trajectory = data.get('mean_coherence_trajectory', [])
+                if mean_trajectory:
+                    mean_array = np.array(mean_trajectory)
+                    if mean_array.ndim > 1:
+                        mean_1d = np.mean(mean_array.reshape(mean_array.shape[0], -1), axis=1)
+                    else:
+                        mean_1d = mean_array
+                    
+                    steps = list(range(len(mean_1d)))
+                    ax.plot(steps, mean_1d, 'k-', linewidth=3, alpha=0.8, 
+                           label='Group Mean')
+            
+            if videos_plotted > 0:
+                ax.set_xlabel('Diffusion Step')
+                ax.set_ylabel('Spatial Coherence')
+                ax.set_title(f'{group_name}\n({videos_plotted} Individual Videos)')
+                ax.legend(fontsize=8, loc='best')
+                ax.grid(True, alpha=0.3)
+            else:
+                ax.text(0.5, 0.5, 'No individual video\ncoherence data available', 
+                       ha='center', va='center', transform=ax.transAxes)
+                ax.set_title(f'{group_name}\n(No Data)')
+        
+        plt.tight_layout()
+        plt.savefig(viz_dir / "individual_video_coherence_dashboard.png", dpi=300, bbox_inches='tight')
         plt.close()
 
     def _plot_temporal_stability_windows(self, results: GPUOptimizedAnalysis, viz_dir: Path):
@@ -1253,7 +1878,9 @@ Most Significant Comparison:
             plt.close()
             
         except Exception as e:
+            import traceback
             self.logger.error(f"Failed to create temporal analysis visualization: {e}")
+            self.logger.error(f"Full traceback:\n{traceback.format_exc()}")
             # Create a simple fallback visualization
             fig, ax = plt.subplots(figsize=(10, 6))
             ax.text(0.5, 0.5, f"Temporal Analysis Visualization Failed\nError: {str(e)}", 
@@ -1261,38 +1888,6 @@ Most Significant Comparison:
             ax.set_title('Temporal Analysis - Error')
             plt.savefig(viz_dir / "temporal_analysis.png", dpi=300, bbox_inches='tight')
             plt.close()
-            mean_velocities = [temporal_data[group]['velocity_analysis']['overall_mean_velocity'] for group in sorted_group_names]
-            velocity_stds = [temporal_data[group]['velocity_analysis']['velocity_std'] for group in sorted_group_names]
-            
-            ax2.scatter(mean_velocities, velocity_stds, s=100, alpha=0.7, c=range(len(sorted_group_names)), cmap='plasma')
-            for i, group in enumerate(sorted_group_names):
-                ax2.annotate(group, (mean_velocities[i], velocity_stds[i]), xytext=(5, 5), textcoords='offset points')
-            
-            ax2.set_xlabel('Mean Velocity')
-            ax2.set_ylabel('Velocity Std Dev')
-            ax2.set_title('Velocity Statistics by Group')
-            ax2.grid(True, alpha=0.3)
-            
-            # Plot 3: Acceleration Analysis
-            mean_accelerations = [temporal_data[group]['acceleration_analysis']['overall_mean_acceleration'] for group in sorted_group_names]
-            accel_stds = [temporal_data[group]['acceleration_analysis']['acceleration_std'] for group in sorted_group_names]
-            
-            bars = ax3.bar(sorted_group_names, mean_accelerations, yerr=accel_stds, alpha=0.7, color=colors, capsize=5)
-            ax3.set_ylabel('Mean Acceleration')
-            ax3.set_title('Acceleration by Group')
-            ax3.tick_params(axis='x', rotation=45)
-            
-            # Plot 4: Endpoint Distance vs Tortuosity
-            endpoint_dists = [temporal_data[group]['endpoint_distance']['mean_endpoint_distance'] for group in sorted_group_names]
-            tortuosities = [temporal_data[group]['tortuosity']['mean_tortuosity'] for group in sorted_group_names]
-            
-            ax4.scatter(endpoint_dists, tortuosities, s=100, alpha=0.7, c=range(len(sorted_group_names)), cmap='coolwarm')
-            for i, group in enumerate(sorted_group_names):
-                ax4.annotate(group, (endpoint_dists[i], tortuosities[i]), xytext=(5, 5), textcoords='offset points')
-            
-            ax4.set_xlabel('Mean Endpoint Distance')
-            ax4.set_ylabel('Mean Tortuosity')
-            ax4.set_title('Path Efficiency Analysis')
             ax4.grid(True, alpha=0.3)
             
             # Plot 5: Semantic Convergence Rate
@@ -1316,7 +1911,9 @@ Most Significant Comparison:
             plt.close()
             
         except Exception as e:
+            import traceback
             self.logger.error(f"Failed to create temporal analysis visualization: {e}")
+            self.logger.error(f"Full traceback:\n{traceback.format_exc()}")
 
     def _plot_structural_analysis(self, results: GPUOptimizedAnalysis, viz_dir: Path):
         """Plot structural analysis visualizations."""
@@ -1361,7 +1958,17 @@ Most Significant Comparison:
             
             # Plot 3: Shannon Entropy
             entropies = [structural_data[group]['shannon_entropy']['entropy_estimate'] for group in sorted_group_names]
-            entropy_stds = [structural_data[group]['shannon_entropy']['entropy_per_dimension_std'] for group in sorted_group_names]
+            # Handle missing entropy per dimension std - use the new stats structure
+            try:
+                entropy_stds = [structural_data[group]['shannon_entropy']['entropy_per_dimension_stats']['std'] 
+                               for group in sorted_group_names]
+            except KeyError:
+                # Fallback for old data format
+                try:
+                    entropy_stds = [np.std(structural_data[group]['shannon_entropy']['entropy_per_dimension']) 
+                                   for group in sorted_group_names]
+                except KeyError:
+                    entropy_stds = [0.0] * len(sorted_group_names)
             
             bars = ax3.bar(sorted_group_names, entropies, yerr=entropy_stds, alpha=0.7, color=colors, capsize=5)
             ax3.set_ylabel('Shannon Entropy Estimate')
@@ -1423,7 +2030,16 @@ Most Significant Comparison:
             plt.close()
             
         except Exception as e:
+            import traceback
             self.logger.error(f"Failed to create structural analysis visualization: {e}")
+            self.logger.error(f"Full traceback:\n{traceback.format_exc()}")
+            # Create a simple fallback visualization
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.text(0.5, 0.5, f"Structural Analysis Visualization Failed\nError: {str(e)}", 
+                   ha='center', va='center', transform=ax.transAxes, fontsize=12)
+            ax.set_title('Structural Analysis - Error')
+            plt.savefig(viz_dir / "structural_analysis.png", dpi=300, bbox_inches='tight')
+            plt.close()
 
     def _create_analysis_dashboard(self, results: GPUOptimizedAnalysis, viz_dir: Path):
         """Create a comprehensive analysis dashboard."""
@@ -2375,14 +2991,63 @@ HYPOTHESIS VALIDATION:
         
         return significance_analysis
 
+    def _select_baseline_group(self, prompt_groups: List[str], strategy: str = "auto") -> str:
+        """
+        Select baseline group using different strategies for research comparison.
+        
+        Args:
+            prompt_groups: List of prompt group names
+            strategy: "auto", "empty_prompt", "first_class_specific", or "alphabetical"
+        """
+        if strategy == "empty_prompt":
+            # Look for empty/no prompt - typically prompt_000 or similar
+            empty_candidates = [p for p in prompt_groups if '000' in p or 'empty' in p.lower() or 'no_prompt' in p.lower()]
+            if empty_candidates:
+                baseline = sorted(empty_candidates)[0]
+                self.logger.info(f"Selected empty prompt baseline: {baseline}")
+                return baseline
+        
+        elif strategy == "first_class_specific":
+            # Look for first class-specific prompt (e.g., "flower" vs more specific variants)
+            # This would be prompt_001 in your flower specificity sequence
+            sorted_groups = sorted(prompt_groups)
+            if len(sorted_groups) > 1:
+                baseline = sorted_groups[1]  # Second group (001) assuming 000 is empty
+                self.logger.info(f"Selected first class-specific baseline: {baseline}")
+                return baseline
+        
+        elif strategy == "alphabetical":
+            baseline = sorted(prompt_groups)[0]
+            self.logger.info(f"Selected alphabetical baseline: {baseline}")
+            return baseline
+        
+        # Auto strategy: prefer empty prompt if available, otherwise alphabetical
+        empty_candidates = [p for p in prompt_groups if '000' in p]
+        if empty_candidates:
+            baseline = sorted(empty_candidates)[0]
+            self.logger.info(f"Auto-selected empty prompt baseline: {baseline}")
+        else:
+            baseline = sorted(prompt_groups)[0]
+            self.logger.info(f"Auto-selected alphabetical baseline: {baseline}")
+        
+        return baseline
+
     def _gpu_analyze_temporal_trajectories(self, group_tensors: Dict[str, Dict[str, torch.Tensor]], 
                                           prompt_groups: List[str]) -> Dict[str, Any]:
         """GPU-accelerated temporal trajectory analysis based on TemporalTrajectoryAnalysis."""
         temporal_analysis = {}
         
-        # Determine baseline latents (first prompt group alphabetically)
+        # Set primary baseline for comparison analysis
         baseline_group = sorted(prompt_groups)[0]
-        self.logger.info(f"Using baseline group: {baseline_group}")
+        
+        # Test both baseline strategies for research comparison
+        baseline_group_empty = self._select_baseline_group(prompt_groups, "empty_prompt")
+        baseline_group_class = self._select_baseline_group(prompt_groups, "first_class_specific")
+        
+        self.logger.info(f"Temporal analysis using baseline strategies:")
+        self.logger.info(f"  Primary baseline: {baseline_group}")
+        self.logger.info(f"  Empty prompt baseline: {baseline_group_empty}")
+        self.logger.info(f"  First class-specific baseline: {baseline_group_class}")
         
         for group_name, group_data in group_tensors.items():
             trajectory_tensor = group_data['trajectory_tensor'].to(self.device)  # [n_videos, steps, ...]
@@ -2523,7 +3188,17 @@ HYPOTHESIS VALIDATION:
                 'shannon_entropy': {
                     'entropy_estimate': float(entropy_results['entropy_estimate']),
                     'bin_counts': entropy_results['bin_counts'].cpu().numpy().tolist(),
-                    'entropy_per_dimension': entropy_results['entropy_per_dim'].cpu().numpy().tolist()
+                    # Reduce entropy_per_dimension to statistical summary to save space
+                    'entropy_per_dimension_stats': {
+                        'mean': float(torch.mean(entropy_results['entropy_per_dim'])),
+                        'std': float(torch.std(entropy_results['entropy_per_dim'])),
+                        'min': float(torch.min(entropy_results['entropy_per_dim'])),
+                        'max': float(torch.max(entropy_results['entropy_per_dim'])),
+                        'median': float(torch.median(entropy_results['entropy_per_dim'])),
+                        'q25': float(torch.quantile(entropy_results['entropy_per_dim'], 0.25)),
+                        'q75': float(torch.quantile(entropy_results['entropy_per_dim'], 0.75)),
+                        'total_dimensions': int(entropy_results['entropy_per_dim'].shape[0])
+                    }
                 },
                 'kl_divergence': {
                     'divergence_from_baseline': float(kl_divergence),
