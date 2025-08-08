@@ -70,19 +70,18 @@ def run_gpu_optimized_analysis():
     
     # Check GPU availability
     device = check_gpu_availability()
+    device = "cuda:1"
     
     # Analysis configuration
-    latents_dir = "outputs/person_walking_vars_1-3b_20250807_111343/latents"
-    prompt_groups = ["prompt_000", "prompt_001", "prompt_002", "prompt_003", "prompt_004", "prompt_005", "prompt_006", "prompt_007"]
+    latents_dir = "outputs/flower_gen_1-3b_long_latents_20250805_200633/latents"
+    prompt_groups = ["prompt_000", "prompt_001", "prompt_002", "prompt_003", "prompt_004", "prompt_008"]
     prompt_descriptions = [
         "Empty/random prompt - unstructured generation",
-        "prompt_001",
-        "prompt_002",
-        "prompt_003",
-        "prompt_004",
-        "prompt_005",
-        "prompt_006",
-        "prompt_007" 
+        "flower",
+        "(flower) blossoming",
+        " red (flower) blossoming",
+        "red (flower) blossoming on table",
+        " red (flower) blossoming on table in front of window, morning sunlight, close-up, nature documentary photography  - most structured generation", 
     ]
     
     # Performance configuration
