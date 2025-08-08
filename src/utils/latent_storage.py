@@ -26,6 +26,7 @@ class LatentMetadata:
     seed: Optional[int] = None
     cfg_scale: Optional[float] = None
     generation_time: Optional[float] = None
+    sigma: Optional[float] = None
 
 
 class LatentStorage:
@@ -64,12 +65,33 @@ class LatentStorage:
         self.current_video_dir = None  # Track the current video's directory
         self.stored_steps = []
         
-    def start_video_storage(self, video_id: str, prompt: str, **generation_params):
+        # Store timesteps and sigmas for current generation
+        self.current_timesteps = None
+        self.current_sigmas = None
+        
+    def start_video_storage(self, video_id: str, prompt: str, timesteps=None, sigmas=None, **generation_params):
         """Start storing latents for a new video."""
         self.current_video_id = video_id
         self.current_prompt = prompt
         self.current_generation_params = generation_params
         self.stored_steps = []
+        
+        # Store timesteps and sigmas for this generation
+        if timesteps is not None:
+            if torch.is_tensor(timesteps):
+                self.current_timesteps = timesteps.detach().cpu().numpy().tolist()
+            else:
+                self.current_timesteps = list(timesteps) if hasattr(timesteps, '__iter__') else [timesteps]
+        else:
+            self.current_timesteps = None
+            
+        if sigmas is not None:
+            if torch.is_tensor(sigmas):
+                self.current_sigmas = sigmas.detach().cpu().numpy().tolist()
+            else:
+                self.current_sigmas = list(sigmas) if hasattr(sigmas, '__iter__') else [sigmas]
+        else:
+            self.current_sigmas = None
         
         # Extract prompt and video parts from video_id (e.g., "prompt_000_vid001" -> "prompt_000", "vid001")
         # Video IDs are formatted as: prompt_XXX_vidYYY
@@ -132,10 +154,20 @@ class LatentStorage:
             if 'cfg_scale' in self.current_generation_params:
                 valid_params['cfg_scale'] = self.current_generation_params['cfg_scale']
             
+            # Add sigma if available for this step
+            if self.current_sigmas is not None and step < len(self.current_sigmas):
+                valid_params['sigma'] = float(self.current_sigmas[step])
+            
+            # Get timestep value for this step
+            if self.current_timesteps is not None and step < len(self.current_timesteps):
+                timestep_val = float(self.current_timesteps[step])
+            else:
+                timestep_val = timestep  # fallback to provided timestep
+            
             metadata = LatentMetadata(
                 video_id=self.current_video_id,
                 step=step,
-                timestep=timestep,
+                timestep=timestep_val,
                 total_steps=total_steps,
                 shape=tuple(latent.shape),
                 dtype=str(latent_cpu.dtype),  # Use the actual stored dtype
@@ -209,6 +241,8 @@ class LatentStorage:
         self.current_video_dir = None
         self.current_prompt = None
         self.current_generation_params = {}
+        self.current_timesteps = None
+        self.current_sigmas = None
         self.stored_steps = []
         
         return summary

@@ -19,6 +19,7 @@ import json
 import numpy as np
 import torch
 import torch.nn.functional as F
+import math
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass
@@ -160,6 +161,7 @@ class LatentTrajectoryAnalyzer:
         output_dir: Optional[str] = None,
         viz_config: Optional[VisualizationConfig] = None,
         # Convex hull / geometry config
+        norm_cfg: Optional[Dict[str, Any]] = None,
         hull_mode: str = "auto",
         hull_max_dim_exact: int = 8,
         hull_max_points_exact: int = 500,
@@ -209,6 +211,16 @@ class LatentTrajectoryAnalyzer:
         self.viz_config = viz_config or VisualizationConfig()
         self.viz_config.apply_style_settings()
 
+        # Normalization configuration
+        self.norm_cfg = {
+            "per_step_whiten": False,
+            "per_channel_standardize": False,
+            "snr_normalize": False,
+        }
+        if norm_cfg:
+            self.norm_cfg.update(norm_cfg)
+
+
         # Setup logging
         self.logger = logging.getLogger(__name__)
 
@@ -231,6 +243,15 @@ class LatentTrajectoryAnalyzer:
             'sample_features': int(hull_sample_features),
             'time_budget_ms': int(hull_time_budget_ms),
         }
+        # FPCA configuration (kept internal defaults; can be promoted to CLI later)
+        self.fpca_cfg = {
+            'feature_dim': 128,       # reduce latent features to this dim via random projection
+            'time_stride': 2,         # subsample steps by this stride
+            'max_components': 8,      # cap number of principal components
+            'center': True,           # center per-feature across videos
+            'use_random_projection': True,
+            'random_seed': 42,
+        }
 
         self.logger.info(f"Initialized GPU analyzer on {self.device}")
         if self.device.startswith("cuda"):
@@ -240,19 +261,33 @@ class LatentTrajectoryAnalyzer:
                 self.logger.info(f"Memory: {props.total_memory / 1e9:.1f} GB")
             except Exception:
                 pass
-    def _gpu_analyze_convex_hull_metrics_safe(self, group_tensors: Dict[str, Dict[str, torch.Tensor]], 
-                                            prompt_groups: List[str]) -> Dict[str, Any]:
+
+    def _gpu_analyze_convex_hull_metrics_safe(
+        self,
+        group_tensors: Dict[str, Dict[str, torch.Tensor]],
+        prompt_groups: List[str]
+    ) -> Dict[str, Any]:
         """
         Performance-safe convex hull analysis that avoids Qhull entirely.
-        Uses proxy metrics (bounding-box volume, sum-of-ranges surface proxy, ellipsoidal log-det)
-        with aggressive sampling of points and features. Returns keys compatible with viz.
+        Uses proxy metrics:
+        - log_bbox_volume: sum(log(range_d)) for numerical stability
+        - hull_volume: exp(clipped log volume)
+        - effective_side: exp(log_bbox_volume / D)   (geometric mean side length)
+        - hull_surface_area: sum of per-dim ranges (area proxy)
+        - ellipsoid_log_det: log-det of covariance via SVD (sum log eigenvalues)
+        - pairwise diameter and mean pairwise distance (sampled)
+        Aggressively samples points and features for speed and robustness.
         """
         cfg = getattr(self, 'hull_cfg', {})
         sample_points = int(cfg.get('sample_points', 2000))
         sample_features = int(cfg.get('sample_features', 8192))
-        self.logger.info(f"[Hull] entering safe hull method; groups={len(group_tensors)} SP={sample_points} SF={sample_features}")
+
+        self.logger.info(
+            f"[Hull] entering safe hull method; groups={len(group_tensors)} "
+            f"SP={sample_points} SF={sample_features}"
+        )
         start_ts = time.time()
-        
+
         def _pairwise_stats(points_np: np.ndarray) -> Tuple[float, float]:
             m = min(points_np.shape[0], 500)
             if m < 2:
@@ -265,32 +300,52 @@ class LatentTrajectoryAnalyzer:
             if dv.size == 0:
                 return 0.0, 0.0
             return float(dv.max()), float(dv.mean())
-        
+
         results: Dict[str, Any] = {}
+
         for group_name in sorted(group_tensors.keys()):
             grp_t0 = time.time()
             try:
                 traj = group_tensors[group_name]['trajectory_tensor']  # [videos, steps, ...]
-                flat = traj.view(traj.shape[0], traj.shape[1], -1)
-                n_videos, n_steps, latent_dim = flat.shape
-                total_points = n_videos * n_steps
+                flat = traj.view(traj.shape[0], traj.shape[1], -1)     # [N, T, F]
+                n_videos, n_steps, latent_dim_full = flat.shape
+
+                # Feature sampling
                 dim_reduced = False
-                if latent_dim > sample_features:
-                    idx = torch.randperm(latent_dim, device=flat.device)[:sample_features]
+                latent_dim_used = latent_dim_full
+                if latent_dim_full > sample_features:
+                    idx = torch.randperm(latent_dim_full, device=flat.device)[:sample_features]
                     flat = flat[..., idx]
-                    latent_dim = flat.shape[-1]
+                    latent_dim_used = flat.shape[-1]
                     dim_reduced = True
-                points = flat.reshape(-1, latent_dim)
-                if points.shape[0] > sample_points:
-                    ridx = torch.randperm(points.shape[0], device=points.device)[:sample_points]
+
+                # Point sampling
+                points = flat.reshape(-1, latent_dim_used)  # [N*T, F_used]
+                total_points = points.shape[0]
+                if total_points > sample_points:
+                    ridx = torch.randperm(total_points, device=points.device)[:sample_points]
                     points = points.index_select(0, ridx)
+
+                # To numpy
                 pts_np = points.float().cpu().numpy()
+
+                # Bounding box ranges
                 mins = np.min(pts_np, axis=0)
                 maxs = np.max(pts_np, axis=0)
                 ranges = np.maximum(maxs - mins, 1e-12)
+
+                # Stable volume proxies
                 log_bbox_vol = float(np.sum(np.log(ranges)))
                 bbox_vol = float(np.exp(np.clip(log_bbox_vol, -700.0, 700.0)))
                 area_proxy = float(np.sum(ranges))
+
+                # Effective side length (geometric mean of ranges)
+                if latent_dim_used > 0:
+                    eff_side = float(math.exp(np.clip(log_bbox_vol / latent_dim_used, -100.0, 100.0)))
+                else:
+                    eff_side = 0.0
+
+                # Ellipsoidal log-det via SVD of centered data
                 X = pts_np - pts_np.mean(axis=0, keepdims=True)
                 if X.shape[0] > 1 and X.shape[1] > 0:
                     try:
@@ -301,42 +356,62 @@ class LatentTrajectoryAnalyzer:
                         ellipsoid_log_det = float('nan')
                 else:
                     ellipsoid_log_det = float('nan')
+
+                # Pairwise stats
                 diameter, mean_dist = _pairwise_stats(pts_np)
+
+                # Density-like metrics
+                volume_per_point = float(bbox_vol / max(1, n_videos * n_steps))
+                density_metric = float((n_videos * n_steps) / (bbox_vol + 1e-10))
+
                 results[group_name] = {
                     'hull_volume': bbox_vol,
+                    'log_bbox_volume': log_bbox_vol,
+                    'effective_side': eff_side,
                     'hull_surface_area': area_proxy,
-                    'n_hull_vertices': 0,
+                    'n_hull_vertices': 0,  # not computed in proxy mode
                     'point_cloud_diameter': diameter,
                     'mean_pairwise_distance': mean_dist,
-                    'total_trajectory_points': int(total_points),
+                    'total_trajectory_points': int(n_videos * n_steps),
+                    'latent_dim_used': int(latent_dim_used),
                     'dimensionality_reduced': bool(dim_reduced),
-                    'volume_per_point': float(bbox_vol / max(1, total_points)),
-                    'density_metric': float(total_points / (bbox_vol + 1e-10)),
+                    'volume_per_point': volume_per_point,
+                    'density_metric': density_metric,
                     'ellipsoid_log_det': ellipsoid_log_det,
                     'method': 'proxy_safe'
                 }
+
                 self.logger.info(
-                    f"[Hull] {group_name}: done pts={pts_np.shape[0]}/{total_points} dim={latent_dim} "
-                    f"vol≈{bbox_vol:.3e} area≈{area_proxy:.3e} diam≈{diameter:.3e} mean_d≈{mean_dist:.3e} "
-                    f"t={(time.time()-grp_t0)*1000:.0f}ms")
+                    f"[Hull] {group_name}: pts={pts_np.shape[0]}/{n_videos*n_steps} "
+                    f"dim={latent_dim_used} logVol={log_bbox_vol:.3f} "
+                    f"effSide={eff_side:.3e} area≈{area_proxy:.3e} "
+                    f"diam≈{diameter:.3e} mean_d≈{mean_dist:.3e} "
+                    f"t={(time.time()-grp_t0)*1000:.0f}ms"
+                )
+
             except Exception as e:
                 self.logger.error(f"[Hull] error for {group_name}: {e}")
                 results[group_name] = {
                     'hull_volume': 0.0,
+                    'log_bbox_volume': 0.0,
+                    'effective_side': 0.0,
                     'hull_surface_area': 0.0,
                     'n_hull_vertices': 0,
                     'point_cloud_diameter': 0.0,
                     'mean_pairwise_distance': 0.0,
                     'total_trajectory_points': 0,
+                    'latent_dim_used': 0,
                     'dimensionality_reduced': False,
                     'volume_per_point': 0.0,
                     'density_metric': 0.0,
+                    'ellipsoid_log_det': float('nan'),
                     'method': 'proxy_safe',
                     'error': str(e)
                 }
+
         self.logger.info(f"[Hull] safe hull analysis completed in {(time.time()-start_ts)*1000:.0f}ms")
         return results
-    
+
     def _compute_spectral_entropy(self, power_spectrum: torch.Tensor) -> float:
         """Compute spectral entropy of power spectrum."""
         # Normalize to probability distribution
@@ -367,6 +442,47 @@ class LatentTrajectoryAnalyzer:
         
         return peaks
 
+    
+    def _apply_normalization(self, trajectory_tensor: torch.Tensor, group_data: Dict[str, Any]) -> torch.Tensor:
+        """Normalize trajectories according to self.norm_cfg and return [N,T,D]."""
+        # trajectory_tensor: [N,T,1,C,F,H,W] or [N,T,C,F,H,W]
+        if trajectory_tensor.shape[2] == 1:
+            traj = trajectory_tensor[:, :, 0]
+        else:
+            traj = trajectory_tensor
+        # per-channel standardize across N,T,F,H,W
+        if self.norm_cfg.get("per_channel_standardize", False):
+            mean_c = traj.mean(dim=(0,1,3,4,5), keepdim=True)
+            std_c = traj.std(dim=(0,1,3,4,5), keepdim=True) + 1e-6
+            traj = (traj - mean_c) / std_c
+        flat = traj.flatten(start_dim=2)  # [N,T,D]
+        if self.norm_cfg.get("per_step_whiten", False):
+            mean = flat.mean(dim=2, keepdim=True)
+            std = flat.std(dim=2, keepdim=True) + 1e-6
+            flat = (flat - mean) / std
+        if self.norm_cfg.get("snr_normalize", False):
+            sigmas = None
+            try:
+                meta_list = group_data.get('trajectory_metadata', [])
+                if meta_list and 'step_metadata' in meta_list[0]:
+                    first = meta_list[0]['step_metadata']
+                    if isinstance(first, list) and len(first)>0:
+                        for k in ('sigma','flow_sigma','snr','sigma_t'):
+                            if k in first[0]:
+                                import torch as _torch
+                                sigmas = _torch.tensor([m.get(k, 1.0) for m in first], device=flat.device, dtype=flat.dtype)
+                                break
+            except Exception:
+                sigmas = None
+            if sigmas is None:
+                step_std = flat.permute(1,0,2).reshape(flat.shape[1], -1).std(dim=1) + 1e-6
+                inv = 1.0 / step_std
+            else:
+                inv = 1.0 / (sigmas + 1e-6)
+                if inv.numel() != flat.shape[1]:
+                    inv = torch.nn.functional.interpolate(inv.view(1,1,-1), size=flat.shape[1], mode='linear', align_corners=False).view(-1)
+            flat = flat * inv.view(1,-1,1)
+        return flat
     def _track_gpu_memory(self, stage: str):
         """Track GPU memory usage at different stages."""
         if self.device.startswith("cuda"):
@@ -4502,7 +4618,7 @@ Please check the analysis logs for detailed error information.
             trajectory_tensor = group_data['trajectory_tensor'].to(self.device)  # [n_videos, steps, ...]
             
             # Flatten trajectory for analysis (keep videos and steps dimensions)
-            flat_trajectories = trajectory_tensor.flatten(start_dim=2)  # [n_videos, steps, flattened_latent]
+            flat_trajectories = self._apply_normalization(trajectory_tensor, group_data)  # [n_videos, steps, flattened_latent]
             
             # Trajectory Length Analysis
             trajectory_lengths = self._gpu_trajectory_length(flat_trajectories)
@@ -5020,8 +5136,11 @@ Please check the analysis logs for detailed error information.
     # NEW ADVANCED GEOMETRIC ANALYSIS METHODS
     # =============================================================================
     
-    def _gpu_analyze_convex_hull_metrics(self, group_tensors: Dict[str, Dict[str, torch.Tensor]], 
-                                       prompt_groups: List[str]) -> Dict[str, Any]:
+    def _gpu_analyze_convex_hull_metrics(
+        self, 
+        group_tensors: Dict[str, Dict[str, torch.Tensor]], 
+        prompt_groups: List[str]
+    ) -> Dict[str, Any]:
         """
         Compute convex hull volume metrics for trajectory sets.
         
@@ -5104,86 +5223,133 @@ Please check the analysis logs for detailed error information.
         
         return convex_hull_analysis
 
-    def _gpu_analyze_functional_pca(self, group_tensors: Dict[str, Dict[str, torch.Tensor]], 
-                                  prompt_groups: List[str]) -> Dict[str, Any]:
+    def _gpu_analyze_functional_pca(
+        self,
+        group_tensors: Dict[str, Dict[str, torch.Tensor]],
+        prompt_groups: List[str]
+    ) -> Dict[str, Any]:
         """
-        Perform Functional Principal Component Analysis (FPCA) on trajectory curves.
-        
-        Treats each trajectory as a function over time and decomposes into:
-        1. Mean trajectory function
-        2. Principal component functions (eigenfunctions)
-        3. Variance explained by each component
+        GPU-friendly FPCA with fp16-safe SVD:
+        1) Time subsampling (stride)
+        2) Optional GPU Gaussian random projection to K dims (float32)
+        3) Center across videos per time-feature slice (if enabled)
+        4) PCA via compact SVD on [N, T_used*K], with autocast disabled for SVD
         """
-        fpca_analysis = {}
-        
+        cfg = getattr(self, 'fpca_cfg', {})
+        K_target = int(cfg.get('feature_dim', 128))
+        time_stride = int(cfg.get('time_stride', 2))
+        max_components = int(cfg.get('max_components', 8))
+        center = bool(cfg.get('center', True))
+        use_rp = bool(cfg.get('use_random_projection', True))
+        seed = int(cfg.get('random_seed', 42))
+
+        out: Dict[str, Any] = {}
         for group_name in sorted(group_tensors.keys()):
+            t0 = time.time()
             try:
-                trajectory_tensor = group_tensors[group_name]['trajectory_tensor']  # [videos, steps, ...]
-                flat_trajectories = trajectory_tensor.view(trajectory_tensor.shape[0], trajectory_tensor.shape[1], -1)
-                
-                n_videos, n_steps, latent_dim = flat_trajectories.shape
-                
-                # Convert to numpy for sklearn
-                trajectories_np = flat_trajectories.cpu().numpy()
-                
-                # Reshape for functional analysis: treat each step as a separate function
-                # We'll analyze each latent dimension separately then aggregate
-                
-                mean_trajectory = np.mean(trajectories_np, axis=0)  # [steps, latent_dim]
-                
-                # Center the trajectories
-                centered_trajectories = trajectories_np - mean_trajectory[np.newaxis, :, :]
-                
-                # For FPCA, we treat time dimension as the function domain
-                # Reshape to [videos, steps*latent_dim] for PCA across the functional space
-                functional_data = centered_trajectories.reshape(n_videos, -1)
-                
-                # Perform PCA on the functional data
-                from sklearn.decomposition import PCA
-                n_components = min(10, n_videos-1, functional_data.shape[1])
-                pca = PCA(n_components=n_components)
-                principal_scores = pca.fit_transform(functional_data)
-                
-                # Reshape principal components back to functional form
-                principal_functions = pca.components_.reshape(n_components, n_steps, latent_dim)
-                
-                # Calculate functional variance measures
-                temporal_variance = np.var(trajectories_np, axis=0)  # [steps, latent_dim]
-                cross_video_variance = np.var(trajectories_np, axis=2)  # [videos, steps]
-                
-                # Identify dominant modes of variation
-                explained_variance_ratio = pca.explained_variance_ratio_
-                cumulative_variance = np.cumsum(explained_variance_ratio)
-                
-                # Find effective number of components (95% variance)
-                effective_components = np.argmax(cumulative_variance >= 0.95) + 1
-                
-                fpca_analysis[group_name] = {
-                    'mean_trajectory': mean_trajectory.tolist(),
-                    'principal_functions': principal_functions.tolist(),
-                    'explained_variance_ratio': explained_variance_ratio.tolist(),
-                    'cumulative_variance': cumulative_variance.tolist(),
-                    'principal_scores': principal_scores.tolist(),
-                    'effective_components_95': int(effective_components),
-                    'temporal_variance_profile': temporal_variance.mean(axis=1).tolist(),  # Average across latent dims
-                    'cross_video_variance_profile': cross_video_variance.mean(axis=0).tolist(),  # Average across videos
-                    'total_functional_variance': float(np.var(functional_data)),
-                    'dominant_mode_strength': float(explained_variance_ratio[0]) if len(explained_variance_ratio) > 0 else 0.0,
-                    'mode_diversity_index': float(1.0 - explained_variance_ratio[0]) if len(explained_variance_ratio) > 0 else 0.0,
-                    'n_trajectories_analyzed': int(n_videos),
-                    'n_time_steps': int(n_steps),
-                    'latent_dimensionality': int(latent_dim)
+                traj = group_tensors[group_name]['trajectory_tensor']  # [N, T, ...]
+                N, T, F_full = traj.view(traj.shape[0], traj.shape[1], -1).shape
+                X = traj.view(N, T, -1)  # [N, T, F_full]
+
+                # Time subsampling
+                t_idx = torch.arange(0, T, time_stride, device=X.device)
+                X = X.index_select(1, t_idx)  # [N, T_used, F_full]
+                T_used = X.shape[1]
+
+                # Random projection to K dims (use float32 to avoid fp16 kernel paths)
+                F = X.shape[-1]
+                K = min(K_target, F)
+                if use_rp and K < F:
+                    g = torch.Generator(device=X.device)
+                    g.manual_seed(seed)
+                    R = torch.randn(F, K, device=X.device, dtype=torch.float32, generator=g) / math.sqrt(F)
+                    X2 = (X.reshape(N * T_used, F).to(torch.float32) @ R).reshape(N, T_used, K)
+                else:
+                    X2 = X[..., :K] if F >= K else X  # upcast happens below before SVD
+
+                # Center across videos per time-feature (optional)
+                if center and N > 1:
+                    mean_tf = X2.mean(dim=0, keepdim=True)  # [1, T_used, K]
+                    X2 = X2 - mean_tf
+
+                # Flatten time-feature for PCA across videos and ensure float32
+                X_flat = X2.reshape(N, T_used * X2.shape[-1]).to(torch.float32)  # [N, T_used*K]
+                if center:
+                    X_flat = X_flat - X_flat.mean(dim=0, keepdim=True)
+
+                # SVD-based PCA: explicitly disable autocast to avoid fp16 on CUDA
+                try:
+                    if self.device.startswith('cuda'):
+                        with torch.amp.autocast('cuda', enabled=False):
+                            U, S, Vh = torch.linalg.svd(X_flat, full_matrices=False)
+                    else:
+                        U, S, Vh = torch.linalg.svd(X_flat, full_matrices=False)
+                except Exception as svd_err:
+                    self.logger.warning(f"[FPCA] {group_name}: CUDA SVD failed ({svd_err}); retrying on CPU in float32")
+                    U, S, Vh = torch.linalg.svd(X_flat.cpu(), full_matrices=False)
+                    U = U.to(X_flat.device); S = S.to(X_flat.device); Vh = Vh.to(X_flat.device)
+
+                # Explained variance
+                S2 = (S ** 2)
+                total_var = float(S2.sum().item()) if S2.numel() > 0 else 0.0
+
+                r = min(max_components, U.shape[1])
+                evr_t = (S2[:r] / (S2.sum() + 1e-12)).detach().float().cpu().numpy()
+                evr = evr_t.tolist()
+                cum_evr = np.cumsum(evr_t).tolist()
+
+                # Principal functions: reshape first r right-singular vectors to [r, T_used, K]
+                Vh_r = Vh[:r, :]  # [r, T_used*K]
+                principal_functions = (
+                    Vh_r.reshape(r, T_used, X2.shape[-1])
+                        .detach().float().cpu().numpy().tolist()
+                )
+
+                # Scores per video: U[:, :r] * S[:r]
+                scores = (U[:, :r] * S[:r]).detach().float().cpu().numpy().tolist()
+
+                # Variance profiles
+                temporal_var_profile = X2.var(dim=(0, 2)).detach().float().cpu().numpy().tolist()  # [T_used]
+                across_video_var = X2.var(dim=0).mean(dim=-1).detach().float().cpu().numpy().tolist()  # [T_used]
+
+                out[group_name] = {
+                    'principal_functions': principal_functions,          # [r, T_used, K]
+                    'explained_variance_ratio': evr,                     # [r]
+                    'cumulative_variance_ratio': cum_evr,                # [r]
+                    'scores': scores,                                    # [N, r]
+                    'temporal_variance_profile': temporal_var_profile,   # [T_used]
+                    'across_video_variance': across_video_var,           # [T_used]
+                    'metadata': {
+                        'videos': int(N),
+                        'time_used': int(T_used),
+                        'feature_dim_used': int(X2.shape[-1]),
+                        'time_stride': int(time_stride),
+                        'max_components': int(max_components),
+                        'dimensionality_reduced': bool(use_rp and K < F),
+                        'original_feature_dim': int(F_full),
+                        'total_variance': total_var
+                    }
                 }
-                
+
+                self.logger.info(
+                    f"[FPCA] {group_name}: N={N} T_used={T_used} K={X2.shape[-1]} "
+                    f"r={r} EVR1={(evr[0] if evr else 0.0):.3f} "
+                    f"t={(time.time()-t0)*1000:.0f}ms"
+                )
+
             except Exception as e:
-                self.logger.error(f"Error computing FPCA for {group_name}: {e}")
-                fpca_analysis[group_name] = {
-                    'error': str(e),
-                    'mean_trajectory': [],
-                    'explained_variance_ratio': []
+                self.logger.error(f"[FPCA] error for {group_name}: {e}")
+                out[group_name] = {
+                    'principal_functions': [],
+                    'explained_variance_ratio': [],
+                    'cumulative_variance_ratio': [],
+                    'scores': [],
+                    'temporal_variance_profile': [],
+                    'across_video_variance': [],
+                    'metadata': {'error': str(e)}
                 }
-        
-        return fpca_analysis
+
+        return out
 
     def _gpu_analyze_individual_trajectory_geometry(self, group_tensors: Dict[str, Dict[str, torch.Tensor]], 
                                                   prompt_groups: List[str]) -> Dict[str, Any]:
@@ -5206,8 +5372,11 @@ Please check the analysis logs for detailed error information.
                 
                 individual_metrics = {
                     'speeds': [],
-                    'volumes': [],
+                    'log_bbox_volumes': [],
+                    'effective_sides': [],
                     'circuitousness': [],
+                    'endpoint_alignment': [],
+                    'turning_angle': [],
                     'path_lengths': [],
                     'endpoint_distances': [],
                     'step_size_variability': []
@@ -5255,8 +5424,8 @@ Please check the analysis logs for detailed error information.
                     
                     # Store metrics
                     individual_metrics['speeds'].append(float(mean_speed))
-                    individual_metrics['volumes'].append(float(individual_volume))
-                    individual_metrics['circuitousness'].append(float(circuitousness))
+                    individual_metrics['log_bbox_volumes'].append(float(log_bbox_vol)); individual_metrics['effective_sides'].append(float(eff_side))
+                    individual_metrics['circuitousness'].append(float(circuitousness)); individual_metrics['endpoint_alignment'].append(float(endpoint_alignment)); individual_metrics['turning_angle'].append(float(turning_angle))
                     individual_metrics['path_lengths'].append(float(path_length))
                     individual_metrics['endpoint_distances'].append(float(endpoint_distance))
                     individual_metrics['step_size_variability'].append(float(speed_variability))
@@ -5271,14 +5440,39 @@ Please check the analysis logs for detailed error information.
                         'median': float(np.median(individual_metrics['speeds'])),
                         'individual_values': individual_metrics['speeds']
                     },
-                    'volume_stats': {
-                        'mean': float(np.mean(individual_metrics['volumes'])),
-                        'std': float(np.std(individual_metrics['volumes'])),
-                        'min': float(np.min(individual_metrics['volumes'])),
-                        'max': float(np.max(individual_metrics['volumes'])),
-                        'median': float(np.median(individual_metrics['volumes'])),
-                        'individual_values': individual_metrics['volumes']
+                    'log_volume_stats': {
+                        'mean': float(np.mean(individual_metrics['log_bbox_volumes'])),
+                        'std': float(np.std(individual_metrics['log_bbox_volumes'])),
+                        'min': float(np.min(individual_metrics['log_bbox_volumes'])),
+                        'max': float(np.max(individual_metrics['log_bbox_volumes'])),
+                        'median': float(np.median(individual_metrics['log_bbox_volumes'])),
+                        'individual_values': individual_metrics['log_bbox_volumes']
+                    
                     },
+                    'effective_side_stats': {
+                        'mean': float(np.mean(individual_metrics['effective_sides'])),
+                        'std': float(np.std(individual_metrics['effective_sides'])),
+                        'min': float(np.min(individual_metrics['effective_sides'])),
+                        'max': float(np.max(individual_metrics['effective_sides'])),
+                        'median': float(np.median(individual_metrics['effective_sides'])),
+                        'individual_values': individual_metrics['effective_sides']
+                    },
+                    'endpoint_alignment_stats': {
+                        'mean': float(np.mean(individual_metrics['endpoint_alignment'])),
+                        'std': float(np.std(individual_metrics['endpoint_alignment'])),
+                        'min': float(np.min(individual_metrics['endpoint_alignment'])),
+                        'max': float(np.max(individual_metrics['endpoint_alignment'])),
+                        'median': float(np.median(individual_metrics['endpoint_alignment'])),
+                        'individual_values': individual_metrics['endpoint_alignment']
+                    },
+                    'turning_angle_stats': {
+                        'mean': float(np.mean(individual_metrics['turning_angle'])),
+                        'std': float(np.std(individual_metrics['turning_angle'])),
+                        'min': float(np.min(individual_metrics['turning_angle'])),
+                        'max': float(np.max(individual_metrics['turning_angle'])),
+                        'median': float(np.median(individual_metrics['turning_angle'])),
+                        'individual_values': individual_metrics['turning_angle']
+},
                     'circuitousness_stats': {
                         'mean': float(np.mean(individual_metrics['circuitousness'])),
                         'std': float(np.std(individual_metrics['circuitousness'])),
@@ -5319,259 +5513,220 @@ Please check the analysis logs for detailed error information.
         
         return trajectory_geometry
 
-    def _gpu_analyze_intrinsic_dimension(self, group_tensors: Dict[str, Dict[str, torch.Tensor]], 
-                                       prompt_groups: List[str]) -> Dict[str, Any]:
+    def _gpu_analyze_intrinsic_dimension(
+        self,
+        group_tensors: Dict[str, Dict[str, torch.Tensor]],
+        prompt_groups: List[str],
+    ) -> Dict[str, Any]:
         """
-        Estimate the intrinsic dimension (ID) of the trajectory manifold.
-        
-        Uses multiple methods to estimate the minimum number of independent variables
-        needed to describe the trajectory data with minimal information loss.
+        Intrinsic dimension analysis that is GPU/CPU memory-safe.
+
+        Pipeline per group:
+        1) Flatten features to [N*T, F_full].
+        2) (GPU) Optional Gaussian random projection to K << F_full in float32.
+        3) (GPU) Row subsample to at most `max_points`.
+        4) (CPU) Standardize and run PCA (randomized) for explained variance + #components @ 90/95/99%.
+        5) (CPU) Estimate ID via:
+                - TwoNN (Facco et al.) on a small subset.
+                - Levina–Bickel MLE with k in [k_min, k_max] (averaged), also on a small subset.
         """
-        intrinsic_dim_analysis = {}
-        
-        for group_name in sorted(group_tensors.keys()):
-            try:
-                trajectory_tensor = group_tensors[group_name]['trajectory_tensor']  # [videos, steps, ...]
-                flat_trajectories = trajectory_tensor.view(trajectory_tensor.shape[0], trajectory_tensor.shape[1], -1)
-                
-                # Convert to numpy and reshape for ID estimation
-                all_points = flat_trajectories.cpu().numpy().reshape(-1, flat_trajectories.shape[-1])
-                
-                # Sample points if dataset is too large
-                if all_points.shape[0] > 2000:
-                    indices = np.random.choice(all_points.shape[0], 2000, replace=False)
-                    sampled_points = all_points[indices]
-                else:
-                    sampled_points = all_points
-                
-                id_estimates = {}
-                
-                # Method 1: PCA-based intrinsic dimension (95% variance threshold)
-                try:
-                    from sklearn.decomposition import PCA
-                    pca = PCA()
-                    pca.fit(sampled_points)
-                    cumvar = np.cumsum(pca.explained_variance_ratio_)
-                    id_pca_95 = np.argmax(cumvar >= 0.95) + 1
-                    id_pca_99 = np.argmax(cumvar >= 0.99) + 1
-                    
-                    id_estimates['pca_95_percent'] = int(id_pca_95)
-                    id_estimates['pca_99_percent'] = int(id_pca_99)
-                    id_estimates['pca_explained_variance_ratios'] = pca.explained_variance_ratio_[:10].tolist()
-                except Exception as e:
-                    self.logger.warning(f"PCA ID estimation failed for {group_name}: {e}")
-                    id_estimates['pca_95_percent'] = 0
-                    id_estimates['pca_99_percent'] = 0
-                
-                # Method 2: Nearest neighbor-based ID estimation (if skdim available)
-                if INTRINSIC_DIM_AVAILABLE:
-                    try:
-                        # MLE estimator
-                        mle_id = skdim.id.MLE().fit(sampled_points)
-                        id_estimates['mle_estimate'] = float(mle_id.dimension_)
-                        
-                        # TwoNN estimator
-                        twonn_id = skdim.id.TwoNN().fit(sampled_points)
-                        id_estimates['twonn_estimate'] = float(twonn_id.dimension_)
-                        
-                    except Exception as e:
-                        self.logger.warning(f"skdim ID estimation failed for {group_name}: {e}")
-                        id_estimates['mle_estimate'] = 0.0
-                        id_estimates['twonn_estimate'] = 0.0
-                else:
-                    id_estimates['mle_estimate'] = 0.0
-                    id_estimates['twonn_estimate'] = 0.0
-                
-                # Method 3: Correlation dimension estimation (simple version)
-                try:
-                    # Compute pairwise distances
-                    distances = pdist(sampled_points[:500])  # Sample for efficiency
-                    
-                    # Create range of radius values
-                    min_dist, max_dist = np.min(distances), np.max(distances)
-                    radii = np.logspace(np.log10(min_dist + 1e-10), np.log10(max_dist), 20)
-                    
-                    # Count points within each radius
-                    counts = []
-                    for r in radii:
-                        count = np.sum(distances <= r)
-                        counts.append(count)
-                    
-                    # Estimate dimension from scaling relationship
-                    log_radii = np.log(radii[1:])
-                    log_counts = np.log(np.array(counts[1:]) + 1)
-                    
-                    # Linear fit to estimate dimension
-                    if len(log_radii) > 3:
-                        slope, _ = np.polyfit(log_radii, log_counts, 1)
-                        correlation_dim = float(slope)
-                    else:
-                        correlation_dim = 0.0
-                    
-                    id_estimates['correlation_dimension'] = correlation_dim
-                    
-                except Exception as e:
-                    self.logger.warning(f"Correlation dimension estimation failed for {group_name}: {e}")
-                    id_estimates['correlation_dimension'] = 0.0
-                
-                # Method 4: SVD-based rank estimation
-                try:
-                    U, s, Vt = np.linalg.svd(sampled_points, full_matrices=False)
-                    
-                    # Find effective rank using different thresholds
-                    total_var = np.sum(s**2)
-                    cumulative_var = np.cumsum(s**2) / total_var
-                    
-                    rank_95 = np.argmax(cumulative_var >= 0.95) + 1
-                    rank_99 = np.argmax(cumulative_var >= 0.99) + 1
-                    
-                    # Numerical rank (condition number based)
-                    condition_number = s[0] / (s[-1] + 1e-10)
-                    numerical_rank = np.sum(s > s[0] * 1e-12)
-                    
-                    id_estimates['svd_rank_95'] = int(rank_95)
-                    id_estimates['svd_rank_99'] = int(rank_99)
-                    id_estimates['numerical_rank'] = int(numerical_rank)
-                    id_estimates['condition_number'] = float(condition_number)
-                    id_estimates['singular_values'] = s[:10].tolist()
-                    
-                except Exception as e:
-                    self.logger.warning(f"SVD rank estimation failed for {group_name}: {e}")
-                    id_estimates['svd_rank_95'] = 0
-                    id_estimates['svd_rank_99'] = 0
-                
-                # Compute consensus estimate
-                valid_estimates = []
-                if id_estimates.get('pca_95_percent', 0) > 0:
-                    valid_estimates.append(id_estimates['pca_95_percent'])
-                if id_estimates.get('mle_estimate', 0) > 0:
-                    valid_estimates.append(id_estimates['mle_estimate'])
-                if id_estimates.get('twonn_estimate', 0) > 0:
-                    valid_estimates.append(id_estimates['twonn_estimate'])
-                if id_estimates.get('svd_rank_95', 0) > 0:
-                    valid_estimates.append(id_estimates['svd_rank_95'])
-                
-                if valid_estimates:
-                    consensus_id = float(np.median(valid_estimates))
-                    id_range = float(np.max(valid_estimates) - np.min(valid_estimates))
-                else:
-                    consensus_id = 0.0
-                    id_range = 0.0
-                
-                intrinsic_dim_analysis[group_name] = {
-                    **id_estimates,
-                    'consensus_intrinsic_dimension': consensus_id,
-                    'id_estimate_range': id_range,
-                    'ambient_dimension': int(sampled_points.shape[1]),
-                    'n_samples_analyzed': int(sampled_points.shape[0]),
-                    'dimension_reduction_ratio': float(consensus_id / sampled_points.shape[1]) if sampled_points.shape[1] > 0 else 0.0,
-                    'manifold_complexity': 'low' if consensus_id < 10 else 'medium' if consensus_id < 50 else 'high'
-                }
-                
-            except Exception as e:
-                self.logger.error(f"Error computing intrinsic dimension for {group_name}: {e}")
-                intrinsic_dim_analysis[group_name] = {
-                    'error': str(e),
-                    'consensus_intrinsic_dimension': 0.0
-                }
-        
-        return intrinsic_dim_analysis
+
+        id_cfg = getattr(
+            self,
+            "id_cfg",
+            {
+                "use_random_projection": True,
+                "rp_dim": 512,            # target feature dim after RP (256–512 is good)
+                "max_points": 2000,       # cap rows for PCA/ID
+                "corr_max_points": 600,   # cap rows for NN / pairwise distance based estimators
+                "pca_components": 50,     # cap PCA components (randomized)
+                "center": True,
+                "standardize": True,
+                "random_seed": 42,
+                "twoNN_min_frac": 0.05,   # fraction of tail to ignore in TwoNN fit (robustness)
+                "twoNN_max_frac": 0.95,
+                "mle_k_min": 10,
+                "mle_k_max": 20,
+            },
+        )
+
+        use_rp: bool = bool(id_cfg.get("use_random_projection", True))
+        rp_dim: int = int(id_cfg.get("rp_dim", 512))
+        max_points: int = int(id_cfg.get("max_points", 2000))
+        corr_max_points: int = int(id_cfg.get("corr_max_points", 600))
+        pca_components_cap: int = int(id_cfg.get("pca_components", 50))
+        center: bool = bool(id_cfg.get("center", True))
+        standardize: bool = bool(id_cfg.get("standardize", True))
+        seed: int = int(id_cfg.get("random_seed", 42))
+        twoNN_min_frac: float = float(id_cfg.get("twoNN_min_frac", 0.05))
+        twoNN_max_frac: float = float(id_cfg.get("twoNN_max_frac", 0.95))
+        mle_k_min: int = int(id_cfg.get("mle_k_min", 10))
+        mle_k_max: int = int(id_cfg.get("mle_k_max", 20))
+
+        import math
+        import numpy as np
+        from typing import Optional
+        from sklearn.decomposition import PCA
+
+        def _twonn_id(points: np.ndarray) -> float:
+            """
+            Facco et al. TwoNN estimator.
+            - Compute for each point the ratio mu = d2/d1 (2nd / 1st NN).
+            - Fit: log(1 - F(mu)) vs log(mu) over central quantiles -> slope ~ -ID.
+            """
+            n = points.shape[0]
+            if n < 20:
+                return float("nan")
+
+            # Pairwise distances (small n, already projected)
+            # Use chunking-free broadcast since corr_max_points <= ~600
+            diffs = points[:, None, :] - points[None, :, :]
+            D = np.sqrt(np.sum(diffs * diffs, axis=2))  # (n, n)
+            np.fill_diagonal(D, np.inf)
+            # For each row, get smallest and second smallest distances
+            d1 = np.partition(D, 0, axis=1)[:, 0]
+            d2 = np.partition(D, 1, axis=1)[:, 1]
+            # Guard against zeros
+            d1 = np.clip(d1, 1e-12, None)
+            mu = d2 / d1
+
+            # Sort mu and compute empirical CDF
+            mu_sorted = np.sort(mu)
+            F = (np.arange(1, n + 1) - 0.5) / n
+
+            # Trim tails for robustness
+            lo = int(max(1, math.floor(twoNN_min_frac * n)))
+            hi = int(min(n, math.ceil(twoNN_max_frac * n)))
+            if hi - lo < 10:
+                return float("nan")
+
+            x = np.log(mu_sorted[lo:hi])
+            y = np.log(1.0 - F[lo:hi])
+
+            # Linear fit y = a + b x; slope b ≈ -ID
+            # Use robust guard against NaN/inf
+            msk = np.isfinite(x) & np.isfinite(y)
+            if msk.sum() < 10:
+                return float("nan")
+            b, a = np.polyfit(x[msk], y[msk], 1)
+            id_est = -float(b)
+            return id_est if np.isfinite(id_est) and id_est > 0 else float("nan")
+
+        def _mle_id(points: np.ndarray, k_min: int = 10, k_max: int = 20) -> float:
+            """
+            Levina–Bickel MLE (average over k in [k_min, k_max]).
+            Implementation uses full pairwise distances (OK for <= ~600).
+            """
+            n = points.shape[0]
+            if n <= k_max + 1:
+                return float("nan")
+
+            diffs = points[:, None, :] - points[None, :, :]
+            D = np.sqrt(np.sum(diffs * diffs, axis=2))  # (n, n)
+            np.fill_diagonal(D, np.inf)
+            # Sort distances per row
+            D_sorted = np.sort(D, axis=1)  # increasing, D_sorted[:, 0] is 1-NN
+
+            ids = []
+            for k in range(k_min, k_max + 1):
+                # Levina–Bickel: m_hat = [ 1 / ( (1/(n*(k-1))) * sum_i sum_{j=1..k-1} log(d_{ik} / d_{ij}) ) ]
+                # Using natural log.
+                d_k = D_sorted[:, k]  # distance to k-th neighbor (0-based)
+                d_js = D_sorted[:, 1:k]  # distances to 1..(k-1)-th neighbors
+                ratio = d_k[:, None] / np.clip(d_js, 1e-12, None)
+                s = np.log(np.clip(ratio, 1e-12, None)).sum(axis=1)  # per i
+                denom = np.mean(s)  # average over i
+                if denom <= 0 or not np.isfinite(denom):
+                    continue
+                m_hat = (1.0 / ((1.0 / (k - 1)) * denom))
+                if np.isfinite(m_hat) and m_hat > 0:
+                    ids.append(m_hat)
+
+            if len(ids) == 0:
+                return float("nan")
+            return float(np.mean(ids))
+
 
     # =============================================================================
     # NEW ADVANCED GEOMETRIC ANALYSIS VISUALIZATIONS
     # =============================================================================
     
     def _plot_convex_hull_analysis(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
-        """Plot convex hull volume analysis showing representational diversity."""
-        try:
-            fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=self.viz_config.figsize_standard)
-            
-            hull_data = results.convex_hull_analysis
-            sorted_group_names = sorted(hull_data.keys())
-            colors = self.viz_config.get_colors(len(sorted_group_names))
-            
-            # Extract metrics
-            hull_volumes = []
-            hull_areas = []
-            densities = []
-            diameters = []
-            
-            for group_name in sorted_group_names:
-                data = hull_data[group_name]
-                if 'error' not in data:
-                    hull_volumes.append(data.get('hull_volume', 0))
-                    hull_areas.append(data.get('hull_surface_area', 0))
-                    densities.append(data.get('density_metric', 0))
-                    diameters.append(data.get('point_cloud_diameter', 0))
-                else:
-                    hull_volumes.append(0)
-                    hull_areas.append(0)
-                    densities.append(0)
-                    diameters.append(0)
-            
-            # Plot 1: Hull Volume (Primary diversity metric)
-            bars = ax1.bar(sorted_group_names, hull_volumes, alpha=self.viz_config.alpha, color=colors)
-            ax1.set_xlabel('Prompt Group', fontsize=self.viz_config.fontsize_labels)
-            ax1.set_ylabel('Convex Hull Volume', fontsize=self.viz_config.fontsize_labels)
-            ax1.set_title('Representational Diversity (Hull Volume)\nLarger = More Diverse Outputs',
-                         fontsize=self.viz_config.fontsize_title, fontweight=self.viz_config.fontweight_title)
-            ax1.tick_params(axis='x', rotation=45, labelsize=self.viz_config.fontsize_labels)
-            ax1.grid(True, alpha=self.viz_config.grid_alpha)
-            
-            # Add value labels
-            for bar, vol in zip(bars, hull_volumes):
-                height = bar.get_height()
-                ax1.annotate(f'{vol:.2e}',
-                           xy=(bar.get_x() + bar.get_width() / 2, height),
-                           xytext=(0, 3), textcoords="offset points",
-                           ha='center', va='bottom', fontsize=6)
-            
-            # Plot 2: Point Cloud Diameter
-            bars = ax2.bar(sorted_group_names, diameters, alpha=self.viz_config.alpha, color=colors)
-            ax2.set_xlabel('Prompt Group', fontsize=self.viz_config.fontsize_labels)
-            ax2.set_ylabel('Point Cloud Diameter', fontsize=self.viz_config.fontsize_labels)
-            ax2.set_title('Latent Space Span\nMaximum Distance Between Points',
-                         fontsize=self.viz_config.fontsize_title, fontweight=self.viz_config.fontweight_title)
-            ax2.tick_params(axis='x', rotation=45, labelsize=self.viz_config.fontsize_labels)
-            ax2.grid(True, alpha=self.viz_config.grid_alpha)
-            
-            # Plot 3: Density Metric
-            bars = ax3.bar(sorted_group_names, densities, alpha=self.viz_config.alpha, color=colors)
-            ax3.set_xlabel('Prompt Group', fontsize=self.viz_config.fontsize_labels)
-            ax3.set_ylabel('Density (Points/Volume)', fontsize=self.viz_config.fontsize_labels)
-            ax3.set_title('Trajectory Density\nHigher = More Concentrated',
-                         fontsize=self.viz_config.fontsize_title, fontweight=self.viz_config.fontweight_title)
-            ax3.tick_params(axis='x', rotation=45, labelsize=self.viz_config.fontsize_labels)
-            ax3.grid(True, alpha=self.viz_config.grid_alpha)
-            
-            # Plot 4: Volume vs Area relationship
-            if hull_volumes and hull_areas:
-                scatter = ax4.scatter(hull_volumes, hull_areas, c=range(len(sorted_group_names)), 
-                                    cmap='viridis', alpha=0.7, s=100)
-                
-                # Add group labels
-                for i, group_name in enumerate(sorted_group_names):
-                    ax4.annotate(group_name, (hull_volumes[i], hull_areas[i]), 
-                               xytext=(5, 5), textcoords='offset points', fontsize=8)
-                
-                ax4.set_xlabel('Hull Volume', fontsize=self.viz_config.fontsize_labels)
-                ax4.set_ylabel('Hull Surface Area', fontsize=self.viz_config.fontsize_labels)
-                ax4.set_title('Volume vs Surface Area\nGeometric Relationship',
-                             fontsize=self.viz_config.fontsize_title, fontweight=self.viz_config.fontweight_title)
-                ax4.grid(True, alpha=self.viz_config.grid_alpha)
-            else:
-                ax4.text(0.5, 0.5, 'No valid hull data\nfor visualization', 
-                        ha='center', va='center', transform=ax4.transAxes)
-                ax4.set_title('Volume vs Surface Area')
-            
-            plt.tight_layout()
-            plt.savefig(viz_dir / f"convex_hull_analysis.{self.viz_config.save_format}", 
-                       dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
-            plt.close()
-            
-        except Exception as e:
-            self.logger.error(f"Error creating convex hull visualization: {e}")
-            plt.close()
+        """Plot convex hull proxy metrics with numerically stable scales."""
+        data = results.convex_hull_analysis
+        group_names = sorted(data.keys())
+        if not group_names:
+            return
+    
+        # Collect metrics with fallbacks
+        log_vols = []
+        eff_sides = []
+        densities = []
+        areas = []
+        for g in group_names:
+            d = data[g]
+            log_v = d.get('log_bbox_volume', None)
+            if log_v is None:
+                v = max(float(d.get('hull_volume', 0.0)), 1e-300)
+                log_v = math.log(v)
+            log_vols.append(log_v)
+            eff = d.get('effective_side', None)
+            if eff is None:
+                D = max(int(d.get('latent_dim_used', 1)), 1)
+                eff = math.exp(log_v / D)
+            eff_sides.append(eff)
+            densities.append(float(d.get('density_metric', 0.0)))
+            areas.append(float(d.get('hull_surface_area', 0.0)))
+    
+        colors = self.viz_config.get_colors(len(group_names)) if hasattr(self, 'viz_config') else sns.color_palette("husl", len(group_names))
+    
+        # Figure 1: Log Volume and Effective Side
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+    
+        bars1 = ax1.bar(group_names, log_vols, color=colors, alpha=0.85)
+        ax1.set_title('Convex Hull Proxy: Log Bounding-Box Volume', fontsize=12, fontweight='bold')
+        ax1.set_xlabel('Prompt Group'); ax1.set_ylabel('log Volume')
+        ax1.tick_params(axis='x', rotation=45)
+        for bar, v in zip(bars1, log_vols):
+            ax1.text(bar.get_x() + bar.get_width()/2., bar.get_height(),
+                     f'{v:.2f}', ha='center', va='bottom', fontsize=8, rotation=90)
+    
+        bars2 = ax2.bar(group_names, eff_sides, color=colors, alpha=0.85)
+        ax2.set_title('Convex Hull Proxy: Effective Side Length (Geometric Mean)', fontsize=12, fontweight='bold')
+        ax2.set_xlabel('Prompt Group'); ax2.set_ylabel('Effective Side')
+        ax2.tick_params(axis='x', rotation=45)
+        for bar, v in zip(bars2, eff_sides):
+            ax2.text(bar.get_x() + bar.get_width()/2., bar.get_height(),
+                     f'{v:.3e}', ha='center', va='bottom', fontsize=8, rotation=90)
+    
+        plt.tight_layout()
+        fmt = getattr(self.viz_config, 'save_format', 'png') if hasattr(self, 'viz_config') else 'png'
+        dpi = getattr(self.viz_config, 'dpi', 300) if hasattr(self, 'viz_config') else 300
+        plt.savefig(viz_dir / f"convex_hull_proxies_1.{fmt}", dpi=dpi, bbox_inches='tight')
+        plt.close(fig)
+    
+        # Figure 2: Density and Volume vs Area
+        fig2, (bx1, bx2) = plt.subplots(1, 2, figsize=(15, 6))
+    
+        bars3 = bx1.bar(group_names, densities, color=colors, alpha=0.85)
+        bx1.set_title('Density Metric (points / volume)', fontsize=12, fontweight='bold')
+        bx1.set_xlabel('Prompt Group'); bx1.set_ylabel('Density')
+        bx1.tick_params(axis='x', rotation=45)
+        for bar, v in zip(bars3, densities):
+            bx1.text(bar.get_x() + bar.get_width()/2., bar.get_height(),
+                     f'{v:.3e}', ha='center', va='bottom', fontsize=8, rotation=90)
+    
+        # Scatter: log volume vs area proxy
+        bx2.scatter(log_vols, areas, c=list(range(len(group_names))), cmap='viridis', s=90, edgecolors='black')
+        for i, g in enumerate(group_names):
+            bx2.annotate(g, (log_vols[i], areas[i]), xytext=(6, 6), textcoords='offset points', fontsize=8)
+        bx2.set_title('Log Volume vs Area Proxy', fontsize=12, fontweight='bold')
+        bx2.set_xlabel('log Volume'); bx2.set_ylabel('Area Proxy (sum of ranges)')
+        bx2.grid(True, alpha=0.3)
+    
+        plt.tight_layout()
+        plt.savefig(viz_dir / f"convex_hull_proxies_2.{fmt}", dpi=dpi, bbox_inches='tight')
+        plt.close(fig2)
 
     def _plot_functional_pca_analysis(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
         """Plot Functional PCA analysis showing trajectory shape decomposition."""
@@ -5712,16 +5867,16 @@ Please check the analysis logs for detailed error information.
             for group_name in sorted_group_names:
                 data = geometry_data[group_name]
                 if 'error' not in data:
-                    volume_means.append(data['volume_stats']['mean'])
-                    volume_stds.append(data['volume_stats']['std'])
+                    volume_means.append(data['log_volume_stats']['mean'])
+                    volume_stds.append(data['log_volume_stats']['std'])
                 else:
                     volume_means.append(0)
                     volume_stds.append(0)
             
             bars = ax2.bar(sorted_group_names, volume_means, yerr=volume_stds, 
                           alpha=self.viz_config.alpha, color=colors, capsize=5)
-            ax2.set_ylabel('Mean Volume', fontsize=self.viz_config.fontsize_labels)
-            ax2.set_title('Individual Trajectory Volume\n(Exploration)', fontweight=self.viz_config.fontweight_title)
+            ax2.set_ylabel('Mean Log Volume (bbox proxy)', fontsize=self.viz_config.fontsize_labels)
+            ax2.set_title('Individual Trajectory Log-Volume (Exploration)', fontweight=self.viz_config.fontweight_title)
             ax2.tick_params(axis='x', rotation=45, labelsize=self.viz_config.fontsize_labels)
             ax2.grid(True, alpha=self.viz_config.grid_alpha)
             
@@ -5751,11 +5906,11 @@ Please check the analysis logs for detailed error information.
                 data = geometry_data[group_name]
                 if 'error' not in data:
                     speeds = data['speed_stats']['individual_values'][:20]  # Sample
-                    volumes = data['volume_stats']['individual_values'][:20]  # Sample
+                    volumes = data['log_volume_stats']['individual_values'][:20]  # Sample
                     ax4.scatter(speeds, volumes, label=group_name, alpha=0.7, color=colors[i])
             
             ax4.set_xlabel('Speed', fontsize=self.viz_config.fontsize_labels)
-            ax4.set_ylabel('Volume', fontsize=self.viz_config.fontsize_labels)
+            ax4.set_ylabel('Log Volume', fontsize=self.viz_config.fontsize_labels)
             ax4.set_title('Speed vs Volume\n(Individual Trajectories)', fontweight=self.viz_config.fontweight_title)
             ax4.legend(fontsize=self.viz_config.fontsize_legend)
             ax4.grid(True, alpha=self.viz_config.grid_alpha)
@@ -5776,29 +5931,30 @@ Please check the analysis logs for detailed error information.
             ax5.grid(True, alpha=self.viz_config.grid_alpha)
             
             # Plot 6: Trajectory Efficiency Metrics
+            # Plot 6: Trajectory Efficiency Types (quantile-based by turning angle)
             ax6 = plt.subplot(3, 3, 6)
             ballistic_counts = []
             meandering_counts = []
             for group_name in sorted_group_names:
                 data = geometry_data[group_name]
-                if 'error' not in data:
-                    ballistic_counts.append(data['efficiency_metrics']['ballistic_trajectories_count'])
-                    meandering_counts.append(data['efficiency_metrics']['meandering_trajectories_count'])
-                else:
-                    ballistic_counts.append(0)
-                    meandering_counts.append(0)
-            
+                if 'error' in data:
+                    ballistic_counts.append(0); meandering_counts.append(0)
+                    continue
+                vals = np.array(data['turning_angle_stats']['individual_values'])
+                if vals.size == 0:
+                    ballistic_counts.append(0); meandering_counts.append(0)
+                    continue
+                lo = np.quantile(vals, 0.20)
+                hi = np.quantile(vals, 0.80)
+                ballistic_counts.append(int((vals <= lo).sum()))
+                meandering_counts.append(int((vals >= hi).sum()))
             x = np.arange(len(sorted_group_names))
             width = 0.35
-            
-            bars1 = ax6.bar(x - width/2, ballistic_counts, width, label='Ballistic (<1.5)', 
-                           alpha=self.viz_config.alpha, color='green')
-            bars2 = ax6.bar(x + width/2, meandering_counts, width, label='Meandering (>3.0)', 
-                           alpha=self.viz_config.alpha, color='orange')
-            
+            ax6.bar(x - width/2, ballistic_counts, width, label='Low curvature (20% quantile)')
+            ax6.bar(x + width/2, meandering_counts, width, label='High curvature (80% quantile)')
             ax6.set_xlabel('Prompt Group', fontsize=self.viz_config.fontsize_labels)
             ax6.set_ylabel('Trajectory Count', fontsize=self.viz_config.fontsize_labels)
-            ax6.set_title('Trajectory Efficiency Types\n(Ballistic vs Meandering)', fontweight=self.viz_config.fontweight_title)
+            ax6.set_title('Trajectory Efficiency Types (turning-angle quantiles)', fontweight=self.viz_config.fontweight_title)
             ax6.set_xticks(x)
             ax6.set_xticklabels(sorted_group_names, rotation=45, fontsize=self.viz_config.fontsize_labels)
             ax6.legend(fontsize=self.viz_config.fontsize_legend)
@@ -5836,6 +5992,15 @@ Please check the analysis logs for detailed error information.
             fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=self.viz_config.figsize_standard)
             
             id_data = results.intrinsic_dimension_analysis
+            if not id_data:
+                fig, ax = plt.subplots(1,1, figsize=self.viz_config.figsize_standard)
+                ax.text(0.5,0.5,'Intrinsic dimension not computed',ha='center',va='center',transform=ax.transAxes)
+                ax.axis('off')
+                plt.tight_layout()
+                plt.savefig(viz_dir / f"intrinsic_dimension_analysis.{self.viz_config.save_format}", 
+                            dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
+                plt.close()
+                return
             sorted_group_names = sorted(id_data.keys())
             colors = self.viz_config.get_colors(len(sorted_group_names))
             
