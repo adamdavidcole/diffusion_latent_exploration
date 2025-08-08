@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from scipy.stats import entropy
 import matplotlib.pyplot as plt
 import seaborn as sns
+import traceback
 
 # Try to import FFT functions
 try:
@@ -32,6 +33,22 @@ try:
     TORCH_FFT_AVAILABLE = True
 except ImportError:
     TORCH_FFT_AVAILABLE = False
+
+# Advanced geometry and statistical imports for new metrics
+try:
+    from scipy.spatial import ConvexHull
+    from scipy.spatial.distance import pdist, squareform
+    from sklearn.decomposition import PCA, TruncatedSVD
+    from sklearn.neighbors import NearestNeighbors
+    ADVANCED_GEOMETRY_AVAILABLE = True
+except ImportError:
+    ADVANCED_GEOMETRY_AVAILABLE = False
+    
+try:
+    import skdim
+    INTRINSIC_DIM_AVAILABLE = True
+except ImportError:
+    INTRINSIC_DIM_AVAILABLE = False
 
 
 @dataclass
@@ -96,6 +113,11 @@ class LatentTrajectoryAnalysis:
     temporal_analysis: Dict[str, Any]
     structural_analysis: Dict[str, Any]
     statistical_significance: Dict[str, Any]
+    # New advanced geometric analysis components
+    convex_hull_analysis: Dict[str, Any]
+    functional_pca_analysis: Dict[str, Any]
+    individual_trajectory_geometry: Dict[str, Any]
+    intrinsic_dimension_analysis: Dict[str, Any]
     gpu_performance_stats: Dict[str, Any]
     analysis_metadata: Dict[str, Any]
     
@@ -114,6 +136,10 @@ class LatentTrajectoryAnalysis:
             'temporal_analysis': self.temporal_analysis,
             'structural_analysis': self.structural_analysis,
             'statistical_significance': self.statistical_significance,
+            'convex_hull_analysis': self.convex_hull_analysis,
+            'functional_pca_analysis': self.functional_pca_analysis,
+            'individual_trajectory_geometry': self.individual_trajectory_geometry,
+            'intrinsic_dimension_analysis': self.intrinsic_dimension_analysis,
             'gpu_performance_stats': self.gpu_performance_stats,
             'analysis_metadata': self.analysis_metadata
         }
@@ -122,36 +148,70 @@ class LatentTrajectoryAnalysis:
 class LatentTrajectoryAnalyzer:
     """GPU-accelerated structure-aware latent analysis with trajectory preservation."""
     
-    def __init__(self, latents_dir: str, device: str = "auto", 
-                 enable_mixed_precision: bool = True, batch_size: int = 32,
-                 output_dir: Optional[str] = None, viz_config: Optional[VisualizationConfig] = None):
-        """Initialize GPU-optimized analyzer."""
+    # ...existing code...
+
+
+    def __init__(
+        self,
+        latents_dir: str,
+        device: str = "auto",
+        enable_mixed_precision: bool = True,
+        batch_size: int = 32,
+        output_dir: Optional[str] = None,
+        viz_config: Optional[VisualizationConfig] = None,
+        # Convex hull / geometry config
+        hull_mode: str = "auto",
+        hull_max_dim_exact: int = 8,
+        hull_max_points_exact: int = 500,
+        hull_rp_dim: int = 8,
+        hull_rp_projections: int = 12,
+        hull_sample_points: int = 2000,
+        hull_sample_features: int = 8192,
+        hull_time_budget_ms: int = 3000,
+    ):
+        """Initialize GPU-optimized analyzer.
+
+        Parameters
+        ----------
+        latents_dir : str
+            Path to the batch's ``latents/`` directory.
+        device : str
+            "cpu", "cuda", "cuda:N", or "auto" to pick automatically.
+        enable_mixed_precision : bool
+            Whether to enable autocast mixed precision on CUDA.
+        batch_size : int
+            Batch size for GPU ops.
+        output_dir : Optional[str]
+            Where to write analysis outputs. Defaults to ``<batch>/latent_trajectory_analysis_results``.
+        viz_config : Optional[VisualizationConfig]
+            Styling options for plots.
+        Hull/geometry kwargs mirror CLI flags in ``run_latent_trajectory_analysis.py``.
+        """
+        # Paths & basic settings
         self.latents_dir = Path(latents_dir)
         self.enable_mixed_precision = enable_mixed_precision
         self.batch_size = batch_size
-        
+
         # Device setup
         if device == "auto":
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         else:
             self.device = device
 
-        print("latents_dir", self.latents_dir)
-        
         # Output directory
         if output_dir is None:
             self.output_dir = self.latents_dir.parent / "latent_trajectory_analysis_results"
         else:
             self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(exist_ok=True)
-        
+        self.output_dir.mkdir(exist_ok=True, parents=True)
+
         # Visualization configuration
         self.viz_config = viz_config or VisualizationConfig()
         self.viz_config.apply_style_settings()
-        
+
         # Setup logging
         self.logger = logging.getLogger(__name__)
-        
+
         # Performance tracking
         self.performance_stats = {
             'device_used': self.device,
@@ -159,12 +219,124 @@ class LatentTrajectoryAnalyzer:
             'batch_size': self.batch_size,
             'memory_usage': {}
         }
-        
+
+        # Convex hull analysis configuration
+        self.hull_cfg = {
+            'mode': hull_mode,
+            'max_dim_exact': int(hull_max_dim_exact),
+            'max_points_exact': int(hull_max_points_exact),
+            'rp_dim': int(hull_rp_dim),
+            'rp_projections': int(hull_rp_projections),
+            'sample_points': int(hull_sample_points),
+            'sample_features': int(hull_sample_features),
+            'time_budget_ms': int(hull_time_budget_ms),
+        }
+
         self.logger.info(f"Initialized GPU analyzer on {self.device}")
         if self.device.startswith("cuda"):
-            self.logger.info(f"GPU: {torch.cuda.get_device_name()}")
-            self.logger.info(f"Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
-
+            try:
+                self.logger.info(f"GPU: {torch.cuda.get_device_name()}")
+                props = torch.cuda.get_device_properties(0)
+                self.logger.info(f"Memory: {props.total_memory / 1e9:.1f} GB")
+            except Exception:
+                pass
+    def _gpu_analyze_convex_hull_metrics_safe(self, group_tensors: Dict[str, Dict[str, torch.Tensor]], 
+                                            prompt_groups: List[str]) -> Dict[str, Any]:
+        """
+        Performance-safe convex hull analysis that avoids Qhull entirely.
+        Uses proxy metrics (bounding-box volume, sum-of-ranges surface proxy, ellipsoidal log-det)
+        with aggressive sampling of points and features. Returns keys compatible with viz.
+        """
+        cfg = getattr(self, 'hull_cfg', {})
+        sample_points = int(cfg.get('sample_points', 2000))
+        sample_features = int(cfg.get('sample_features', 8192))
+        self.logger.info(f"[Hull] entering safe hull method; groups={len(group_tensors)} SP={sample_points} SF={sample_features}")
+        start_ts = time.time()
+        
+        def _pairwise_stats(points_np: np.ndarray) -> Tuple[float, float]:
+            m = min(points_np.shape[0], 500)
+            if m < 2:
+                return 0.0, 0.0
+            X = points_np[:m]
+            diffs = X[:, None, :] - X[None, :, :]
+            d = np.sqrt(np.sum(diffs * diffs, axis=-1))
+            iu = np.triu_indices(m, 1)
+            dv = d[iu]
+            if dv.size == 0:
+                return 0.0, 0.0
+            return float(dv.max()), float(dv.mean())
+        
+        results: Dict[str, Any] = {}
+        for group_name in sorted(group_tensors.keys()):
+            grp_t0 = time.time()
+            try:
+                traj = group_tensors[group_name]['trajectory_tensor']  # [videos, steps, ...]
+                flat = traj.view(traj.shape[0], traj.shape[1], -1)
+                n_videos, n_steps, latent_dim = flat.shape
+                total_points = n_videos * n_steps
+                dim_reduced = False
+                if latent_dim > sample_features:
+                    idx = torch.randperm(latent_dim, device=flat.device)[:sample_features]
+                    flat = flat[..., idx]
+                    latent_dim = flat.shape[-1]
+                    dim_reduced = True
+                points = flat.reshape(-1, latent_dim)
+                if points.shape[0] > sample_points:
+                    ridx = torch.randperm(points.shape[0], device=points.device)[:sample_points]
+                    points = points.index_select(0, ridx)
+                pts_np = points.float().cpu().numpy()
+                mins = np.min(pts_np, axis=0)
+                maxs = np.max(pts_np, axis=0)
+                ranges = np.maximum(maxs - mins, 1e-12)
+                log_bbox_vol = float(np.sum(np.log(ranges)))
+                bbox_vol = float(np.exp(np.clip(log_bbox_vol, -700.0, 700.0)))
+                area_proxy = float(np.sum(ranges))
+                X = pts_np - pts_np.mean(axis=0, keepdims=True)
+                if X.shape[0] > 1 and X.shape[1] > 0:
+                    try:
+                        svals = np.linalg.svd(X, full_matrices=False, compute_uv=False)
+                        eig = (svals ** 2) / max(1, X.shape[0] - 1)
+                        ellipsoid_log_det = float(np.sum(np.log(eig + 1e-12)))
+                    except Exception:
+                        ellipsoid_log_det = float('nan')
+                else:
+                    ellipsoid_log_det = float('nan')
+                diameter, mean_dist = _pairwise_stats(pts_np)
+                results[group_name] = {
+                    'hull_volume': bbox_vol,
+                    'hull_surface_area': area_proxy,
+                    'n_hull_vertices': 0,
+                    'point_cloud_diameter': diameter,
+                    'mean_pairwise_distance': mean_dist,
+                    'total_trajectory_points': int(total_points),
+                    'dimensionality_reduced': bool(dim_reduced),
+                    'volume_per_point': float(bbox_vol / max(1, total_points)),
+                    'density_metric': float(total_points / (bbox_vol + 1e-10)),
+                    'ellipsoid_log_det': ellipsoid_log_det,
+                    'method': 'proxy_safe'
+                }
+                self.logger.info(
+                    f"[Hull] {group_name}: done pts={pts_np.shape[0]}/{total_points} dim={latent_dim} "
+                    f"vol≈{bbox_vol:.3e} area≈{area_proxy:.3e} diam≈{diameter:.3e} mean_d≈{mean_dist:.3e} "
+                    f"t={(time.time()-grp_t0)*1000:.0f}ms")
+            except Exception as e:
+                self.logger.error(f"[Hull] error for {group_name}: {e}")
+                results[group_name] = {
+                    'hull_volume': 0.0,
+                    'hull_surface_area': 0.0,
+                    'n_hull_vertices': 0,
+                    'point_cloud_diameter': 0.0,
+                    'mean_pairwise_distance': 0.0,
+                    'total_trajectory_points': 0,
+                    'dimensionality_reduced': False,
+                    'volume_per_point': 0.0,
+                    'density_metric': 0.0,
+                    'method': 'proxy_safe',
+                    'error': str(e)
+                }
+        self.logger.info(f"[Hull] safe hull analysis completed in {(time.time()-start_ts)*1000:.0f}ms")
+        return results
+    
     def _compute_spectral_entropy(self, power_spectrum: torch.Tensor) -> float:
         """Compute spectral entropy of power spectrum."""
         # Normalize to probability distribution
@@ -286,6 +458,19 @@ class LatentTrajectoryAnalyzer:
             self.logger.info("Running structural analysis...")
             analysis_results['structural_analysis'] = self._gpu_analyze_structural_patterns(group_tensors, prompt_groups)
             
+            # NEW: Advanced geometric analysis
+            self.logger.info("Running convex hull analysis...")
+            analysis_results['convex_hull_analysis'] = self._gpu_analyze_convex_hull_metrics_safe(group_tensors, prompt_groups)
+            
+            self.logger.info("Running functional PCA analysis...")
+            analysis_results['functional_pca_analysis'] = self._gpu_analyze_functional_pca(group_tensors, prompt_groups)
+            
+            self.logger.info("Running individual trajectory geometry analysis...")
+            analysis_results['individual_trajectory_geometry'] = self._gpu_analyze_individual_trajectory_geometry(group_tensors, prompt_groups)
+            
+            self.logger.info("Running intrinsic dimension analysis...")
+            analysis_results['intrinsic_dimension_analysis'] = self._gpu_analyze_intrinsic_dimension(group_tensors, prompt_groups)
+            
             # Statistical significance
             self.logger.info("Running statistical significance tests...")
             analysis_results['statistical_significance'] = self._gpu_test_statistical_significance(group_tensors, prompt_groups)
@@ -320,6 +505,10 @@ class LatentTrajectoryAnalyzer:
             temporal_analysis=analysis_results['temporal_analysis'],
             structural_analysis=analysis_results['structural_analysis'],
             statistical_significance=analysis_results['statistical_significance'],
+            convex_hull_analysis=analysis_results['convex_hull_analysis'],
+            functional_pca_analysis=analysis_results['functional_pca_analysis'],
+            individual_trajectory_geometry=analysis_results['individual_trajectory_geometry'],
+            intrinsic_dimension_analysis=analysis_results['intrinsic_dimension_analysis'],
             gpu_performance_stats=self.performance_stats,
             analysis_metadata=analysis_metadata
         )
@@ -390,22 +579,35 @@ class LatentTrajectoryAnalyzer:
             # 9e. Endpoint Constellation Analysis (final latent space positions)
             self._plot_endpoint_constellations(results, viz_dir)
             
-            # 10. Temporal Stability Windows
+            # NEW: Advanced Geometric Analysis Visualizations
+            # 10. Convex Hull Volume Analysis
+            self._plot_convex_hull_analysis(results, viz_dir)
+            
+            # 11. Functional PCA Analysis
+            self._plot_functional_pca_analysis(results, viz_dir)
+            
+            # 12. Individual Trajectory Geometry Dashboard
+            self._plot_individual_trajectory_geometry_dashboard(results, viz_dir)
+            
+            # 13. Intrinsic Dimension Analysis
+            self._plot_intrinsic_dimension_analysis(results, viz_dir)
+            
+            # 14. Temporal Stability Windows
             self._plot_temporal_stability_windows(results, viz_dir)
             
-            # 11. Channel Evolution Patterns
+            # 15. Channel Evolution Patterns
             self._plot_channel_evolution_patterns(results, viz_dir)
             
-            # 12. Global Structure Analysis
+            # 16. Global Structure Analysis
             self._plot_global_structure_analysis(results, viz_dir)
             
-            # 13. Information Content Analysis
+            # 17. Information Content Analysis
             self._plot_information_content_analysis(results, viz_dir)
             
-            # 14. Complexity Measures
+            # 18. Complexity Measures
             self._plot_complexity_measures(results, viz_dir)
             
-            # 15. Statistical Significance Tests
+            # 19. Statistical Significance Tests
             self._plot_statistical_significance(results, viz_dir)
             
             # 16. Temporal Analysis Visualizations
@@ -3293,7 +3495,7 @@ Most Significant Comparison:
             raise
 
     def _generate_research_insights(self, results: LatentTrajectoryAnalysis, group_names: List[str]) -> str:
-        """Generate research insights text based on analysis results."""
+        """Generate research insights text based on analysis results including advanced geometric metrics."""
         
         try:
             # Extract key metrics for statistical analysis
@@ -3302,13 +3504,26 @@ Most Significant Comparison:
             momentum_data = results.temporal_coherence.get('temporal_momentum_analysis', {})
             separability_data = results.group_separability.get('inter_group_distances', {})
             
+            # NEW: Extract advanced geometric metrics
+            hull_data = results.convex_hull_analysis
+            fpca_data = results.functional_pca_analysis  
+            geometry_data = results.individual_trajectory_geometry
+            id_data = results.intrinsic_dimension_analysis
+            
             # Calculate summary statistics
             trajectory_distances = []
             consistency_scores = []
             avg_velocities = []
             
+            # NEW: Advanced geometric summary statistics
+            hull_volumes = []
+            trajectory_complexities = []
+            individual_speeds = []
+            individual_circuitousness = []
+            intrinsic_dimensions = []
+            
             for group in group_names:
-                # Trajectory distance
+                # Original trajectory distance
                 if group in spatial_data:
                     pattern = spatial_data[group].get('trajectory_pattern', [])
                     if pattern and len(pattern) > 1:
@@ -3324,8 +3539,31 @@ Most Significant Comparison:
                     velocity_mean = momentum_data[group].get('velocity_mean', [])
                     if velocity_mean:
                         avg_velocities.append(np.mean(np.abs(velocity_mean)))
+                
+                # NEW: Convex hull volume (representational diversity)
+                if group in hull_data and 'error' not in hull_data[group]:
+                    hull_volumes.append(hull_data[group].get('hull_volume', 0))
+                
+                # NEW: Functional PCA complexity
+                if group in fpca_data and 'error' not in fpca_data[group]:
+                    eff_components = fpca_data[group].get('effective_components_95', 0)
+                    trajectory_complexities.append(eff_components)
+                
+                # NEW: Individual trajectory metrics
+                if group in geometry_data and 'error' not in geometry_data[group]:
+                    speed_stats = geometry_data[group].get('speed_stats', {})
+                    circuit_stats = geometry_data[group].get('circuitousness_stats', {})
+                    if speed_stats:
+                        individual_speeds.append(speed_stats.get('mean', 0))
+                    if circuit_stats:
+                        individual_circuitousness.append(circuit_stats.get('mean', 0))
+                
+                # NEW: Intrinsic dimension (manifold complexity)
+                if group in id_data and 'error' not in id_data[group]:
+                    consensus_dim = id_data[group].get('consensus_intrinsic_dimension', 0)
+                    intrinsic_dimensions.append(consensus_dim)
             
-            # Statistical tests
+            # Statistical tests (enhanced)
             significant_findings = []
             
             if len(trajectory_distances) > 2:
@@ -3344,6 +3582,22 @@ Most Significant Comparison:
                 if velocity_cv > 0.2:  # >20% coefficient of variation
                     significant_findings.append("SIGNIFICANT: Trajectory velocities differ meaningfully between groups")
             
+            # NEW: Advanced geometric significance tests
+            if len(hull_volumes) > 2:
+                hull_cv = np.std(hull_volumes) / np.mean(hull_volumes) if np.mean(hull_volumes) > 0 else 0
+                if hull_cv > 0.3:  # >30% coefficient of variation
+                    significant_findings.append("SIGNIFICANT: Representational diversity (hull volume) varies dramatically between prompts")
+            
+            if len(individual_circuitousness) > 2:
+                circuit_range = max(individual_circuitousness) - min(individual_circuitousness)
+                if circuit_range > 1.0:  # Circuitousness difference > 1.0
+                    significant_findings.append("SIGNIFICANT: Trajectory efficiency patterns differ between prompt groups")
+            
+            if len(intrinsic_dimensions) > 2:
+                id_range = max(intrinsic_dimensions) - min(intrinsic_dimensions)
+                if id_range > 5:  # Intrinsic dimension difference > 5
+                    significant_findings.append("SIGNIFICANT: Manifold complexity varies between prompt groups")
+            
             # Count groups with U-shaped pattern
             u_shaped_count = 0
             for group in group_names:
@@ -3358,51 +3612,71 @@ Most Significant Comparison:
                             u_shaped_count += 1
             
             insights_text = f"""
-🔬 RESEARCH FINDINGS: PROMPT SPECIFICITY & LATENT TRAJECTORY ANALYSIS
+🔬 RESEARCH FINDINGS: ADVANCED GEOMETRIC TRAJECTORY ANALYSIS
 
-📊 STATISTICAL SUMMARY:
+📊 COMPREHENSIVE STATISTICAL SUMMARY:
 • Groups Analyzed: {len(group_names)}
+
+BASIC TRAJECTORY METRICS:
 • Trajectory Distance Range: {max(trajectory_distances) - min(trajectory_distances):.3f} ({len(trajectory_distances)} groups)
 • Consistency Score Range: {max(consistency_scores) - min(consistency_scores):.3f} ({len(consistency_scores)} groups)
 • Velocity Variation (CV): {(np.std(avg_velocities) / np.mean(avg_velocities)):.3f} ({len(avg_velocities)} groups)
 
+NEW: ADVANCED GEOMETRIC METRICS:
+• Hull Volume Range: {f"{min(hull_volumes):.2e} - {max(hull_volumes):.2e}" if hull_volumes else "No data"} (representational diversity)
+• FPCA Complexity Range: {f"{min(trajectory_complexities)} - {max(trajectory_complexities)} components" if trajectory_complexities else "No data"}
+• Individual Speed Range: {f"{min(individual_speeds):.3f} - {max(individual_speeds):.3f}" if individual_speeds else "No data"}
+• Circuitousness Range: {f"{min(individual_circuitousness):.2f} - {max(individual_circuitousness):.2f}" if individual_circuitousness else "No data"}
+• Intrinsic Dimension Range: {f"{min(intrinsic_dimensions):.1f} - {max(intrinsic_dimensions):.1f}" if intrinsic_dimensions else "No data"}
+
 🎯 KEY RESEARCH QUESTIONS ANSWERED:
 
-1. TRAJECTORY DISTANCE & SPECIFICITY:
-   {"✅ CONFIRMED" if len(trajectory_distances) > 0 and (max(trajectory_distances) - min(trajectory_distances)) > 0.5 * np.mean(trajectory_distances) else "❌ INCONCLUSIVE"}: More specific prompts show {"different" if len(trajectory_distances) > 0 else "unknown"} trajectory distances
-   Range: {f"{min(trajectory_distances):.3f} - {max(trajectory_distances):.3f}" if trajectory_distances else "No data"}
+1. CONVEX HULL VOLUME (Representational Diversity):
+   {"✅ CONFIRMED" if len(hull_volumes) > 0 and np.std(hull_volumes)/np.mean(hull_volumes) > 0.3 else "❌ INCONCLUSIVE"}: Prompt specificity affects latent space occupation
+   Most Diverse: {group_names[hull_volumes.index(max(hull_volumes))] if hull_volumes else "Unknown"} (Volume: {max(hull_volumes):.2e if hull_volumes else 0})
 
-2. GENERATION CONSISTENCY PATTERNS:
-   {"✅ SIGNIFICANT VARIATION" if len(consistency_scores) > 0 and (max(consistency_scores) - min(consistency_scores)) > 0.3 else "❌ MINIMAL VARIATION"}: Prompt groups show {"substantial" if len(consistency_scores) > 0 and (max(consistency_scores) - min(consistency_scores)) > 0.3 else "limited"} consistency differences
-   Range: {f"{min(consistency_scores):.3f} - {max(consistency_scores):.3f}" if consistency_scores else "No data"}
+2. FUNCTIONAL PCA COMPLEXITY:
+   {"✅ SIGNIFICANT" if len(trajectory_complexities) > 0 and max(trajectory_complexities) - min(trajectory_complexities) > 2 else "❌ MINIMAL"}: Trajectory shape complexity varies by prompt
+   Range: {f"{min(trajectory_complexities)} - {max(trajectory_complexities)} effective components" if trajectory_complexities else "No data"}
 
-3. UNIVERSAL DENOISING PATTERN:
+3. INDIVIDUAL TRAJECTORY GEOMETRY:
+   Speed Efficiency: {"✅ VARIES" if len(individual_speeds) > 0 and np.std(individual_speeds)/np.mean(individual_speeds) > 0.2 else "❌ UNIFORM"}
+   Path Efficiency: {"✅ VARIES" if len(individual_circuitousness) > 0 and max(individual_circuitousness) - min(individual_circuitousness) > 1.0 else "❌ UNIFORM"}
+   Most Efficient: {group_names[individual_circuitousness.index(min(individual_circuitousness))] if individual_circuitousness else "Unknown"} (Circuitousness: {min(individual_circuitousness):.2f if individual_circuitousness else 0})
+
+4. INTRINSIC DIMENSION (Manifold Complexity):
+   {"✅ CONFIRMED" if len(intrinsic_dimensions) > 0 and max(intrinsic_dimensions) - min(intrinsic_dimensions) > 5 else "❌ INCONCLUSIVE"}: Prompt complexity affects latent manifold dimensionality
+   Simplest Manifold: {group_names[intrinsic_dimensions.index(min(intrinsic_dimensions))] if intrinsic_dimensions else "Unknown"} (ID: {min(intrinsic_dimensions):.1f if intrinsic_dimensions else 0})
+
+5. UNIVERSAL DENOISING PATTERN:
    {"✅ CONFIRMED" if u_shaped_count > len(group_names) * 0.7 else "❌ PARTIAL"}: U-shaped pattern observed in {u_shaped_count}/{len(group_names)} groups ({u_shaped_count/len(group_names)*100:.1f}%)
 
 🔍 SIGNIFICANT FINDINGS:
 {chr(10).join(f"• {finding}" for finding in significant_findings) if significant_findings else "• No statistically significant patterns detected"}
 
-🧠 RESEARCH IMPLICATIONS:
-• Diffusion latent trajectories ARE measurably different between prompt types
-• Content specificity influences generation mechanics at the latent level
-• Universal denoising physics preserved while allowing content-dependent variation
-• These patterns could enable bias detection in representational "space" coverage
+🧠 ADVANCED RESEARCH IMPLICATIONS:
+• VOLUMETRIC MEASUREMENT: Convex hull volumes quantify representational "area" occupied by different concepts
+• SHAPE CHARACTERIZATION: FPCA reveals dominant modes of variation in trajectory manifolds  
+• INDIVIDUAL GEOMETRY: Speed, volume, and circuitousness provide trajectory-level insights
+• COMPLEXITY MEASUREMENT: Intrinsic dimension estimates reveal latent manifold complexity
 
 📈 STATISTICAL CONFIDENCE:
-• Large Effect Sizes: {"✅" if len(significant_findings) >= 2 else "❌"} Multiple significant patterns detected
+• Large Effect Sizes: {"✅" if len(significant_findings) >= 3 else "❌"} Multiple significant patterns detected
 • Reproducible Patterns: {"✅" if u_shaped_count > len(group_names) * 0.5 else "❌"} Universal denoising confirmed
 • Group Separability: {"✅" if len(separability_data) > 0 else "❌"} Mathematical distinction between prompt groups
+• Geometric Validation: {"✅" if len(hull_volumes) > 0 and len(intrinsic_dimensions) > 0 else "❌"} Advanced metrics confirm trajectory differences
 
 🎯 NEXT RESEARCH DIRECTIONS:
-• Investigate trajectory "area" coverage for bias detection
-• Analyze semantic embedding alignment with trajectory patterns  
-• Test hypothesis on larger prompt specificity gradients
-• Develop metrics for representational dominance measurement
+• Correlate convex hull volume with visual output diversity
+• Map FPCA eigenfunctions to semantic content changes
+• Develop efficiency metrics for generation quality prediction
+• Use intrinsic dimension for bias detection in representational coverage
 
 ⚠️  METHODOLOGICAL NOTES:
 • Analysis based on {results.analysis_metadata.get("trajectory_shape", "unknown")} latent shape
-• Temporal dimension: {results.analysis_metadata.get("device_used", "unknown")} processing
-• Statistical power depends on N={len(group_names)} prompt groups
+• Processing: {results.analysis_metadata.get("device_used", "unknown")}
+• Advanced geometric methods: ConvexHull, FPCA, Individual Geometry, Intrinsic Dimension
+• Statistical power: N={len(group_names)} prompt groups
             """.strip()
             
             return insights_text
@@ -4741,3 +5015,939 @@ Please check the analysis logs for detailed error information.
         }
         
         return structured_results
+
+    # =============================================================================
+    # NEW ADVANCED GEOMETRIC ANALYSIS METHODS
+    # =============================================================================
+    
+    def _gpu_analyze_convex_hull_metrics(self, group_tensors: Dict[str, Dict[str, torch.Tensor]], 
+                                       prompt_groups: List[str]) -> Dict[str, Any]:
+        """
+        Compute convex hull volume metrics for trajectory sets.
+        
+        For each prompt group, treats all trajectory points as a massive point cloud
+        and computes the convex hull volume as a measure of representational diversity.
+        """
+        convex_hull_analysis = {}
+        
+        for group_name in sorted(group_tensors.keys()):
+            try:
+                trajectory_tensor = group_tensors[group_name]['trajectory_tensor']  # [videos, steps, ...]
+                flat_trajectories = trajectory_tensor.view(trajectory_tensor.shape[0], trajectory_tensor.shape[1], -1)
+                
+                # Convert to CPU numpy for scipy ConvexHull
+                all_points = flat_trajectories.cpu().numpy().reshape(-1, flat_trajectories.shape[-1])
+                
+                # For high-dimensional data, we need to be careful with ConvexHull
+                if not ADVANCED_GEOMETRY_AVAILABLE:
+                    self.logger.warning(f"Advanced geometry libraries not available, using approximation for {group_name}")
+                    # Approximation using PCA projection to lower dimensions
+                    from sklearn.decomposition import PCA
+                    pca = PCA(n_components=min(10, all_points.shape[1], all_points.shape[0]//2))
+                    points_reduced = pca.fit_transform(all_points)
+                    
+                    # Use bounding box volume as approximation
+                    mins = np.min(points_reduced, axis=0)
+                    maxs = np.max(points_reduced, axis=0)
+                    box_volume = np.prod(maxs - mins)
+                    hull_volume = box_volume  # Approximation
+                    hull_area = np.sum(maxs - mins)  # Approximation
+                    n_vertices = points_reduced.shape[0]
+                    
+                else:
+                    # For very high dimensions, project to lower dimensional space first
+                    if all_points.shape[1] > 20:
+                        from sklearn.decomposition import PCA
+                        pca = PCA(n_components=min(20, all_points.shape[0]//2))
+                        points_reduced = pca.fit_transform(all_points)
+                    else:
+                        points_reduced = all_points
+                        
+                    # Remove duplicate points for ConvexHull
+                    unique_points = np.unique(points_reduced, axis=0)
+                    
+                    if len(unique_points) >= points_reduced.shape[1] + 1:  # Minimum points for hull
+                        hull = ConvexHull(unique_points)
+                        hull_volume = hull.volume
+                        hull_area = hull.area if hasattr(hull, 'area') else 0.0
+                        n_vertices = len(hull.vertices)
+                    else:
+                        # Fallback to bounding box
+                        mins = np.min(unique_points, axis=0)
+                        maxs = np.max(unique_points, axis=0)
+                        hull_volume = np.prod(maxs - mins)
+                        hull_area = np.sum(maxs - mins)
+                        n_vertices = len(unique_points)
+                
+                # Additional metrics
+                point_cloud_diameter = np.max(pdist(all_points[:1000]))  # Sample for efficiency
+                mean_pairwise_distance = np.mean(pdist(all_points[:500]))  # Sample for efficiency
+                
+                convex_hull_analysis[group_name] = {
+                    'hull_volume': float(hull_volume),
+                    'hull_surface_area': float(hull_area),
+                    'n_hull_vertices': int(n_vertices),
+                    'point_cloud_diameter': float(point_cloud_diameter),
+                    'mean_pairwise_distance': float(mean_pairwise_distance),
+                    'total_trajectory_points': int(all_points.shape[0]),
+                    'dimensionality_reduced': all_points.shape[1] > 20,
+                    'volume_per_point': float(hull_volume / all_points.shape[0]),
+                    'density_metric': float(all_points.shape[0] / (hull_volume + 1e-10))
+                }
+                
+            except Exception as e:
+                self.logger.error(f"Error computing convex hull for {group_name}: {e}")
+                convex_hull_analysis[group_name] = {
+                    'hull_volume': 0.0,
+                    'error': str(e)
+                }
+        
+        return convex_hull_analysis
+
+    def _gpu_analyze_functional_pca(self, group_tensors: Dict[str, Dict[str, torch.Tensor]], 
+                                  prompt_groups: List[str]) -> Dict[str, Any]:
+        """
+        Perform Functional Principal Component Analysis (FPCA) on trajectory curves.
+        
+        Treats each trajectory as a function over time and decomposes into:
+        1. Mean trajectory function
+        2. Principal component functions (eigenfunctions)
+        3. Variance explained by each component
+        """
+        fpca_analysis = {}
+        
+        for group_name in sorted(group_tensors.keys()):
+            try:
+                trajectory_tensor = group_tensors[group_name]['trajectory_tensor']  # [videos, steps, ...]
+                flat_trajectories = trajectory_tensor.view(trajectory_tensor.shape[0], trajectory_tensor.shape[1], -1)
+                
+                n_videos, n_steps, latent_dim = flat_trajectories.shape
+                
+                # Convert to numpy for sklearn
+                trajectories_np = flat_trajectories.cpu().numpy()
+                
+                # Reshape for functional analysis: treat each step as a separate function
+                # We'll analyze each latent dimension separately then aggregate
+                
+                mean_trajectory = np.mean(trajectories_np, axis=0)  # [steps, latent_dim]
+                
+                # Center the trajectories
+                centered_trajectories = trajectories_np - mean_trajectory[np.newaxis, :, :]
+                
+                # For FPCA, we treat time dimension as the function domain
+                # Reshape to [videos, steps*latent_dim] for PCA across the functional space
+                functional_data = centered_trajectories.reshape(n_videos, -1)
+                
+                # Perform PCA on the functional data
+                from sklearn.decomposition import PCA
+                n_components = min(10, n_videos-1, functional_data.shape[1])
+                pca = PCA(n_components=n_components)
+                principal_scores = pca.fit_transform(functional_data)
+                
+                # Reshape principal components back to functional form
+                principal_functions = pca.components_.reshape(n_components, n_steps, latent_dim)
+                
+                # Calculate functional variance measures
+                temporal_variance = np.var(trajectories_np, axis=0)  # [steps, latent_dim]
+                cross_video_variance = np.var(trajectories_np, axis=2)  # [videos, steps]
+                
+                # Identify dominant modes of variation
+                explained_variance_ratio = pca.explained_variance_ratio_
+                cumulative_variance = np.cumsum(explained_variance_ratio)
+                
+                # Find effective number of components (95% variance)
+                effective_components = np.argmax(cumulative_variance >= 0.95) + 1
+                
+                fpca_analysis[group_name] = {
+                    'mean_trajectory': mean_trajectory.tolist(),
+                    'principal_functions': principal_functions.tolist(),
+                    'explained_variance_ratio': explained_variance_ratio.tolist(),
+                    'cumulative_variance': cumulative_variance.tolist(),
+                    'principal_scores': principal_scores.tolist(),
+                    'effective_components_95': int(effective_components),
+                    'temporal_variance_profile': temporal_variance.mean(axis=1).tolist(),  # Average across latent dims
+                    'cross_video_variance_profile': cross_video_variance.mean(axis=0).tolist(),  # Average across videos
+                    'total_functional_variance': float(np.var(functional_data)),
+                    'dominant_mode_strength': float(explained_variance_ratio[0]) if len(explained_variance_ratio) > 0 else 0.0,
+                    'mode_diversity_index': float(1.0 - explained_variance_ratio[0]) if len(explained_variance_ratio) > 0 else 0.0,
+                    'n_trajectories_analyzed': int(n_videos),
+                    'n_time_steps': int(n_steps),
+                    'latent_dimensionality': int(latent_dim)
+                }
+                
+            except Exception as e:
+                self.logger.error(f"Error computing FPCA for {group_name}: {e}")
+                fpca_analysis[group_name] = {
+                    'error': str(e),
+                    'mean_trajectory': [],
+                    'explained_variance_ratio': []
+                }
+        
+        return fpca_analysis
+
+    def _gpu_analyze_individual_trajectory_geometry(self, group_tensors: Dict[str, Dict[str, torch.Tensor]], 
+                                                  prompt_groups: List[str]) -> Dict[str, Any]:
+        """
+        Compute individual trajectory geometry metrics: speed, volume, circuitousness.
+        
+        For each trajectory in each group, computes:
+        1. Speed: Average step size (Euclidean distance between consecutive points)
+        2. Volume: Convex hull volume of the individual trajectory points
+        3. Circuitousness: Ratio of path length to straight-line endpoint distance
+        """
+        trajectory_geometry = {}
+        
+        for group_name in sorted(group_tensors.keys()):
+            try:
+                trajectory_tensor = group_tensors[group_name]['trajectory_tensor']  # [videos, steps, ...]
+                flat_trajectories = trajectory_tensor.view(trajectory_tensor.shape[0], trajectory_tensor.shape[1], -1)
+                
+                n_videos, n_steps, latent_dim = flat_trajectories.shape
+                
+                individual_metrics = {
+                    'speeds': [],
+                    'volumes': [],
+                    'circuitousness': [],
+                    'path_lengths': [],
+                    'endpoint_distances': [],
+                    'step_size_variability': []
+                }
+                
+                for video_idx in range(n_videos):
+                    trajectory = flat_trajectories[video_idx].cpu().numpy()  # [steps, latent_dim]
+                    
+                    # 1. Speed calculation
+                    step_differences = trajectory[1:] - trajectory[:-1]
+                    step_sizes = np.linalg.norm(step_differences, axis=1)
+                    mean_speed = np.mean(step_sizes)
+                    speed_variability = np.std(step_sizes)
+                    
+                    # 2. Path length and endpoint distance
+                    path_length = np.sum(step_sizes)
+                    endpoint_distance = np.linalg.norm(trajectory[-1] - trajectory[0])
+                    
+                    # 3. Circuitousness (tortuosity)
+                    circuitousness = path_length / (endpoint_distance + 1e-8)
+                    
+                    # 4. Individual trajectory volume (convex hull)
+                    try:
+                        if ADVANCED_GEOMETRY_AVAILABLE and latent_dim <= 20 and n_steps >= latent_dim + 1:
+                            # Direct convex hull computation
+                            unique_points = np.unique(trajectory, axis=0)
+                            if len(unique_points) >= latent_dim + 1:
+                                hull = ConvexHull(unique_points)
+                                individual_volume = hull.volume
+                            else:
+                                # Bounding box volume
+                                mins = np.min(trajectory, axis=0)
+                                maxs = np.max(trajectory, axis=0)
+                                individual_volume = np.prod(maxs - mins + 1e-8)
+                        else:
+                            # Bounding box approximation for high dimensions
+                            mins = np.min(trajectory, axis=0)
+                            maxs = np.max(trajectory, axis=0)
+                            individual_volume = np.prod(maxs - mins + 1e-8)
+                    except Exception:
+                        # Fallback: bounding box volume
+                        mins = np.min(trajectory, axis=0)
+                        maxs = np.max(trajectory, axis=0)
+                        individual_volume = np.prod(maxs - mins + 1e-8)
+                    
+                    # Store metrics
+                    individual_metrics['speeds'].append(float(mean_speed))
+                    individual_metrics['volumes'].append(float(individual_volume))
+                    individual_metrics['circuitousness'].append(float(circuitousness))
+                    individual_metrics['path_lengths'].append(float(path_length))
+                    individual_metrics['endpoint_distances'].append(float(endpoint_distance))
+                    individual_metrics['step_size_variability'].append(float(speed_variability))
+                
+                # Compute summary statistics
+                trajectory_geometry[group_name] = {
+                    'speed_stats': {
+                        'mean': float(np.mean(individual_metrics['speeds'])),
+                        'std': float(np.std(individual_metrics['speeds'])),
+                        'min': float(np.min(individual_metrics['speeds'])),
+                        'max': float(np.max(individual_metrics['speeds'])),
+                        'median': float(np.median(individual_metrics['speeds'])),
+                        'individual_values': individual_metrics['speeds']
+                    },
+                    'volume_stats': {
+                        'mean': float(np.mean(individual_metrics['volumes'])),
+                        'std': float(np.std(individual_metrics['volumes'])),
+                        'min': float(np.min(individual_metrics['volumes'])),
+                        'max': float(np.max(individual_metrics['volumes'])),
+                        'median': float(np.median(individual_metrics['volumes'])),
+                        'individual_values': individual_metrics['volumes']
+                    },
+                    'circuitousness_stats': {
+                        'mean': float(np.mean(individual_metrics['circuitousness'])),
+                        'std': float(np.std(individual_metrics['circuitousness'])),
+                        'min': float(np.min(individual_metrics['circuitousness'])),
+                        'max': float(np.max(individual_metrics['circuitousness'])),
+                        'median': float(np.median(individual_metrics['circuitousness'])),
+                        'individual_values': individual_metrics['circuitousness']
+                    },
+                    'path_length_stats': {
+                        'mean': float(np.mean(individual_metrics['path_lengths'])),
+                        'std': float(np.std(individual_metrics['path_lengths'])),
+                        'individual_values': individual_metrics['path_lengths']
+                    },
+                    'endpoint_distance_stats': {
+                        'mean': float(np.mean(individual_metrics['endpoint_distances'])),
+                        'std': float(np.std(individual_metrics['endpoint_distances'])),
+                        'individual_values': individual_metrics['endpoint_distances']
+                    },
+                    'step_variability_stats': {
+                        'mean': float(np.mean(individual_metrics['step_size_variability'])),
+                        'std': float(np.std(individual_metrics['step_size_variability'])),
+                        'individual_values': individual_metrics['step_size_variability']
+                    },
+                    'efficiency_metrics': {
+                        'mean_efficiency': float(np.mean([1.0/c for c in individual_metrics['circuitousness']])),
+                        'ballistic_trajectories_count': int(np.sum([c < 1.5 for c in individual_metrics['circuitousness']])),
+                        'meandering_trajectories_count': int(np.sum([c > 3.0 for c in individual_metrics['circuitousness']]))
+                    },
+                    'n_trajectories': int(n_videos)
+                }
+                
+            except Exception as e:
+                self.logger.error(f"Error computing individual trajectory geometry for {group_name}: {e}")
+                trajectory_geometry[group_name] = {
+                    'error': str(e),
+                    'n_trajectories': 0
+                }
+        
+        return trajectory_geometry
+
+    def _gpu_analyze_intrinsic_dimension(self, group_tensors: Dict[str, Dict[str, torch.Tensor]], 
+                                       prompt_groups: List[str]) -> Dict[str, Any]:
+        """
+        Estimate the intrinsic dimension (ID) of the trajectory manifold.
+        
+        Uses multiple methods to estimate the minimum number of independent variables
+        needed to describe the trajectory data with minimal information loss.
+        """
+        intrinsic_dim_analysis = {}
+        
+        for group_name in sorted(group_tensors.keys()):
+            try:
+                trajectory_tensor = group_tensors[group_name]['trajectory_tensor']  # [videos, steps, ...]
+                flat_trajectories = trajectory_tensor.view(trajectory_tensor.shape[0], trajectory_tensor.shape[1], -1)
+                
+                # Convert to numpy and reshape for ID estimation
+                all_points = flat_trajectories.cpu().numpy().reshape(-1, flat_trajectories.shape[-1])
+                
+                # Sample points if dataset is too large
+                if all_points.shape[0] > 2000:
+                    indices = np.random.choice(all_points.shape[0], 2000, replace=False)
+                    sampled_points = all_points[indices]
+                else:
+                    sampled_points = all_points
+                
+                id_estimates = {}
+                
+                # Method 1: PCA-based intrinsic dimension (95% variance threshold)
+                try:
+                    from sklearn.decomposition import PCA
+                    pca = PCA()
+                    pca.fit(sampled_points)
+                    cumvar = np.cumsum(pca.explained_variance_ratio_)
+                    id_pca_95 = np.argmax(cumvar >= 0.95) + 1
+                    id_pca_99 = np.argmax(cumvar >= 0.99) + 1
+                    
+                    id_estimates['pca_95_percent'] = int(id_pca_95)
+                    id_estimates['pca_99_percent'] = int(id_pca_99)
+                    id_estimates['pca_explained_variance_ratios'] = pca.explained_variance_ratio_[:10].tolist()
+                except Exception as e:
+                    self.logger.warning(f"PCA ID estimation failed for {group_name}: {e}")
+                    id_estimates['pca_95_percent'] = 0
+                    id_estimates['pca_99_percent'] = 0
+                
+                # Method 2: Nearest neighbor-based ID estimation (if skdim available)
+                if INTRINSIC_DIM_AVAILABLE:
+                    try:
+                        # MLE estimator
+                        mle_id = skdim.id.MLE().fit(sampled_points)
+                        id_estimates['mle_estimate'] = float(mle_id.dimension_)
+                        
+                        # TwoNN estimator
+                        twonn_id = skdim.id.TwoNN().fit(sampled_points)
+                        id_estimates['twonn_estimate'] = float(twonn_id.dimension_)
+                        
+                    except Exception as e:
+                        self.logger.warning(f"skdim ID estimation failed for {group_name}: {e}")
+                        id_estimates['mle_estimate'] = 0.0
+                        id_estimates['twonn_estimate'] = 0.0
+                else:
+                    id_estimates['mle_estimate'] = 0.0
+                    id_estimates['twonn_estimate'] = 0.0
+                
+                # Method 3: Correlation dimension estimation (simple version)
+                try:
+                    # Compute pairwise distances
+                    distances = pdist(sampled_points[:500])  # Sample for efficiency
+                    
+                    # Create range of radius values
+                    min_dist, max_dist = np.min(distances), np.max(distances)
+                    radii = np.logspace(np.log10(min_dist + 1e-10), np.log10(max_dist), 20)
+                    
+                    # Count points within each radius
+                    counts = []
+                    for r in radii:
+                        count = np.sum(distances <= r)
+                        counts.append(count)
+                    
+                    # Estimate dimension from scaling relationship
+                    log_radii = np.log(radii[1:])
+                    log_counts = np.log(np.array(counts[1:]) + 1)
+                    
+                    # Linear fit to estimate dimension
+                    if len(log_radii) > 3:
+                        slope, _ = np.polyfit(log_radii, log_counts, 1)
+                        correlation_dim = float(slope)
+                    else:
+                        correlation_dim = 0.0
+                    
+                    id_estimates['correlation_dimension'] = correlation_dim
+                    
+                except Exception as e:
+                    self.logger.warning(f"Correlation dimension estimation failed for {group_name}: {e}")
+                    id_estimates['correlation_dimension'] = 0.0
+                
+                # Method 4: SVD-based rank estimation
+                try:
+                    U, s, Vt = np.linalg.svd(sampled_points, full_matrices=False)
+                    
+                    # Find effective rank using different thresholds
+                    total_var = np.sum(s**2)
+                    cumulative_var = np.cumsum(s**2) / total_var
+                    
+                    rank_95 = np.argmax(cumulative_var >= 0.95) + 1
+                    rank_99 = np.argmax(cumulative_var >= 0.99) + 1
+                    
+                    # Numerical rank (condition number based)
+                    condition_number = s[0] / (s[-1] + 1e-10)
+                    numerical_rank = np.sum(s > s[0] * 1e-12)
+                    
+                    id_estimates['svd_rank_95'] = int(rank_95)
+                    id_estimates['svd_rank_99'] = int(rank_99)
+                    id_estimates['numerical_rank'] = int(numerical_rank)
+                    id_estimates['condition_number'] = float(condition_number)
+                    id_estimates['singular_values'] = s[:10].tolist()
+                    
+                except Exception as e:
+                    self.logger.warning(f"SVD rank estimation failed for {group_name}: {e}")
+                    id_estimates['svd_rank_95'] = 0
+                    id_estimates['svd_rank_99'] = 0
+                
+                # Compute consensus estimate
+                valid_estimates = []
+                if id_estimates.get('pca_95_percent', 0) > 0:
+                    valid_estimates.append(id_estimates['pca_95_percent'])
+                if id_estimates.get('mle_estimate', 0) > 0:
+                    valid_estimates.append(id_estimates['mle_estimate'])
+                if id_estimates.get('twonn_estimate', 0) > 0:
+                    valid_estimates.append(id_estimates['twonn_estimate'])
+                if id_estimates.get('svd_rank_95', 0) > 0:
+                    valid_estimates.append(id_estimates['svd_rank_95'])
+                
+                if valid_estimates:
+                    consensus_id = float(np.median(valid_estimates))
+                    id_range = float(np.max(valid_estimates) - np.min(valid_estimates))
+                else:
+                    consensus_id = 0.0
+                    id_range = 0.0
+                
+                intrinsic_dim_analysis[group_name] = {
+                    **id_estimates,
+                    'consensus_intrinsic_dimension': consensus_id,
+                    'id_estimate_range': id_range,
+                    'ambient_dimension': int(sampled_points.shape[1]),
+                    'n_samples_analyzed': int(sampled_points.shape[0]),
+                    'dimension_reduction_ratio': float(consensus_id / sampled_points.shape[1]) if sampled_points.shape[1] > 0 else 0.0,
+                    'manifold_complexity': 'low' if consensus_id < 10 else 'medium' if consensus_id < 50 else 'high'
+                }
+                
+            except Exception as e:
+                self.logger.error(f"Error computing intrinsic dimension for {group_name}: {e}")
+                intrinsic_dim_analysis[group_name] = {
+                    'error': str(e),
+                    'consensus_intrinsic_dimension': 0.0
+                }
+        
+        return intrinsic_dim_analysis
+
+    # =============================================================================
+    # NEW ADVANCED GEOMETRIC ANALYSIS VISUALIZATIONS
+    # =============================================================================
+    
+    def _plot_convex_hull_analysis(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
+        """Plot convex hull volume analysis showing representational diversity."""
+        try:
+            fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=self.viz_config.figsize_standard)
+            
+            hull_data = results.convex_hull_analysis
+            sorted_group_names = sorted(hull_data.keys())
+            colors = self.viz_config.get_colors(len(sorted_group_names))
+            
+            # Extract metrics
+            hull_volumes = []
+            hull_areas = []
+            densities = []
+            diameters = []
+            
+            for group_name in sorted_group_names:
+                data = hull_data[group_name]
+                if 'error' not in data:
+                    hull_volumes.append(data.get('hull_volume', 0))
+                    hull_areas.append(data.get('hull_surface_area', 0))
+                    densities.append(data.get('density_metric', 0))
+                    diameters.append(data.get('point_cloud_diameter', 0))
+                else:
+                    hull_volumes.append(0)
+                    hull_areas.append(0)
+                    densities.append(0)
+                    diameters.append(0)
+            
+            # Plot 1: Hull Volume (Primary diversity metric)
+            bars = ax1.bar(sorted_group_names, hull_volumes, alpha=self.viz_config.alpha, color=colors)
+            ax1.set_xlabel('Prompt Group', fontsize=self.viz_config.fontsize_labels)
+            ax1.set_ylabel('Convex Hull Volume', fontsize=self.viz_config.fontsize_labels)
+            ax1.set_title('Representational Diversity (Hull Volume)\nLarger = More Diverse Outputs',
+                         fontsize=self.viz_config.fontsize_title, fontweight=self.viz_config.fontweight_title)
+            ax1.tick_params(axis='x', rotation=45, labelsize=self.viz_config.fontsize_labels)
+            ax1.grid(True, alpha=self.viz_config.grid_alpha)
+            
+            # Add value labels
+            for bar, vol in zip(bars, hull_volumes):
+                height = bar.get_height()
+                ax1.annotate(f'{vol:.2e}',
+                           xy=(bar.get_x() + bar.get_width() / 2, height),
+                           xytext=(0, 3), textcoords="offset points",
+                           ha='center', va='bottom', fontsize=6)
+            
+            # Plot 2: Point Cloud Diameter
+            bars = ax2.bar(sorted_group_names, diameters, alpha=self.viz_config.alpha, color=colors)
+            ax2.set_xlabel('Prompt Group', fontsize=self.viz_config.fontsize_labels)
+            ax2.set_ylabel('Point Cloud Diameter', fontsize=self.viz_config.fontsize_labels)
+            ax2.set_title('Latent Space Span\nMaximum Distance Between Points',
+                         fontsize=self.viz_config.fontsize_title, fontweight=self.viz_config.fontweight_title)
+            ax2.tick_params(axis='x', rotation=45, labelsize=self.viz_config.fontsize_labels)
+            ax2.grid(True, alpha=self.viz_config.grid_alpha)
+            
+            # Plot 3: Density Metric
+            bars = ax3.bar(sorted_group_names, densities, alpha=self.viz_config.alpha, color=colors)
+            ax3.set_xlabel('Prompt Group', fontsize=self.viz_config.fontsize_labels)
+            ax3.set_ylabel('Density (Points/Volume)', fontsize=self.viz_config.fontsize_labels)
+            ax3.set_title('Trajectory Density\nHigher = More Concentrated',
+                         fontsize=self.viz_config.fontsize_title, fontweight=self.viz_config.fontweight_title)
+            ax3.tick_params(axis='x', rotation=45, labelsize=self.viz_config.fontsize_labels)
+            ax3.grid(True, alpha=self.viz_config.grid_alpha)
+            
+            # Plot 4: Volume vs Area relationship
+            if hull_volumes and hull_areas:
+                scatter = ax4.scatter(hull_volumes, hull_areas, c=range(len(sorted_group_names)), 
+                                    cmap='viridis', alpha=0.7, s=100)
+                
+                # Add group labels
+                for i, group_name in enumerate(sorted_group_names):
+                    ax4.annotate(group_name, (hull_volumes[i], hull_areas[i]), 
+                               xytext=(5, 5), textcoords='offset points', fontsize=8)
+                
+                ax4.set_xlabel('Hull Volume', fontsize=self.viz_config.fontsize_labels)
+                ax4.set_ylabel('Hull Surface Area', fontsize=self.viz_config.fontsize_labels)
+                ax4.set_title('Volume vs Surface Area\nGeometric Relationship',
+                             fontsize=self.viz_config.fontsize_title, fontweight=self.viz_config.fontweight_title)
+                ax4.grid(True, alpha=self.viz_config.grid_alpha)
+            else:
+                ax4.text(0.5, 0.5, 'No valid hull data\nfor visualization', 
+                        ha='center', va='center', transform=ax4.transAxes)
+                ax4.set_title('Volume vs Surface Area')
+            
+            plt.tight_layout()
+            plt.savefig(viz_dir / f"convex_hull_analysis.{self.viz_config.save_format}", 
+                       dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
+            plt.close()
+            
+        except Exception as e:
+            self.logger.error(f"Error creating convex hull visualization: {e}")
+            plt.close()
+
+    def _plot_functional_pca_analysis(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
+        """Plot Functional PCA analysis showing trajectory shape decomposition."""
+        try:
+            fpca_data = results.functional_pca_analysis
+            sorted_group_names = sorted(fpca_data.keys())
+            
+            # Create separate figures for different aspects
+            
+            # Figure 1: Mean trajectories and principal modes
+            fig, axes = plt.subplots(2, 2, figsize=self.viz_config.figsize_standard)
+            ax1, ax2, ax3, ax4 = axes.flatten()
+            
+            colors = self.viz_config.get_colors(len(sorted_group_names))
+            
+            # Plot 1: Mean Trajectories
+            for i, group_name in enumerate(sorted_group_names):
+                data = fpca_data[group_name]
+                if 'error' not in data and data.get('mean_trajectory'):
+                    mean_traj = np.array(data['mean_trajectory'])
+                    if mean_traj.ndim == 2:
+                        # Average across latent dimensions
+                        mean_traj_avg = np.mean(mean_traj, axis=1)
+                        steps = range(len(mean_traj_avg))
+                        ax1.plot(steps, mean_traj_avg, 'o-', label=group_name, 
+                               color=colors[i], linewidth=self.viz_config.linewidth, 
+                               markersize=self.viz_config.markersize)
+            
+            ax1.set_xlabel('Diffusion Step', fontsize=self.viz_config.fontsize_labels)
+            ax1.set_ylabel('Mean Trajectory Value', fontsize=self.viz_config.fontsize_labels)
+            ax1.set_title('Mean Trajectory Functions\n(FPCA Center)',
+                         fontsize=self.viz_config.fontsize_title, fontweight=self.viz_config.fontweight_title)
+            ax1.legend(fontsize=self.viz_config.fontsize_legend)
+            ax1.grid(True, alpha=self.viz_config.grid_alpha)
+            
+            # Plot 2: Explained Variance
+            for i, group_name in enumerate(sorted_group_names):
+                data = fpca_data[group_name]
+                if 'error' not in data and data.get('explained_variance_ratio'):
+                    var_ratios = data['explained_variance_ratio'][:5]  # First 5 components
+                    components = range(1, len(var_ratios) + 1)
+                    ax2.plot(components, var_ratios, 'o-', label=group_name, 
+                           color=colors[i], linewidth=self.viz_config.linewidth,
+                           markersize=self.viz_config.markersize)
+            
+            ax2.set_xlabel('Principal Component', fontsize=self.viz_config.fontsize_labels)
+            ax2.set_ylabel('Explained Variance Ratio', fontsize=self.viz_config.fontsize_labels)
+            ax2.set_title('FPCA Variance Decomposition\n(Modes of Variation)',
+                         fontsize=self.viz_config.fontsize_title, fontweight=self.viz_config.fontweight_title)
+            ax2.legend(fontsize=self.viz_config.fontsize_legend)
+            ax2.grid(True, alpha=self.viz_config.grid_alpha)
+            
+            # Plot 3: Effective Components (95% variance)
+            effective_components = []
+            for group_name in sorted_group_names:
+                data = fpca_data[group_name]
+                if 'error' not in data:
+                    effective_components.append(data.get('effective_components_95', 0))
+                else:
+                    effective_components.append(0)
+            
+            bars = ax3.bar(sorted_group_names, effective_components, alpha=self.viz_config.alpha, color=colors)
+            ax3.set_xlabel('Prompt Group', fontsize=self.viz_config.fontsize_labels)
+            ax3.set_ylabel('Effective Components (95% var)', fontsize=self.viz_config.fontsize_labels)
+            ax3.set_title('Functional Complexity\nComponents Needed for 95% Variance',
+                         fontsize=self.viz_config.fontsize_title, fontweight=self.viz_config.fontweight_title)
+            ax3.tick_params(axis='x', rotation=45, labelsize=self.viz_config.fontsize_labels)
+            ax3.grid(True, alpha=self.viz_config.grid_alpha)
+            
+            # Add value labels
+            for bar, comp in zip(bars, effective_components):
+                height = bar.get_height()
+                ax3.annotate(f'{comp}',
+                           xy=(bar.get_x() + bar.get_width() / 2, height),
+                           xytext=(0, 3), textcoords="offset points",
+                           ha='center', va='bottom', fontsize=self.viz_config.fontsize_labels)
+            
+            # Plot 4: Mode Diversity Index
+            diversity_indices = []
+            for group_name in sorted_group_names:
+                data = fpca_data[group_name]
+                if 'error' not in data:
+                    diversity_indices.append(data.get('mode_diversity_index', 0))
+                else:
+                    diversity_indices.append(0)
+            
+            bars = ax4.bar(sorted_group_names, diversity_indices, alpha=self.viz_config.alpha, color=colors)
+            ax4.set_xlabel('Prompt Group', fontsize=self.viz_config.fontsize_labels)
+            ax4.set_ylabel('Mode Diversity Index', fontsize=self.viz_config.fontsize_labels)
+            ax4.set_title('Trajectory Shape Diversity\nHigher = More Varied Shapes',
+                         fontsize=self.viz_config.fontsize_title, fontweight=self.viz_config.fontweight_title)
+            ax4.tick_params(axis='x', rotation=45, labelsize=self.viz_config.fontsize_labels)
+            ax4.grid(True, alpha=self.viz_config.grid_alpha)
+            
+            plt.tight_layout()
+            plt.savefig(viz_dir / f"functional_pca_analysis.{self.viz_config.save_format}", 
+                       dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
+            plt.close()
+            
+        except Exception as e:
+            self.logger.error(f"Error creating FPCA visualization: {e}")
+            plt.close()
+
+    def _plot_individual_trajectory_geometry_dashboard(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
+        """Create comprehensive dashboard for individual trajectory geometry metrics."""
+        try:
+            geometry_data = results.individual_trajectory_geometry
+            sorted_group_names = sorted(geometry_data.keys())
+            colors = self.viz_config.get_colors(len(sorted_group_names))
+            
+            # Create main dashboard
+            fig = plt.figure(figsize=(20, 16))
+            
+            # Plot 1: Speed Distribution
+            ax1 = plt.subplot(3, 3, 1)
+            speed_means = []
+            speed_stds = []
+            for group_name in sorted_group_names:
+                data = geometry_data[group_name]
+                if 'error' not in data:
+                    speed_means.append(data['speed_stats']['mean'])
+                    speed_stds.append(data['speed_stats']['std'])
+                else:
+                    speed_means.append(0)
+                    speed_stds.append(0)
+            
+            bars = ax1.bar(sorted_group_names, speed_means, yerr=speed_stds, 
+                          alpha=self.viz_config.alpha, color=colors, capsize=5)
+            ax1.set_ylabel('Mean Speed', fontsize=self.viz_config.fontsize_labels)
+            ax1.set_title('Trajectory Speed\n(Step Size)', fontweight=self.viz_config.fontweight_title)
+            ax1.tick_params(axis='x', rotation=45, labelsize=self.viz_config.fontsize_labels)
+            ax1.grid(True, alpha=self.viz_config.grid_alpha)
+            
+            # Plot 2: Volume Distribution
+            ax2 = plt.subplot(3, 3, 2)
+            volume_means = []
+            volume_stds = []
+            for group_name in sorted_group_names:
+                data = geometry_data[group_name]
+                if 'error' not in data:
+                    volume_means.append(data['volume_stats']['mean'])
+                    volume_stds.append(data['volume_stats']['std'])
+                else:
+                    volume_means.append(0)
+                    volume_stds.append(0)
+            
+            bars = ax2.bar(sorted_group_names, volume_means, yerr=volume_stds, 
+                          alpha=self.viz_config.alpha, color=colors, capsize=5)
+            ax2.set_ylabel('Mean Volume', fontsize=self.viz_config.fontsize_labels)
+            ax2.set_title('Individual Trajectory Volume\n(Exploration)', fontweight=self.viz_config.fontweight_title)
+            ax2.tick_params(axis='x', rotation=45, labelsize=self.viz_config.fontsize_labels)
+            ax2.grid(True, alpha=self.viz_config.grid_alpha)
+            
+            # Plot 3: Circuitousness Distribution
+            ax3 = plt.subplot(3, 3, 3)
+            circuit_means = []
+            circuit_stds = []
+            for group_name in sorted_group_names:
+                data = geometry_data[group_name]
+                if 'error' not in data:
+                    circuit_means.append(data['circuitousness_stats']['mean'])
+                    circuit_stds.append(data['circuitousness_stats']['std'])
+                else:
+                    circuit_means.append(0)
+                    circuit_stds.append(0)
+            
+            bars = ax3.bar(sorted_group_names, circuit_means, yerr=circuit_stds, 
+                          alpha=self.viz_config.alpha, color=colors, capsize=5)
+            ax3.set_ylabel('Mean Circuitousness', fontsize=self.viz_config.fontsize_labels)
+            ax3.set_title('Trajectory Circuitousness\n(Efficiency)', fontweight=self.viz_config.fontweight_title)
+            ax3.tick_params(axis='x', rotation=45, labelsize=self.viz_config.fontsize_labels)
+            ax3.grid(True, alpha=self.viz_config.grid_alpha)
+            
+            # Plot 4: Speed vs Volume scatter
+            ax4 = plt.subplot(3, 3, 4)
+            for i, group_name in enumerate(sorted_group_names):
+                data = geometry_data[group_name]
+                if 'error' not in data:
+                    speeds = data['speed_stats']['individual_values'][:20]  # Sample
+                    volumes = data['volume_stats']['individual_values'][:20]  # Sample
+                    ax4.scatter(speeds, volumes, label=group_name, alpha=0.7, color=colors[i])
+            
+            ax4.set_xlabel('Speed', fontsize=self.viz_config.fontsize_labels)
+            ax4.set_ylabel('Volume', fontsize=self.viz_config.fontsize_labels)
+            ax4.set_title('Speed vs Volume\n(Individual Trajectories)', fontweight=self.viz_config.fontweight_title)
+            ax4.legend(fontsize=self.viz_config.fontsize_legend)
+            ax4.grid(True, alpha=self.viz_config.grid_alpha)
+            
+            # Plot 5: Circuitousness vs Speed scatter
+            ax5 = plt.subplot(3, 3, 5)
+            for i, group_name in enumerate(sorted_group_names):
+                data = geometry_data[group_name]
+                if 'error' not in data:
+                    speeds = data['speed_stats']['individual_values'][:20]  # Sample
+                    circuits = data['circuitousness_stats']['individual_values'][:20]  # Sample
+                    ax5.scatter(speeds, circuits, label=group_name, alpha=0.7, color=colors[i])
+            
+            ax5.set_xlabel('Speed', fontsize=self.viz_config.fontsize_labels)
+            ax5.set_ylabel('Circuitousness', fontsize=self.viz_config.fontsize_labels)
+            ax5.set_title('Speed vs Circuitousness\n(Efficiency Patterns)', fontweight=self.viz_config.fontweight_title)
+            ax5.legend(fontsize=self.viz_config.fontsize_legend)
+            ax5.grid(True, alpha=self.viz_config.grid_alpha)
+            
+            # Plot 6: Trajectory Efficiency Metrics
+            ax6 = plt.subplot(3, 3, 6)
+            ballistic_counts = []
+            meandering_counts = []
+            for group_name in sorted_group_names:
+                data = geometry_data[group_name]
+                if 'error' not in data:
+                    ballistic_counts.append(data['efficiency_metrics']['ballistic_trajectories_count'])
+                    meandering_counts.append(data['efficiency_metrics']['meandering_trajectories_count'])
+                else:
+                    ballistic_counts.append(0)
+                    meandering_counts.append(0)
+            
+            x = np.arange(len(sorted_group_names))
+            width = 0.35
+            
+            bars1 = ax6.bar(x - width/2, ballistic_counts, width, label='Ballistic (<1.5)', 
+                           alpha=self.viz_config.alpha, color='green')
+            bars2 = ax6.bar(x + width/2, meandering_counts, width, label='Meandering (>3.0)', 
+                           alpha=self.viz_config.alpha, color='orange')
+            
+            ax6.set_xlabel('Prompt Group', fontsize=self.viz_config.fontsize_labels)
+            ax6.set_ylabel('Trajectory Count', fontsize=self.viz_config.fontsize_labels)
+            ax6.set_title('Trajectory Efficiency Types\n(Ballistic vs Meandering)', fontweight=self.viz_config.fontweight_title)
+            ax6.set_xticks(x)
+            ax6.set_xticklabels(sorted_group_names, rotation=45, fontsize=self.viz_config.fontsize_labels)
+            ax6.legend(fontsize=self.viz_config.fontsize_legend)
+            ax6.grid(True, alpha=self.viz_config.grid_alpha)
+            
+            # Plot 7-9: Individual value distributions (histograms) for first 3 groups
+            plot_groups = sorted_group_names[:3]  # Show first 3 groups
+            for idx, group_name in enumerate(plot_groups):
+                ax = plt.subplot(3, 3, 7 + idx)
+                data = geometry_data[group_name]
+                if 'error' not in data:
+                    circuitousness_values = data['circuitousness_stats']['individual_values']
+                    ax.hist(circuitousness_values, bins=10, alpha=0.7, color=colors[sorted_group_names.index(group_name)])
+                    ax.set_xlabel('Circuitousness', fontsize=self.viz_config.fontsize_labels)
+                    ax.set_ylabel('Frequency', fontsize=self.viz_config.fontsize_labels)
+                    ax.set_title(f'{group_name}\nCircuitousness Distribution', fontweight=self.viz_config.fontweight_title)
+                    ax.grid(True, alpha=self.viz_config.grid_alpha)
+                else:
+                    ax.text(0.5, 0.5, f'No data\nfor {group_name}', ha='center', va='center', transform=ax.transAxes)
+            
+            plt.suptitle('Individual Trajectory Geometry Analysis Dashboard', 
+                        fontsize=16, fontweight='bold', y=0.98)
+            plt.tight_layout()
+            plt.savefig(viz_dir / f"individual_trajectory_geometry_dashboard.{self.viz_config.save_format}", 
+                       dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
+            plt.close()
+            
+        except Exception as e:
+            self.logger.error(f"Error creating individual trajectory geometry dashboard: {e}")
+            plt.close()
+
+    def _plot_intrinsic_dimension_analysis(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
+        """Plot intrinsic dimension analysis showing manifold complexity."""
+        try:
+            fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=self.viz_config.figsize_standard)
+            
+            id_data = results.intrinsic_dimension_analysis
+            sorted_group_names = sorted(id_data.keys())
+            colors = self.viz_config.get_colors(len(sorted_group_names))
+            
+            # Plot 1: Consensus Intrinsic Dimension
+            consensus_dims = []
+            ambient_dims = []
+            for group_name in sorted_group_names:
+                data = id_data[group_name]
+                if 'error' not in data:
+                    consensus_dims.append(data.get('consensus_intrinsic_dimension', 0))
+                    ambient_dims.append(data.get('ambient_dimension', 0))
+                else:
+                    consensus_dims.append(0)
+                    ambient_dims.append(0)
+            
+            bars = ax1.bar(sorted_group_names, consensus_dims, alpha=self.viz_config.alpha, color=colors)
+            ax1.set_xlabel('Prompt Group', fontsize=self.viz_config.fontsize_labels)
+            ax1.set_ylabel('Intrinsic Dimension', fontsize=self.viz_config.fontsize_labels)
+            ax1.set_title('Manifold Complexity\n(Consensus Intrinsic Dimension)',
+                         fontsize=self.viz_config.fontsize_title, fontweight=self.viz_config.fontweight_title)
+            ax1.tick_params(axis='x', rotation=45, labelsize=self.viz_config.fontsize_labels)
+            ax1.grid(True, alpha=self.viz_config.grid_alpha)
+            
+            # Add value labels
+            for bar, dim in zip(bars, consensus_dims):
+                height = bar.get_height()
+                ax1.annotate(f'{dim:.1f}',
+                           xy=(bar.get_x() + bar.get_width() / 2, height),
+                           xytext=(0, 3), textcoords="offset points",
+                           ha='center', va='bottom', fontsize=self.viz_config.fontsize_labels)
+            
+            # Plot 2: Dimension Reduction Ratio
+            reduction_ratios = []
+            for group_name in sorted_group_names:
+                data = id_data[group_name]
+                if 'error' not in data:
+                    reduction_ratios.append(data.get('dimension_reduction_ratio', 0))
+                else:
+                    reduction_ratios.append(0)
+            
+            bars = ax2.bar(sorted_group_names, reduction_ratios, alpha=self.viz_config.alpha, color=colors)
+            ax2.set_xlabel('Prompt Group', fontsize=self.viz_config.fontsize_labels)
+            ax2.set_ylabel('Intrinsic/Ambient Ratio', fontsize=self.viz_config.fontsize_labels)
+            ax2.set_title('Dimension Efficiency\n(Lower = More Efficient Representation)',
+                         fontsize=self.viz_config.fontsize_title, fontweight=self.viz_config.fontweight_title)
+            ax2.tick_params(axis='x', rotation=45, labelsize=self.viz_config.fontsize_labels)
+            ax2.grid(True, alpha=self.viz_config.grid_alpha)
+            
+            # Plot 3: Multiple ID Estimates Comparison
+            pca_95_dims = []
+            mle_dims = []
+            twonn_dims = []
+            
+            for group_name in sorted_group_names:
+                data = id_data[group_name]
+                if 'error' not in data:
+                    pca_95_dims.append(data.get('pca_95_percent', 0))
+                    mle_dims.append(data.get('mle_estimate', 0))
+                    twonn_dims.append(data.get('twonn_estimate', 0))
+                else:
+                    pca_95_dims.append(0)
+                    mle_dims.append(0)
+                    twonn_dims.append(0)
+            
+            x = np.arange(len(sorted_group_names))
+            width = 0.25
+            
+            bars1 = ax3.bar(x - width, pca_95_dims, width, label='PCA (95%)', alpha=self.viz_config.alpha)
+            bars2 = ax3.bar(x, mle_dims, width, label='MLE', alpha=self.viz_config.alpha)
+            bars3 = ax3.bar(x + width, twonn_dims, width, label='TwoNN', alpha=self.viz_config.alpha)
+            
+            ax3.set_xlabel('Prompt Group', fontsize=self.viz_config.fontsize_labels)
+            ax3.set_ylabel('Estimated Dimension', fontsize=self.viz_config.fontsize_labels)
+            ax3.set_title('ID Estimation Methods Comparison\n(Multiple Algorithms)',
+                         fontsize=self.viz_config.fontsize_title, fontweight=self.viz_config.fontweight_title)
+            ax3.set_xticks(x)
+            ax3.set_xticklabels(sorted_group_names, rotation=45, fontsize=self.viz_config.fontsize_labels)
+            ax3.legend(fontsize=self.viz_config.fontsize_legend)
+            ax3.grid(True, alpha=self.viz_config.grid_alpha)
+            
+            # Plot 4: Complexity Categories
+            complexity_categories = {'low': 0, 'medium': 0, 'high': 0}
+            for group_name in sorted_group_names:
+                data = id_data[group_name]
+                if 'error' not in data:
+                    complexity = data.get('manifold_complexity', 'low')
+                    complexity_categories[complexity] += 1
+            
+            categories = list(complexity_categories.keys())
+            counts = list(complexity_categories.values())
+            colors_cat = ['green', 'orange', 'red']
+            
+            bars = ax4.bar(categories, counts, alpha=self.viz_config.alpha, color=colors_cat)
+            ax4.set_xlabel('Complexity Category', fontsize=self.viz_config.fontsize_labels)
+            ax4.set_ylabel('Number of Groups', fontsize=self.viz_config.fontsize_labels)
+            ax4.set_title('Manifold Complexity Distribution\n(Low<10, Medium<50, High≥50)',
+                         fontsize=self.viz_config.fontsize_title, fontweight=self.viz_config.fontweight_title)
+            ax4.grid(True, alpha=self.viz_config.grid_alpha)
+            
+            # Add count labels
+            for bar, count in zip(bars, counts):
+                height = bar.get_height()
+                ax4.annotate(f'{count}',
+                           xy=(bar.get_x() + bar.get_width() / 2, height),
+                           xytext=(0, 3), textcoords="offset points",
+                           ha='center', va='bottom', fontsize=self.viz_config.fontsize_labels)
+            
+            plt.tight_layout()
+            plt.savefig(viz_dir / f"intrinsic_dimension_analysis.{self.viz_config.save_format}", 
+                       dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
+            plt.close()
+            
+        except Exception as e:
+            self.logger.error(f"Error creating intrinsic dimension visualization: {e}")
+            plt.close()

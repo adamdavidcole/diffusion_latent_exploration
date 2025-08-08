@@ -68,6 +68,16 @@ def parse_arguments():
         "--prompt-groups", type=str, default=None,
         help="Comma-separated list of prompt group names (e.g., 'prompt_000,prompt_001'). If not passed, all subdirs in latents/ are used."
     )
+    # Hull performance/accuracy controls
+    parser.add_argument("--hull-mode", type=str, default="auto", choices=["auto", "exact", "approx", "proxy", "off"],
+                        help="Convex hull computation mode: auto chooses approx for high-dim; proxy uses ellipsoidal proxy only; off disables.")
+    parser.add_argument("--hull-max-dim-exact", type=int, default=8, help="Max dimension for exact hull computation.")
+    parser.add_argument("--hull-max-points-exact", type=int, default=500, help="Max points for exact hull computation.")
+    parser.add_argument("--hull-rp-dim", type=int, default=8, help="Random projection target dimension for approx hull.")
+    parser.add_argument("--hull-rp-projections", type=int, default=12, help="Number of random projections to average for approx hull.")
+    parser.add_argument("--hull-sample-points", type=int, default=2000, help="Max points to sample for pairwise distances and proxies.")
+    parser.add_argument("--hull-sample-features", type=int, default=8192, help="Max feature dimensions to subsample before projections for memory/time safety.")
+    parser.add_argument("--hull-time-budget-ms", type=int, default=3000, help="Soft time budget per group for hull analysis in milliseconds.")
     return parser.parse_args()
 
 
@@ -78,7 +88,7 @@ def get_prompt_groups(latents_dir, user_specified=None):
         return sorted([p.name for p in Path(latents_dir).iterdir() if p.is_dir()])
 
 
-def run_gpu_optimized_analysis(batch_name, device, prompt_groups):
+def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
     setup_logging()
     logger = logging.getLogger(__name__)
     
@@ -113,7 +123,16 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups):
             latents_dir=str(latents_dir),
             device=device,
             enable_mixed_precision=enable_mixed_precision,
-            batch_size=batch_size
+            batch_size=batch_size,
+            # Hull config from CLI
+            hull_mode=args.hull_mode if args else "auto",
+            hull_max_dim_exact=args.hull_max_dim_exact if args else 8,
+            hull_max_points_exact=args.hull_max_points_exact if args else 500,
+            hull_rp_dim=args.hull_rp_dim if args else 8,
+            hull_rp_projections=args.hull_rp_projections if args else 12,
+            hull_sample_points=args.hull_sample_points if args else 2000,
+            hull_sample_features=args.hull_sample_features if args else 8192,
+            hull_time_budget_ms=args.hull_time_budget_ms if args else 3000,
         )
         
         init_time = time.time() - start_time
@@ -146,7 +165,8 @@ if __name__ == "__main__":
         run_gpu_optimized_analysis(
             batch_name=args.batch_name,
             device=args.device,
-            prompt_groups=prompt_groups
+            prompt_groups=prompt_groups,
+            args=args
         )
     except KeyboardInterrupt:
         print("\n⏹️  Analysis interrupted by user")
