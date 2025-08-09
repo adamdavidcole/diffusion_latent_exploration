@@ -12,6 +12,7 @@ import logging
 import sys
 import time
 import torch
+import traceback
 from pathlib import Path
 
 # Add project root to path
@@ -70,6 +71,14 @@ def parse_arguments():
         "--prompt-groups", type=str, default=None,
         help="Comma-separated list of prompt group names (e.g., 'prompt_000,prompt_001'). If not passed, all subdirs in latents/ are used."
     )
+    parser.add_argument(
+        '--no-dual-run',
+        action='store_true',
+        dest='no_dual_run', # The parsed attribute will be named 'dual_run'
+        help="Use this flag to run only single analysis (disables dual run)."
+    )
+
+
     # Hull performance/accuracy controls
     parser.add_argument("--hull-mode", type=str, default="auto", choices=["auto", "exact", "approx", "proxy", "off"],
                         help="Convex hull computation mode: auto chooses approx for high-dim; proxy uses ellipsoidal proxy only; off disables.")
@@ -120,12 +129,25 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
     try:
         logger.info("🔧 Initializing analyzer...")
         start_time = time.time()
+
+
+        # Normalization configuration: if dual run, it will setup normalization later
+        # If not dual run, use specific normalization strategy
+        norm_cfg = None
+
+        if args.no_dual_run:
+            norm_cfg = {
+                "per_step_whiten": False,
+                "per_channel_standardize": False,
+                "snr_normalize": True,
+            }
         
         analyzer = LatentTrajectoryAnalyzer(
             latents_dir=str(latents_dir),
             device=device,
             enable_mixed_precision=enable_mixed_precision,
             batch_size=batch_size,
+            norm_cfg=norm_cfg,
             # Hull config from CLI
             hull_mode=args.hull_mode if args else "auto",
             hull_max_dim_exact=args.hull_max_dim_exact if args else 8,
@@ -147,7 +169,16 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
         logger.info("📋 Loading prompt metadata...")
         prompt_metadata = load_prompt_metadata(batch_name, prompt_groups)
 
-        results = analyzer.run_dual_tracks(prompt_groups, prompt_metadata)
+        if args.no_dual_run:
+            # Run single track analysis
+            print(f"🔬 Running single analysis (no dual tracks) with {norm_cfg}")
+            results = analyzer.analyze_prompt_groups(prompt_groups, prompt_metadata)
+        else:
+            # Run dual tracks analysis
+            print(f"🔬 Running dual tracks analysis with differenct norm configs")
+            results = analyzer.run_dual_tracks(prompt_groups, prompt_metadata)
+
+        
         analysis_time = time.time() - analysis_start
         
         logger.info(f"📊 Analysis completed in {analysis_time:.2f} seconds")
@@ -156,6 +187,7 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
 
     except Exception as e:
         logger.exception(f"❌ Analysis failed: {e}")
+        traceback.print_exc()
         raise
 
 
@@ -176,4 +208,5 @@ if __name__ == "__main__":
         sys.exit(1)
     except Exception as e:
         print(f"\n💥 Analysis failed: {e}")
+        traceback.print_exc()
         sys.exit(1)
