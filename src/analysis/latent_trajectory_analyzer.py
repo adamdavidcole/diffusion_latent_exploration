@@ -28,6 +28,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import traceback
 
+from src.visualization.batch_grid import create_batch_image_grid
+
 # Try to import FFT functions
 try:
     from torch.fft import fft, ifft, fft2, ifft2, fftshift
@@ -501,13 +503,10 @@ class LatentTrajectoryAnalyzer:
                 )
 
     def analyze_prompt_groups(self, prompt_groups: List[str], 
-                            prompt_descriptions: Optional[List[str]] = None,
                             prompt_metadata: Optional[Dict[str, Dict[str, str]]] = None) -> LatentTrajectoryAnalysis:
         """Main analysis entry point with trajectory-aware processing."""
         self.logger.info("Starting GPU-optimized trajectory-aware analysis")
         start_time = time.time()
-
-        print(prompt_groups)
         
         if not getattr(self, 'group_tensors', None):
             # 1. Load and batch trajectory data
@@ -603,7 +602,6 @@ class LatentTrajectoryAnalyzer:
         analysis_metadata = {
             'total_analysis_time_seconds': total_time,
             'prompt_groups': prompt_groups,
-            'prompt_descriptions': prompt_descriptions or [],
             'prompt_metadata': prompt_metadata or {},
             'latents_directory': str(self.latents_dir),
             'trajectory_shape': trajectory_shape,
@@ -646,7 +644,6 @@ class LatentTrajectoryAnalyzer:
     def run_dual_tracks(
         self,
         prompt_groups: List[str],
-        prompt_descriptions: Optional[List[str]] = None,
         prompt_metadata: Optional[Dict[str, Dict[str, str]]] = None
     ) -> Dict[str, LatentTrajectoryAnalysis]:
         """Run SNR-only and Full normalization in one pass and build a combined board."""
@@ -669,7 +666,7 @@ class LatentTrajectoryAnalyzer:
                 self.output_dir = base_out / name
                 self.output_dir.mkdir(parents=True, exist_ok=True)
 
-                res = self.analyze_prompt_groups(prompt_groups, prompt_descriptions, prompt_metadata)
+                res = self.analyze_prompt_groups(prompt_groups, prompt_metadata)
                 # NOTE: analyze_prompt_groups() already calls _create_comprehensive_visualizations(res)
                 # because it calls _save_results(...) then _create_comprehensive_visualizations(...).
                 saved[name] = res
@@ -792,6 +789,8 @@ class LatentTrajectoryAnalyzer:
             # 18. Comprehensive Dashboard
             self._plot_comprehensive_analysis_dashboard(results, viz_dir)
             self._plot_trajectory_atlas_umap(results, viz_dir, self.group_tensors)
+            
+            self._create_batch_image_grid(results, viz_dir)
             
             self.logger.info(f"✅ Visualizations saved to: {viz_dir}")
             
@@ -6437,3 +6436,22 @@ Please check the analysis logs for detailed error information.
         except Exception as e:
             self.logger.error(f"Error creating intrinsic dimension visualization: {e}")
             plt.close()
+
+    def _create_batch_image_grid(
+        self, 
+        results: List[Dict[str, Any]], 
+        viz_dir: Path
+    ):
+        """Create a batch image grid visualization."""
+
+        try:
+            batch_path = self.latents_dir.parent
+
+            create_batch_image_grid(
+                batch_path=str(batch_path),
+                output_path=str(viz_dir / "video_batch_grid.png"),
+                max_width=1920,
+                max_height=1080,
+            )
+        except Exception as e:
+            self.logger.error(f"Error creating batch image grid: {e}")

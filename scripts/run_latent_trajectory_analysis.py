@@ -145,9 +145,9 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
         
         # Load prompt metadata from batch configuration
         logger.info("📋 Loading prompt metadata...")
-        prompt_descriptions, prompt_metadata = load_prompt_metadata(batch_name, prompt_groups)
+        prompt_metadata = load_prompt_metadata(batch_name, prompt_groups)
 
-        results = analyzer.run_dual_tracks(prompt_groups, prompt_descriptions, prompt_metadata)
+        results = analyzer.run_dual_tracks(prompt_groups, prompt_metadata)
         analysis_time = time.time() - analysis_start
         
         logger.info(f"📊 Analysis completed in {analysis_time:.2f} seconds")
