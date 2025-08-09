@@ -540,13 +540,15 @@ class PromptTemplate:
         for choice in selected_choices:
             choice_clean = choice.strip()
             if choice_clean:
-                # Remove diffusion model weight syntax but keep the content
-                clean_choice = re.sub(r'\(([^)]*):[\d.]+\)', r'\1', choice_clean)
-                clean_choice = re.sub(r'[()]', '', clean_choice).strip()
+                # Keep the diffusion model weight syntax intact
+                # Only clean up extra parentheses that aren't part of weights
+                clean_choice = choice_clean.strip()
                 
                 # Skip choices that contain too much template text
                 template_words = ['romantic', 'cinematic', 'kiss', 'between']
-                choice_words = clean_choice.lower().split()
+                # Remove weight syntax temporarily just for counting template words
+                temp_clean = re.sub(r'\([^)]*:\d+\.?\d*\)', '', clean_choice.lower())
+                choice_words = temp_clean.split()
                 template_word_count = sum(1 for word in choice_words if word in template_words)
                 
                 # Only include choices that are more content than template
@@ -586,12 +588,12 @@ class PromptTemplate:
                     best_choice = choice
             
             if best_choice:
-                # Clean up the choice
+                # Keep the choice as-is, preserving diffusion model syntax
                 summary = best_choice.strip()
                 
                 # Limit length
-                if len(summary) > 30:
-                    summary = summary[:27] + "..."
+                if len(summary) > 40:
+                    summary = summary[:37] + "..."
                 
                 return summary
         
@@ -600,25 +602,29 @@ class PromptTemplate:
             # Find parts that are likely the variable content
             words = variation_text.strip().split()
             
-            # Look for distinctive sequences
+            # Look for distinctive sequences, preserving weights
             skip_words = {'a', 'an', 'the', 'and', 'or', 'romantic', 'cinematic', 'kiss', 'between'}
             distinctive_sequences = []
             
             i = 0
             while i < len(words):
-                word = re.sub(r'[^\w]', '', words[i]).strip()
-                if word.lower() not in skip_words and len(word) > 2:
-                    # Found a distinctive word, collect sequence
+                # Check if this word (without weights) is distinctive
+                base_word = re.sub(r'\([^)]*:\d+\.?\d*\)', '', words[i]).strip()
+                clean_word = re.sub(r'[^\w]', '', base_word)
+                
+                if clean_word.lower() not in skip_words and len(clean_word) > 2:
+                    # Found a distinctive word, collect sequence (preserving original format)
                     sequence = []
                     j = i
                     while j < len(words) and len(sequence) < 4:
-                        clean_word = re.sub(r'[^\w]', '', words[j]).strip()
-                        if clean_word:
-                            sequence.append(clean_word)
+                        sequence.append(words[j])  # Keep original word with weights
                         j += 1
-                        # Stop at common words
-                        if j < len(words) and re.sub(r'[^\w]', '', words[j]).strip().lower() in skip_words:
-                            break
+                        # Stop at common words (but check base word without weights)
+                        if j < len(words):
+                            next_base = re.sub(r'\([^)]*:\d+\.?\d*\)', '', words[j]).strip()
+                            next_clean = re.sub(r'[^\w]', '', next_base)
+                            if next_clean.lower() in skip_words:
+                                break
                     
                     if sequence:
                         distinctive_sequences.append(' '.join(sequence))
@@ -630,7 +636,10 @@ class PromptTemplate:
             
             if distinctive_sequences:
                 # Use the first distinctive sequence
-                return distinctive_sequences[0][:30] + ("..." if len(distinctive_sequences[0]) > 30 else "")
+                result = distinctive_sequences[0]
+                if len(result) > 40:
+                    result = result[:37] + "..."
+                return result
         
         return "variation"
         
