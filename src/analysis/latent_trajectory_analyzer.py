@@ -160,8 +160,9 @@ class LatentTrajectoryAnalyzer:
         batch_size: int = 32,
         output_dir: Optional[str] = None,
         viz_config: Optional[VisualizationConfig] = None,
-        # Convex hull / geometry config
+        # Distance normalization config
         norm_cfg: Optional[Dict[str, Any]] = None,
+        # Convex hull / geometry config
         hull_mode: str = "auto",
         hull_max_dim_exact: int = 8,
         hull_max_points_exact: int = 500,
@@ -210,12 +211,12 @@ class LatentTrajectoryAnalyzer:
         # Visualization configuration
         self.viz_config = viz_config or VisualizationConfig()
         self.viz_config.apply_style_settings()
-
-        # Normalization configuration
+        
+        # Normalization configuration (distance metrics)
         self.norm_cfg = {
-            "per_step_whiten": False,
-            "per_channel_standardize": False,
-            "snr_normalize": False,
+            "per_step_whiten": True,
+            "per_channel_standardize": True,
+            "snr_normalize": True,
         }
         if norm_cfg:
             self.norm_cfg.update(norm_cfg)
@@ -444,33 +445,29 @@ class LatentTrajectoryAnalyzer:
 
     
     def _apply_normalization(self, trajectory_tensor: torch.Tensor, group_data: Dict[str, Any]) -> torch.Tensor:
-        """Normalize trajectories according to self.norm_cfg and return [N,T,D]."""
-        # trajectory_tensor: [N,T,1,C,F,H,W] or [N,T,C,F,H,W]
-        if trajectory_tensor.shape[2] == 1:
-            traj = trajectory_tensor[:, :, 0]
-        else:
-            traj = trajectory_tensor
-        # per-channel standardize across N,T,F,H,W
+        """Return [N,T,D] normalized according to self.norm_cfg."""
+        traj = trajectory_tensor[:, :, 0] if trajectory_tensor.shape[2] == 1 else trajectory_tensor
         if self.norm_cfg.get("per_channel_standardize", False):
             mean_c = traj.mean(dim=(0,1,3,4,5), keepdim=True)
-            std_c = traj.std(dim=(0,1,3,4,5), keepdim=True) + 1e-6
+            std_c  = traj.std(dim=(0,1,3,4,5), keepdim=True) + 1e-6
             traj = (traj - mean_c) / std_c
-        flat = traj.flatten(start_dim=2)  # [N,T,D]
+        flat = traj.flatten(start_dim=2)
         if self.norm_cfg.get("per_step_whiten", False):
             mean = flat.mean(dim=2, keepdim=True)
-            std = flat.std(dim=2, keepdim=True) + 1e-6
+            std  = flat.std(dim=2, keepdim=True) + 1e-6
             flat = (flat - mean) / std
         if self.norm_cfg.get("snr_normalize", False):
             sigmas = None
             try:
                 meta_list = group_data.get('trajectory_metadata', [])
                 if meta_list and 'step_metadata' in meta_list[0]:
-                    first = meta_list[0]['step_metadata']
-                    if isinstance(first, list) and len(first)>0:
-                        for k in ('sigma','flow_sigma','snr','sigma_t'):
-                            if k in first[0]:
+                    steps_meta = meta_list[0]['step_metadata']
+                    if isinstance(steps_meta, list) and steps_meta:
+                        for key in ('sigma','flow_sigma','snr','sigma_t'):
+                            if key in steps_meta[0]:
                                 import torch as _torch
-                                sigmas = _torch.tensor([m.get(k, 1.0) for m in first], device=flat.device, dtype=flat.dtype)
+                                sigmas = _torch.tensor([m.get(key, 1.0) for m in steps_meta],
+                                                       device=flat.device, dtype=flat.dtype)
                                 break
             except Exception:
                 sigmas = None
@@ -480,7 +477,8 @@ class LatentTrajectoryAnalyzer:
             else:
                 inv = 1.0 / (sigmas + 1e-6)
                 if inv.numel() != flat.shape[1]:
-                    inv = torch.nn.functional.interpolate(inv.view(1,1,-1), size=flat.shape[1], mode='linear', align_corners=False).view(-1)
+                    inv = torch.nn.functional.interpolate(inv.view(1,1,-1), size=flat.shape[1],
+                                                          mode='linear', align_corners=False).view(-1)
             flat = flat * inv.view(1,-1,1)
         return flat
     def _track_gpu_memory(self, stage: str):
@@ -3675,7 +3673,7 @@ Most Significant Comparison:
                         individual_circuitousness.append(circuit_stats.get('mean', 0))
                 
                 # NEW: Intrinsic dimension (manifold complexity)
-                if group in id_data and 'error' not in id_data[group]:
+                if id_data and group in id_data and 'error' not in id_data[group]:
                     consensus_dim = id_data[group].get('consensus_intrinsic_dimension', 0)
                     intrinsic_dimensions.append(consensus_dim)
             
@@ -3749,7 +3747,7 @@ NEW: ADVANCED GEOMETRIC METRICS:
 
 1. CONVEX HULL VOLUME (Representational Diversity):
    {"✅ CONFIRMED" if len(hull_volumes) > 0 and np.std(hull_volumes)/np.mean(hull_volumes) > 0.3 else "❌ INCONCLUSIVE"}: Prompt specificity affects latent space occupation
-   Most Diverse: {group_names[hull_volumes.index(max(hull_volumes))] if hull_volumes else "Unknown"} (Volume: {max(hull_volumes):.2e if hull_volumes else 0})
+   Most Diverse: {group_names[hull_volumes.index(max(hull_volumes))] if hull_volumes else "Unknown"} (Volume: {max(hull_volumes) if hull_volumes else 0})
 
 2. FUNCTIONAL PCA COMPLEXITY:
    {"✅ SIGNIFICANT" if len(trajectory_complexities) > 0 and max(trajectory_complexities) - min(trajectory_complexities) > 2 else "❌ MINIMAL"}: Trajectory shape complexity varies by prompt
@@ -3758,11 +3756,9 @@ NEW: ADVANCED GEOMETRIC METRICS:
 3. INDIVIDUAL TRAJECTORY GEOMETRY:
    Speed Efficiency: {"✅ VARIES" if len(individual_speeds) > 0 and np.std(individual_speeds)/np.mean(individual_speeds) > 0.2 else "❌ UNIFORM"}
    Path Efficiency: {"✅ VARIES" if len(individual_circuitousness) > 0 and max(individual_circuitousness) - min(individual_circuitousness) > 1.0 else "❌ UNIFORM"}
-   Most Efficient: {group_names[individual_circuitousness.index(min(individual_circuitousness))] if individual_circuitousness else "Unknown"} (Circuitousness: {min(individual_circuitousness):.2f if individual_circuitousness else 0})
+   Most Efficient: {group_names[individual_circuitousness.index(min(individual_circuitousness))] if individual_circuitousness else "Unknown"} (Circuitousness: {min(individual_circuitousness) if individual_circuitousness else 0})
 
-4. INTRINSIC DIMENSION (Manifold Complexity):
-   {"✅ CONFIRMED" if len(intrinsic_dimensions) > 0 and max(intrinsic_dimensions) - min(intrinsic_dimensions) > 5 else "❌ INCONCLUSIVE"}: Prompt complexity affects latent manifold dimensionality
-   Simplest Manifold: {group_names[intrinsic_dimensions.index(min(intrinsic_dimensions))] if intrinsic_dimensions else "Unknown"} (ID: {min(intrinsic_dimensions):.1f if intrinsic_dimensions else 0})
+
 
 5. UNIVERSAL DENOISING PATTERN:
    {"✅ CONFIRMED" if u_shaped_count > len(group_names) * 0.7 else "❌ PARTIAL"}: U-shaped pattern observed in {u_shaped_count}/{len(group_names)} groups ({u_shaped_count/len(group_names)*100:.1f}%)
@@ -3799,6 +3795,8 @@ NEW: ADVANCED GEOMETRIC METRICS:
             
         except Exception as e:
             self.logger.error(f"Failed to generate research insights: {e}")
+            self.logger.error(f"Full traceback:\n{traceback.format_exc()}")
+
             return f"""
 🔬 RESEARCH FINDINGS: ANALYSIS ERROR
 
@@ -4618,7 +4616,7 @@ Please check the analysis logs for detailed error information.
             trajectory_tensor = group_data['trajectory_tensor'].to(self.device)  # [n_videos, steps, ...]
             
             # Flatten trajectory for analysis (keep videos and steps dimensions)
-            flat_trajectories = self._apply_normalization(trajectory_tensor, group_data)  # [n_videos, steps, flattened_latent]
+            flat_trajectories = self._apply_normalization(trajectory_tensor, group_data)  # [n_videos, steps, D]
             
             # Trajectory Length Analysis
             trajectory_lengths = self._gpu_trajectory_length(flat_trajectories)
@@ -5397,6 +5395,24 @@ Please check the analysis logs for detailed error information.
                     
                     # 3. Circuitousness (tortuosity)
                     circuitousness = path_length / (endpoint_distance + 1e-8)
+
+                    # 4. Endpoint alignment and turning angle
+                    e = trajectory[-1] - trajectory[0]
+                    e_norm = np.linalg.norm(e) + 1e-8
+                    v = step_differences
+                    v_norms = np.linalg.norm(v, axis=1) + 1e-8
+                    endpoint_alignment = float(np.mean((v @ e) / (v_norms * e_norm)))
+                    u = v[:-1] / v_norms[:-1, None]
+                    w = v[1:]  / v_norms[1:,  None]
+                    cosang = np.clip(np.sum(u*w, axis=1), -1.0, 1.0)
+                    turning_angle = float(np.sum(np.arccos(cosang)))
+
+                    # 5. Log-volume (bbox proxy) and effective side
+                    mins = np.min(trajectory, axis=0)
+                    maxs = np.max(trajectory, axis=0)
+                    ranges = np.clip(maxs - mins, 1e-12, None)
+                    log_bbox_vol = float(np.sum(np.log(ranges)))
+                    eff_side = float(np.exp(log_bbox_vol / ranges.size))
                     
                     # 4. Individual trajectory volume (convex hull)
                     try:
@@ -5447,7 +5463,6 @@ Please check the analysis logs for detailed error information.
                         'max': float(np.max(individual_metrics['log_bbox_volumes'])),
                         'median': float(np.median(individual_metrics['log_bbox_volumes'])),
                         'individual_values': individual_metrics['log_bbox_volumes']
-                    
                     },
                     'effective_side_stats': {
                         'mean': float(np.mean(individual_metrics['effective_sides'])),
@@ -5472,7 +5487,8 @@ Please check the analysis logs for detailed error information.
                         'max': float(np.max(individual_metrics['turning_angle'])),
                         'median': float(np.median(individual_metrics['turning_angle'])),
                         'individual_values': individual_metrics['turning_angle']
-},
+                    },
+
                     'circuitousness_stats': {
                         'mean': float(np.mean(individual_metrics['circuitousness'])),
                         'std': float(np.std(individual_metrics['circuitousness'])),
@@ -5860,7 +5876,7 @@ Please check the analysis logs for detailed error information.
             ax1.tick_params(axis='x', rotation=45, labelsize=self.viz_config.fontsize_labels)
             ax1.grid(True, alpha=self.viz_config.grid_alpha)
             
-            # Plot 2: Volume Distribution
+            # Plot 2: Log Volume Distribution
             ax2 = plt.subplot(3, 3, 2)
             volume_means = []
             volume_stds = []
@@ -5875,8 +5891,8 @@ Please check the analysis logs for detailed error information.
             
             bars = ax2.bar(sorted_group_names, volume_means, yerr=volume_stds, 
                           alpha=self.viz_config.alpha, color=colors, capsize=5)
-            ax2.set_ylabel('Mean Log Volume (bbox proxy)', fontsize=self.viz_config.fontsize_labels)
-            ax2.set_title('Individual Trajectory Log-Volume (Exploration)', fontweight=self.viz_config.fontweight_title)
+            ax2.set_ylabel('Mean Log Volume', fontsize=self.viz_config.fontsize_labels)
+            ax2.set_title('Individual Trajectory Log Volume\n(Exploration)', fontweight=self.viz_config.fontweight_title)
             ax2.tick_params(axis='x', rotation=45, labelsize=self.viz_config.fontsize_labels)
             ax2.grid(True, alpha=self.viz_config.grid_alpha)
             
@@ -5900,7 +5916,7 @@ Please check the analysis logs for detailed error information.
             ax3.tick_params(axis='x', rotation=45, labelsize=self.viz_config.fontsize_labels)
             ax3.grid(True, alpha=self.viz_config.grid_alpha)
             
-            # Plot 4: Speed vs Volume scatter
+            # Plot 4: Speed vs Log Volume scatter
             ax4 = plt.subplot(3, 3, 4)
             for i, group_name in enumerate(sorted_group_names):
                 data = geometry_data[group_name]
@@ -5911,7 +5927,7 @@ Please check the analysis logs for detailed error information.
             
             ax4.set_xlabel('Speed', fontsize=self.viz_config.fontsize_labels)
             ax4.set_ylabel('Log Volume', fontsize=self.viz_config.fontsize_labels)
-            ax4.set_title('Speed vs Volume\n(Individual Trajectories)', fontweight=self.viz_config.fontweight_title)
+            ax4.set_title('Speed vs Log Volume\n(Individual Trajectories)', fontweight=self.viz_config.fontweight_title)
             ax4.legend(fontsize=self.viz_config.fontsize_legend)
             ax4.grid(True, alpha=self.viz_config.grid_alpha)
             
@@ -5931,32 +5947,25 @@ Please check the analysis logs for detailed error information.
             ax5.grid(True, alpha=self.viz_config.grid_alpha)
             
             # Plot 6: Trajectory Efficiency Metrics
-            # Plot 6: Trajectory Efficiency Types (quantile-based by turning angle)
             ax6 = plt.subplot(3, 3, 6)
-            ballistic_counts = []
-            meandering_counts = []
+            ballistic_counts, meandering_counts = [], []
             for group_name in sorted_group_names:
                 data = geometry_data[group_name]
                 if 'error' in data:
-                    ballistic_counts.append(0); meandering_counts.append(0)
-                    continue
+                    ballistic_counts.append(0); meandering_counts.append(0); continue
                 vals = np.array(data['turning_angle_stats']['individual_values'])
                 if vals.size == 0:
-                    ballistic_counts.append(0); meandering_counts.append(0)
-                    continue
-                lo = np.quantile(vals, 0.20)
-                hi = np.quantile(vals, 0.80)
+                    ballistic_counts.append(0); meandering_counts.append(0); continue
+                lo, hi = np.quantile(vals, 0.20), np.quantile(vals, 0.80)
                 ballistic_counts.append(int((vals <= lo).sum()))
                 meandering_counts.append(int((vals >= hi).sum()))
-            x = np.arange(len(sorted_group_names))
-            width = 0.35
-            ax6.bar(x - width/2, ballistic_counts, width, label='Low curvature (20% quantile)')
-            ax6.bar(x + width/2, meandering_counts, width, label='High curvature (80% quantile)')
+            x = np.arange(len(sorted_group_names)); width = 0.35
+            ax6.bar(x - width/2, ballistic_counts, width, label='Low curvature (20% q)')
+            ax6.bar(x + width/2, meandering_counts, width, label='High curvature (80% q)')
             ax6.set_xlabel('Prompt Group', fontsize=self.viz_config.fontsize_labels)
             ax6.set_ylabel('Trajectory Count', fontsize=self.viz_config.fontsize_labels)
             ax6.set_title('Trajectory Efficiency Types (turning-angle quantiles)', fontweight=self.viz_config.fontweight_title)
-            ax6.set_xticks(x)
-            ax6.set_xticklabels(sorted_group_names, rotation=45, fontsize=self.viz_config.fontsize_labels)
+            ax6.set_xticks(x); ax6.set_xticklabels(sorted_group_names, rotation=45, fontsize=self.viz_config.fontsize_labels)
             ax6.legend(fontsize=self.viz_config.fontsize_legend)
             ax6.grid(True, alpha=self.viz_config.grid_alpha)
             
@@ -5994,11 +6003,10 @@ Please check the analysis logs for detailed error information.
             id_data = results.intrinsic_dimension_analysis
             if not id_data:
                 fig, ax = plt.subplots(1,1, figsize=self.viz_config.figsize_standard)
-                ax.text(0.5,0.5,'Intrinsic dimension not computed',ha='center',va='center',transform=ax.transAxes)
-                ax.axis('off')
+                ax.text(0.5, 0.5, "Intrinsic dimension not computed", ha="center", va="center", transform=ax.transAxes)
+                ax.axis("off")
                 plt.tight_layout()
-                plt.savefig(viz_dir / f"intrinsic_dimension_analysis.{self.viz_config.save_format}", 
-                            dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
+                plt.savefig(viz_dir / f"intrinsic_dimension_analysis.{self.viz_config.save_format}", dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
                 plt.close()
                 return
             sorted_group_names = sorted(id_data.keys())

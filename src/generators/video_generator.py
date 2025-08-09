@@ -651,6 +651,26 @@ class WanVideoGenerator:
                 else:
                     logging.info("Using prompt processing (no weighted embeddings)")
             
+            # Capture scheduler timesteps and sigmas for latent storage
+            current_timesteps = None
+            current_sigmas = None
+            if hasattr(self.pipe, 'scheduler') and self.pipe.scheduler is not None:
+                try:
+                    # Set timesteps on scheduler to capture the schedule
+                    self.pipe.scheduler.set_timesteps(num_inference_steps)
+                    
+                    # Capture timesteps and sigmas
+                    if hasattr(self.pipe.scheduler, 'timesteps'):
+                        current_timesteps = self.pipe.scheduler.timesteps.detach().cpu().numpy().tolist()
+                        logging.info(f"Captured {len(current_timesteps)} timesteps from scheduler")
+                    
+                    if hasattr(self.pipe.scheduler, 'sigmas'):
+                        current_sigmas = self.pipe.scheduler.sigmas.detach().cpu().numpy().tolist()
+                        logging.info(f"Captured {len(current_sigmas)} sigmas from scheduler")
+                    
+                except Exception as e:
+                    logging.warning(f"Failed to capture scheduler timesteps/sigmas: {e}")
+            
             # Setup latent storage callback if enabled
             callback_fn = None
             callback_tensor_inputs = ['latents']
@@ -659,6 +679,8 @@ class WanVideoGenerator:
                 latent_storage.start_video_storage(
                     video_id=video_id,
                     prompt=prompt,
+                    timesteps=current_timesteps,
+                    sigmas=current_sigmas,
                     seed=generator_seed,
                     cfg_scale=guidance_scale,
                     width=width,
