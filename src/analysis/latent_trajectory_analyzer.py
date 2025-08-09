@@ -150,9 +150,6 @@ class LatentTrajectoryAnalysis:
 
 class LatentTrajectoryAnalyzer:
     """GPU-accelerated structure-aware latent analysis with trajectory preservation."""
-    
-    # ...existing code...
-
 
     def __init__(
         self,
@@ -162,6 +159,7 @@ class LatentTrajectoryAnalyzer:
         batch_size: int = 32,
         output_dir: Optional[str] = None,
         viz_config: Optional[VisualizationConfig] = None,
+        use_prompt_labels = False, # use variation text label as label or group name (prompt_000)
         # Distance normalization config
         norm_cfg: Optional[Dict[str, Any]] = None,
         # Convex hull / geometry config
@@ -213,6 +211,10 @@ class LatentTrajectoryAnalyzer:
         # Visualization configuration
         self.viz_config = viz_config or VisualizationConfig()
         self.viz_config.apply_style_settings()
+
+
+        # Use prompt label variation text in visualizations (default to True)
+        self.use_prompt_labels = use_prompt_labels
         
         # Normalization configuration (distance metrics)
         self.norm_cfg = {
@@ -222,7 +224,6 @@ class LatentTrajectoryAnalyzer:
         }
         if norm_cfg:
             self.norm_cfg.update(norm_cfg)
-
 
         # Setup logging
         self.logger = logging.getLogger(__name__)
@@ -799,6 +800,14 @@ class LatentTrajectoryAnalyzer:
             self.logger.error(f"Visualization creation failed: {e}")
             self.logger.error(f"Full traceback:\n{traceback.format_exc()}")
 
+    def _get_prompt_group_label(self, results: LatentTrajectoryAnalysis, group_name: str) -> str:
+        """Get the label for a prompt group."""
+        if self.use_prompt_labels:
+            prompt_var_text = results.analysis_metadata.get('prompt_metadata', {}).get(group_name, {}).get('prompt_var_text', group_name)
+
+            return prompt_var_text
+        return group_name
+
     def _plot_trajectory_spatial_evolution(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
         """Plot the U-shaped trajectory spatial evolution pattern."""
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
@@ -815,7 +824,8 @@ class LatentTrajectoryAnalyzer:
             data = spatial_data[group_name]
             trajectory_pattern = data['trajectory_pattern']
             steps = list(range(len(trajectory_pattern)))
-            ax1.plot(steps, trajectory_pattern, 'o-', label=group_name, alpha=0.8, linewidth=2, 
+            label = self._get_prompt_group_label(results, group_name)
+            ax1.plot(steps, trajectory_pattern, 'o-', label=label, alpha=0.8, linewidth=2, 
                     markersize=3, color=colors[i])
         
         ax1.set_xlabel('Diffusion Step')
@@ -932,7 +942,8 @@ class LatentTrajectoryAnalyzer:
             velocity_std = velocity_std[:min_len]
             steps = np.arange(min_len)
             
-            ax1.plot(steps, velocity_mean, 'o-', label=group_name, 
+            label = self._get_prompt_group_label(results, group_name)
+            ax1.plot(steps, velocity_mean, 'o-', label=label, 
                     color=colors[i], alpha=self.viz_config.alpha, 
                     linewidth=self.viz_config.linewidth, markersize=self.viz_config.markersize)
             ax1.fill_between(steps, velocity_mean - velocity_std, velocity_mean + velocity_std,
@@ -958,7 +969,8 @@ class LatentTrajectoryAnalyzer:
             accel_std = accel_std[:min_len]
             steps = np.arange(min_len)
             
-            ax2.plot(steps, accel_mean, 's-', label=group_name, 
+            label = self._get_prompt_group_label(results, group_name)
+            ax2.plot(steps, accel_mean, 's-', label=label, 
                     color=colors[i], alpha=self.viz_config.alpha,
                     linewidth=self.viz_config.linewidth, markersize=self.viz_config.markersize)
             ax2.fill_between(steps, accel_mean - accel_std, accel_mean + accel_std,
@@ -978,7 +990,8 @@ class LatentTrajectoryAnalyzer:
             direction_changes = np.array(data['momentum_direction_changes']).flatten()
             steps = np.arange(len(direction_changes))
             
-            ax3.plot(steps, direction_changes, '^-', label=group_name, 
+            label = self._get_prompt_group_label(results, group_name)
+            ax3.plot(steps, direction_changes, '^-', label=label, 
                     color=colors[i], alpha=self.viz_config.alpha,
                     linewidth=self.viz_config.linewidth, markersize=self.viz_config.markersize)
         
@@ -1105,7 +1118,8 @@ class LatentTrajectoryAnalyzer:
                     p75_transitions = p75_array
             
             steps = list(range(len(p75_transitions)))
-            ax1.plot(steps, p75_transitions, 'o-', label=group_name, 
+            label = self._get_prompt_group_label(results, group_name)
+            ax1.plot(steps, p75_transitions, 'o-', label=label, 
                     color=colors[i], alpha=0.8, linewidth=2, markersize=4)
         
         ax1.set_xlabel('Diffusion Step')
@@ -1129,7 +1143,8 @@ class LatentTrajectoryAnalyzer:
                     p95_transitions = p95_array
             
             steps = list(range(len(p95_transitions)))
-            ax2.plot(steps, p95_transitions, '^-', label=group_name, 
+            label = self._get_prompt_group_label(results, group_name)
+            ax2.plot(steps, p95_transitions, '^-', label=label, 
                     color=colors[i], alpha=0.8, linewidth=2, markersize=4)
         
         ax2.set_xlabel('Diffusion Step')
@@ -1417,7 +1432,8 @@ class LatentTrajectoryAnalyzer:
         for i, group_name in enumerate(group_names):
             step_deltas = spatial_data[group_name]['step_deltas_mean']
             steps = range(len(step_deltas))
-            ax3.plot(steps, step_deltas, 'o-', label=group_name, 
+            label = self._get_prompt_group_label(results, group_name)
+            ax3.plot(steps, step_deltas, 'o-', label=label, 
                     color=colors[i], alpha=0.8, linewidth=2)
         
         ax3.set_xlabel('Diffusion Step')
@@ -1430,7 +1446,8 @@ class LatentTrajectoryAnalyzer:
         for i, group_name in enumerate(group_names):
             step_deltas_std = spatial_data[group_name]['step_deltas_std']
             steps = range(len(step_deltas_std))
-            ax4.plot(steps, step_deltas_std, '^-', label=group_name, 
+            label = self._get_prompt_group_label(results, group_name)
+            ax4.plot(steps, step_deltas_std, '^-', label=label, 
                     color=colors[i], alpha=0.8, linewidth=2, markersize=4)
         
         ax4.set_xlabel('Diffusion Step')
@@ -1461,7 +1478,8 @@ class LatentTrajectoryAnalyzer:
             if edge_patterns:
                 mean_pattern = np.mean(edge_patterns, axis=0)
                 steps = list(range(len(mean_pattern)))
-                ax1.plot(steps, mean_pattern, 'o-', label=group_name, 
+                label = self._get_prompt_group_label(results, group_name)
+                ax1.plot(steps, mean_pattern, 'o-', label=label, 
                         alpha=0.8, color=colors[i], linewidth=2)
         
         ax1.set_xlabel('Diffusion Step')
@@ -1477,7 +1495,8 @@ class LatentTrajectoryAnalyzer:
                 evolution_pattern = data.get('mean_evolution_pattern', [])
                 if evolution_pattern:
                     steps = list(range(len(evolution_pattern)))
-                    ax2.plot(steps, evolution_pattern, 's-', label=group_name, 
+                    label = self._get_prompt_group_label(results, group_name)
+                    ax2.plot(steps, evolution_pattern, 's-', label=label, 
                             alpha=0.8, color=colors[i], linewidth=2)
         
         ax2.set_xlabel('Diffusion Step')
@@ -2393,10 +2412,11 @@ class LatentTrajectoryAnalyzer:
             group_color_map = {group: colors[i] for i, group in enumerate(group_names)}
             
             for group in group_names:
+                label = self._get_prompt_group_label(results, group)
                 group_data = df[df['Prompt'] == group]
                 if len(group_data) > 0:
                     ax.scatter(group_data['PC1'], group_data['PC2'], 
-                             color=group_color_map[group], label=group, 
+                             color=group_color_map[group], label=label, 
                              s=60, alpha=0.7, edgecolors='black', linewidth=0.5)
             
             # Add confidence ellipses for each group
@@ -2527,7 +2547,8 @@ class LatentTrajectoryAnalyzer:
                 if data:
                     window_starts = [item['window_start'] for item in data]
                     mean_stabilities = [item['mean_stability'] for item in data]
-                    ax.plot(window_starts, mean_stabilities, 'o-', label=group_name, 
+                    label = self._get_prompt_group_label(results, group_name)
+                    ax.plot(window_starts, mean_stabilities, 'o-', label=label, 
                            alpha=alpha, color=colors[i], linewidth=linewidth, markersize=markersize)
             
             ax.set_xlabel('Window Start Position', fontsize=fontsize_labels)
@@ -2698,7 +2719,9 @@ class LatentTrajectoryAnalyzer:
                     variance_progression = data.get('variance_progression', [])
                     if variance_progression and len(variance_progression) > 0:
                         steps = list(range(len(variance_progression)))
-                        ax1.plot(steps, variance_progression, 'o-', label=group_name, 
+                        label = self._get_prompt_group_label(results, group_name)
+
+                        ax1.plot(steps, variance_progression, 'o-', label=label, 
                                 alpha=self.viz_config.alpha, color=colors[i], 
                                 linewidth=self.viz_config.linewidth, markersize=self.viz_config.markersize)
                         variance_count += 1
@@ -2733,7 +2756,9 @@ class LatentTrajectoryAnalyzer:
                     magnitude_progression = data.get('magnitude_progression', [])
                     if magnitude_progression and len(magnitude_progression) > 0:
                         steps = list(range(len(magnitude_progression)))
-                        ax2.plot(steps, magnitude_progression, 's-', label=group_name, 
+                        label = self._get_prompt_group_label(results, group_name)
+
+                        ax2.plot(steps, magnitude_progression, 's-', label=label, 
                                 alpha=self.viz_config.alpha, color=colors[i], 
                                 linewidth=self.viz_config.linewidth, markersize=self.viz_config.markersize)
                         magnitude_count += 1
@@ -3653,10 +3678,12 @@ Most Significant Comparison:
                 for i, group in enumerate(group_names):
                     if group in spatial_data:
                         data = spatial_data[group]
+                        label = self._get_prompt_group_label(results, group)
+
                         trajectory_pattern = data.get('trajectory_pattern', [])
                         if trajectory_pattern:
                             steps = list(range(len(trajectory_pattern)))
-                            ax4.plot(steps, trajectory_pattern, 'o-', label=group, 
+                            ax4.plot(steps, trajectory_pattern, 'o-', label=label, 
                                     alpha=self.viz_config.alpha, color=colors[i], 
                                     linewidth=self.viz_config.linewidth, markersize=self.viz_config.markersize)
                             pattern_count += 1
@@ -6048,8 +6075,10 @@ Please check the analysis logs for detailed error information.
                     if mean_traj.ndim == 2:
                         # Average across latent dimensions
                         mean_traj_avg = np.mean(mean_traj, axis=1)
+                        label = self._get_prompt_group_label(results, group_name)
+                        
                         steps = range(len(mean_traj_avg))
-                        ax1.plot(steps, mean_traj_avg, 'o-', label=group_name, 
+                        ax1.plot(steps, mean_traj_avg, 'o-', label=label, 
                                color=colors[i], linewidth=self.viz_config.linewidth, 
                                markersize=self.viz_config.markersize)
             
@@ -6066,7 +6095,9 @@ Please check the analysis logs for detailed error information.
                 if 'error' not in data and data.get('explained_variance_ratio'):
                     var_ratios = data['explained_variance_ratio'][:5]  # First 5 components
                     components = range(1, len(var_ratios) + 1)
-                    ax2.plot(components, var_ratios, 'o-', label=group_name, 
+                    label = self._get_prompt_group_label(results, group_name)
+
+                    ax2.plot(components, var_ratios, 'o-', label=label, 
                            color=colors[i], linewidth=self.viz_config.linewidth,
                            markersize=self.viz_config.markersize)
             
