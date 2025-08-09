@@ -501,18 +501,25 @@ class LatentTrajectoryAnalyzer:
                 )
 
     def analyze_prompt_groups(self, prompt_groups: List[str], 
-                            prompt_descriptions: Optional[List[str]] = None) -> LatentTrajectoryAnalysis:
+                            prompt_descriptions: Optional[List[str]] = None,
+                            prompt_metadata: Optional[Dict[str, Dict[str, str]]] = None) -> LatentTrajectoryAnalysis:
         """Main analysis entry point with trajectory-aware processing."""
         self.logger.info("Starting GPU-optimized trajectory-aware analysis")
         start_time = time.time()
+
+        print(prompt_groups)
         
-        # 1. Load and batch trajectory data
-        self._track_gpu_memory("start")
-        group_tensors = self._load_and_batch_trajectory_data(prompt_groups)
-        self._track_gpu_memory("data_loaded")
+        if not getattr(self, 'group_tensors', None):
+            # 1. Load and batch trajectory data
+            self._track_gpu_memory("start")
+            self.group_tensors = self._load_and_batch_trajectory_data(prompt_groups)
+            
+            self._track_gpu_memory("data_loaded")
         
-        if not group_tensors:
+        if not self.group_tensors:
             raise ValueError("No trajectory data loaded")
+
+        group_tensors = self.group_tensors
         
         # Get trajectory shape
         sample_tensor = next(iter(group_tensors.values()))['trajectory_tensor']
@@ -597,6 +604,7 @@ class LatentTrajectoryAnalyzer:
             'total_analysis_time_seconds': total_time,
             'prompt_groups': prompt_groups,
             'prompt_descriptions': prompt_descriptions or [],
+            'prompt_metadata': prompt_metadata or {},
             'latents_directory': str(self.latents_dir),
             'trajectory_shape': trajectory_shape,
             'device_used': self.device,
@@ -634,6 +642,54 @@ class LatentTrajectoryAnalyzer:
         
         self.logger.info(f"GPU-optimized analysis completed in {total_time:.2f} seconds")
         return results
+
+    def run_dual_tracks(
+        self,
+        prompt_groups: List[str],
+        prompt_descriptions: Optional[List[str]] = None,
+        prompt_metadata: Optional[Dict[str, Dict[str, str]]] = None
+    ) -> Dict[str, LatentTrajectoryAnalysis]:
+        """Run SNR-only and Full normalization in one pass and build a combined board."""
+        from copy import deepcopy
+        base_out = Path(self.output_dir) if self.output_dir else (self.latents_dir.parent / 'latent_trajectory_analysis_results')
+        base_out.mkdir(parents=True, exist_ok=True)
+
+        tracks = {
+            'snr_only': {'per_step_whiten': False, 'per_channel_standardize': False, 'snr_normalize': True},
+            'full_norm': {'per_step_whiten': True,  'per_channel_standardize': True,  'snr_normalize': True},
+        }
+
+        saved: Dict[str, LatentTrajectoryAnalysis] = {}
+        orig_out = deepcopy(self.output_dir)
+        orig_norm = deepcopy(self.norm_cfg)
+
+        try:
+            for name, cfg in tracks.items():
+                self.norm_cfg.update(cfg)
+                self.output_dir = base_out / name
+                self.output_dir.mkdir(parents=True, exist_ok=True)
+
+                res = self.analyze_prompt_groups(prompt_groups, prompt_descriptions, prompt_metadata)
+                # NOTE: analyze_prompt_groups() already calls _create_comprehensive_visualizations(res)
+                # because it calls _save_results(...) then _create_comprehensive_visualizations(...).
+                saved[name] = res
+
+            # Build combined high-level board at the root
+            self.output_dir = base_out
+            self.norm_cfg = orig_norm
+            viz_dir = self.output_dir / 'visualizations'
+            viz_dir.mkdir(exist_ok=True)
+
+            # Combined dashboard + dual radars
+            self._plot_comprehensive_analysis_dashboard(saved['snr_only'], viz_dir, results_full=saved.get('full_norm'))
+            self._plot_research_radar_chart(saved['snr_only'], viz_dir, results_full=saved.get('full_norm'))
+
+            return saved
+        finally:
+            # Always restore
+            self.output_dir = orig_out
+            self.norm_cfg = orig_norm
+
 
     def _create_comprehensive_visualizations(self, results: LatentTrajectoryAnalysis):
         """Create comprehensive visualizations for all key statistical analyses."""
@@ -730,8 +786,12 @@ class LatentTrajectoryAnalyzer:
             # 17. Structural Analysis Visualizations
             self._plot_structural_analysis(results, viz_dir)
             
+            # Paired-seed significance
+            self._plot_paired_seed_significance(results, viz_dir)
+            
             # 18. Comprehensive Dashboard
-            self._create_analysis_dashboard(results, viz_dir)
+            self._plot_comprehensive_analysis_dashboard(results, viz_dir)
+            self._plot_trajectory_atlas_umap(results, viz_dir, self.group_tensors)
             
             self.logger.info(f"✅ Visualizations saved to: {viz_dir}")
             
@@ -2165,172 +2225,86 @@ class LatentTrajectoryAnalyzer:
             self.logger.exception("Full traceback:")
             raise
 
-    def _plot_research_radar_chart(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
-        """Create research-focused radar chart comparing key trajectory metrics across prompt groups."""
-        try:
-            self.logger.info("🕸️ Creating research-focused radar chart...")
-            
-            # Define key research metrics for radar chart
-            radar_metrics = [
-                'trajectory_distance', 'generation_consistency', 'velocity_avg', 
-                'variance_evolution', 'phase_transitions', 'frequency_diversity'
-            ]
-            
-            # Extract data from results
-            group_names = sorted(results.analysis_metadata["prompt_groups"])
-            colors = self.viz_config.get_colors(len(group_names))
-            
-            # Collect metrics for radar chart
-            radar_data = {}
-            
-            for group in group_names:
-                group_metrics = {}
-                
-                # 1. Trajectory Distance (from spatial patterns)
-                spatial_data = results.spatial_patterns.get('trajectory_spatial_evolution', {})
-                if group in spatial_data:
-                    pattern = spatial_data[group].get('trajectory_pattern', [])
-                    if pattern and len(pattern) > 1:
-                        total_distance = np.sum(np.abs(np.diff(pattern)))
-                        group_metrics['trajectory_distance'] = total_distance
-                    else:
-                        group_metrics['trajectory_distance'] = 0
-                else:
-                    group_metrics['trajectory_distance'] = 0
-                
-                # 2. Generation Consistency (from synchronization)
-                sync_data = results.temporal_coherence.get('cross_trajectory_synchronization', {})
-                if group in sync_data:
-                    group_metrics['generation_consistency'] = sync_data[group].get('mean_correlation', 0)
-                else:
-                    group_metrics['generation_consistency'] = 0
-                
-                # 3. Average Velocity (from momentum analysis)
-                momentum_data = results.temporal_coherence.get('temporal_momentum_analysis', {})
-                if group in momentum_data:
-                    velocity_mean = momentum_data[group].get('velocity_mean', [])
-                    if velocity_mean:
-                        group_metrics['velocity_avg'] = np.mean(np.abs(velocity_mean))
-                    else:
-                        group_metrics['velocity_avg'] = 0
-                else:
-                    group_metrics['velocity_avg'] = 0
-                
-                # 4. Variance Evolution (from global structure)
-                global_data = results.global_structure.get('trajectory_global_evolution', {})
-                if group in global_data:
-                    variance_prog = global_data[group].get('variance_progression', [])
-                    if variance_prog and len(variance_prog) > 1:
-                        # Calculate variance change magnitude
-                        variance_change = abs(variance_prog[-1] - variance_prog[0])
-                        group_metrics['variance_evolution'] = variance_change
-                    else:
-                        group_metrics['variance_evolution'] = 0
-                else:
-                    group_metrics['variance_evolution'] = 0
-                
-                # 5. Phase Transitions (from phase detection)
-                phase_data = results.temporal_coherence.get('phase_transition_detection', {})
-                if group in phase_data:
-                    p95_transitions = phase_data[group].get('p95_transitions', [])
-                    if p95_transitions:
-                        group_metrics['phase_transitions'] = np.mean(p95_transitions)
-                    else:
-                        group_metrics['phase_transitions'] = 0
-                else:
-                    group_metrics['phase_transitions'] = 0
-                
-                # 6. Frequency Diversity (from frequency signatures)
-                freq_data = results.temporal_coherence.get('temporal_frequency_signatures', {})
-                if group in freq_data:
-                    entropy = freq_data[group].get('spectral_entropy', 0)
-                    if isinstance(entropy, (list, tuple, np.ndarray)):
-                        entropy = np.mean(entropy)
-                    group_metrics['frequency_diversity'] = float(entropy)
-                else:
-                    group_metrics['frequency_diversity'] = 0
-                
-                radar_data[group] = group_metrics
-            
-            # Normalize data to 0-1 scale for radar chart
-            normalized_data = {}
-            for metric in radar_metrics:
-                all_values = [radar_data[group].get(metric, 0) for group in group_names]
-                if max(all_values) > min(all_values):
-                    min_val, max_val = min(all_values), max(all_values)
-                    for group in group_names:
-                        if group not in normalized_data:
-                            normalized_data[group] = {}
-                        raw_val = radar_data[group].get(metric, 0)
-                        normalized_data[group][metric] = (raw_val - min_val) / (max_val - min_val)
-                else:
-                    # All values are the same
-                    for group in group_names:
-                        if group not in normalized_data:
-                            normalized_data[group] = {}
-                        normalized_data[group][metric] = 0.5
-            
-            # Create radar chart
-            fig, ax = plt.subplots(figsize=(10, 10), subplot_kw=dict(projection='polar'))
-            
-            # Set up angles
-            num_vars = len(radar_metrics)
-            angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
-            angles += angles[:1]  # Complete the circle
-            
-            # Plot each group
-            for i, group in enumerate(group_names):
-                values = [normalized_data[group][metric] for metric in radar_metrics]
-                values += values[:1]  # Complete the circle
-                
-                color = colors[i]
-                ax.plot(angles, values, 'o-', linewidth=2, label=group, color=color, alpha=0.8)
-                ax.fill(angles, values, alpha=0.2, color=color)
-            
-            # Customize the chart
-            ax.set_xticks(angles[:-1])
-            metric_labels = [
-                'Trajectory\nDistance', 'Generation\nConsistency', 'Average\nVelocity',
-                'Variance\nEvolution', 'Phase\nTransitions', 'Frequency\nDiversity'
-            ]
-            ax.set_xticklabels(metric_labels, fontsize=self.viz_config.fontsize_labels)
-            
-            # Set radial limits and labels
-            ax.set_ylim(0, 1)
-            ax.set_yticks([0.2, 0.4, 0.6, 0.8, 1.0])
-            ax.set_yticklabels(['0.2', '0.4', '0.6', '0.8', '1.0'], fontsize=self.viz_config.fontsize_labels)
-            ax.grid(True, alpha=self.viz_config.grid_alpha)
-            
-            # Title and legend
-            plt.title('Multi-Metric Trajectory Profile Comparison\nPrompt Group Fingerprints in Latent Space', 
-                     fontsize=self.viz_config.fontsize_title, fontweight=self.viz_config.fontweight_title, pad=20)
-            plt.legend(loc='upper right', bbox_to_anchor=(1.3, 1.0), fontsize=self.viz_config.fontsize_legend)
-            
-            # Save
-            output_path = viz_dir / f"research_radar_chart.{self.viz_config.save_format}"
-            plt.savefig(output_path, dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
-            plt.close()
-            
-            self.logger.info(f"✅ Research radar chart saved to: {output_path}")
-            
-        except Exception as e:
-            self.logger.error(f"❌ Failed to create research radar chart: {e}")
-            self.logger.exception("Full traceback:")
-            
-            # Create error fallback
-            try:
-                fig, ax = plt.subplots(1, 1, figsize=(10, 8))
-                ax.text(0.5, 0.5, f'Research Radar Chart Creation Failed\n\nError: {str(e)}\n\nCheck logs for details', 
-                       ha='center', va='center', transform=ax.transAxes, fontsize=12,
-                       bbox=dict(boxstyle="round,pad=0.5", facecolor="lightcoral", alpha=0.8))
-                ax.set_title('Research Radar Chart - Error')
-                ax.axis('off')
-                
-                error_output_path = viz_dir / f"research_radar_chart_ERROR.{self.viz_config.save_format}"
-                plt.savefig(error_output_path, dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
-                plt.close()
-            except:
-                pass
+    
+    def _plot_research_radar_chart(
+        self, 
+        results: LatentTrajectoryAnalysis, 
+        viz_dir: Path, 
+        results_full: Optional[LatentTrajectoryAnalysis]=None
+    ):
+        """
+        Multi-group radar comparison over key metrics.
+        Metrics (normalized per-metric across groups):
+        Scale (SNR-only): Length, Velocity
+        Shape (Full): Acceleration, Late/Early, Turning Angle, Alignment
+        """
+        import numpy as np
+        import matplotlib.pyplot as plt
+
+        if results_full is None:
+            results_full = results
+
+        groups = sorted(results.temporal_analysis.keys())
+
+        # Collect metrics
+        length   = np.array([results.temporal_analysis[g]['trajectory_length']['mean_length'] for g in groups], dtype=float)
+        velocity = np.array([results.temporal_analysis[g]['velocity_analysis']['overall_mean_velocity'] for g in groups], dtype=float)
+
+        accel    = np.array([results_full.temporal_analysis[g]['acceleration_analysis']['overall_mean_acceleration'] for g in groups], dtype=float)
+        late_ear = np.array([results_full.spatial_patterns['trajectory_spatial_evolution'][g]['evolution_ratio'] for g in groups], dtype=float)
+
+        # Geometry (may be missing for some groups)
+        geom = getattr(results_full, 'individual_trajectory_geometry', {})
+        turning = np.array([float(geom[g]['turning_angle_stats']['mean']) if g in geom and 'error' not in geom[g] else np.nan for g in groups])
+        align   = np.array([float(geom[g]['endpoint_alignment_stats']['mean']) if g in geom and 'error' not in geom[g] else np.nan for g in groups])
+
+        # Normalize per metric (ignore NaNs)
+        def norm01(a):
+            b = a.astype(float)
+            if np.all(np.isnan(b)): return np.zeros_like(b)
+            m = np.nanmin(b); M = np.nanmax(b)
+            if not np.isfinite(M-m) or (M-m) < 1e-12: return np.zeros_like(b)
+            return (b - m) / (M - m + 1e-12)
+
+        metrics = [
+            ("Length",   norm01(length)),
+            ("Velocity", norm01(velocity)),
+            ("Acceleration", norm01(accel)),
+            ("Late/Early",   norm01(late_ear)),
+            ("Turning Angle", norm01(np.nan_to_num(turning, nan=np.nanmean(turning)))),
+            ("Alignment",     norm01(np.nan_to_num(align,   nan=np.nanmean(align)))),
+        ]
+
+        labels = [m[0] for m in metrics]
+        values = np.vstack([m[1] for m in metrics])  # [K, G]
+
+        # colors
+        cmap = plt.get_cmap('tab10')
+        cols = [cmap(i % 10) for i in range(len(groups))]
+
+        # Radar plot
+        N = len(labels)
+        angles = np.linspace(0, 2*np.pi, N, endpoint=False).tolist()
+        angles += angles[:1]
+
+        fig = plt.figure(figsize=(10, 8))
+        ax = plt.subplot(111, projection='polar')
+        ax.set_theta_offset(np.pi / 2); ax.set_theta_direction(-1)
+        ax.set_xticks(angles[:-1]); ax.set_xticklabels(labels, fontsize=self.viz_config.fontsize_labels)
+
+        for gi, g in enumerate(groups):
+            vals = values[:, gi].tolist()
+            vals += vals[:1]
+            ax.plot(angles, vals, linewidth=2, color=cols[gi], label=g)
+            ax.fill(angles, vals, color=cols[gi], alpha=0.15)
+
+        ax.set_title("Prompt Group Comparison (normalized)", fontweight=self.viz_config.fontweight_title)
+        ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1), fontsize=8)
+        plt.tight_layout()
+        plt.savefig(viz_dir / f"research_radar_chart.{self.viz_config.save_format}",
+                    dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
+        plt.close()
+
 
     def _plot_endpoint_constellations(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
         """Create endpoint constellation analysis showing final latent space positions with confidence ellipses."""
@@ -3212,6 +3186,144 @@ Most Significant Comparison:
             import traceback
             self.logger.error(f"Failed to create temporal analysis visualization: {e}")
             self.logger.error(f"Full traceback:\n{traceback.format_exc()}")
+
+    def _plot_comprehensive_analysis_dashboard(
+        self, results: LatentTrajectoryAnalysis, 
+        viz_dir: Path, 
+        results_full: Optional[LatentTrajectoryAnalysis]=None
+    ):
+        """
+        Hierarchical insight board:
+        Row 1: Radar (spans 2 cols) + Final-state scatter + Key insights box
+        Row 2: Per-timestep curves (Spatial variance; Global variance; Global magnitude)
+        Row 3: Bars (Length, Velocity) [SNR], (Acceleration, Late/Early) [Full]
+        """
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from matplotlib.gridspec import GridSpec
+
+        if results_full is None:
+            results_full = results
+
+        groups = sorted(results.temporal_analysis.keys())
+        cmap = plt.get_cmap('tab10')
+        cols = [cmap(i % 10) for i in range(len(groups))]
+
+        # ------ Gather metrics ------
+        # SNR track (scale)
+        length   = np.array([results.temporal_analysis[g]['trajectory_length']['mean_length'] for g in groups], dtype=float)
+        velocity = np.array([results.temporal_analysis[g]['velocity_analysis']['overall_mean_velocity'] for g in groups], dtype=float)
+        ge = results.global_structure['trajectory_global_evolution']
+        final_var = np.array([ge[g]['variance_progression'][-1] for g in groups], dtype=float)
+        final_mag = np.array([ge[g]['magnitude_progression'][-1] for g in groups], dtype=float)
+
+        # Full track (shape)
+        accel  = np.array([results_full.temporal_analysis[g]['acceleration_analysis']['overall_mean_acceleration'] for g in groups], dtype=float)
+        late_e = np.array([results_full.spatial_patterns['trajectory_spatial_evolution'][g]['evolution_ratio'] for g in groups], dtype=float)
+
+        # Per-timestep curves
+        # spatial variance curve (robust keys)
+        def spatial_curve(g):
+            spg = results_full.spatial_patterns['trajectory_spatial_evolution'][g]
+            for k in ('spatial_variance_curve', 'spatial_variance_by_step', 'variance_curve'):
+                if k in spg: return np.array(spg[k], dtype=float)
+            return None
+        spatial_curves = {g: spatial_curve(g) for g in groups}
+        var_prog = {g: np.array(results.global_structure['trajectory_global_evolution'][g]['variance_progression'], dtype=float) for g in groups}
+        mag_prog = {g: np.array(results.global_structure['trajectory_global_evolution'][g]['magnitude_progression'], dtype=float) for g in groups}
+
+        # Correlations vs specificity index
+        idx = np.arange(len(groups), dtype=float)
+        def corr(y):
+            y = np.array(y, dtype=float)
+            if len(y) < 3 or np.allclose(y, y[0]): return 0.0
+            return float(np.corrcoef(idx, y)[0,1])
+
+        insights = [
+            f"Length↑ specificity r={corr(length):.2f}",
+            f"Velocity↑ specificity r={corr(velocity):.2f}",
+            f"Acceleration↑ specificity r={corr(accel):.2f}",
+            f"Late/Early ratio↑ specificity r={corr(late_e):.2f}",
+        ]
+
+        # ------ Layout ------
+        fig = plt.figure(figsize=(18, 14))
+        gs = GridSpec(3, 3, figure=fig, height_ratios=[1.1, 1.0, 0.9], hspace=0.4, wspace=0.35)
+
+        # Row 1: Radar (2 cols)
+        ax_radar = fig.add_subplot(gs[0, 0:2], projection='polar')
+
+        # Build radar values (normalized per metric)
+        def norm01(a):
+            a = np.asarray(a, dtype=float)
+            if np.allclose(a, a[0]): return np.zeros_like(a)
+            m, M = float(np.min(a)), float(np.max(a))
+            return (a - m) / (M - m + 1e-12)
+
+        labels = ['Length', 'Velocity', 'Acceleration', 'Late/Early']
+        mat = np.vstack([norm01(length), norm01(velocity), norm01(accel), norm01(late_e)])  # [K, G]
+        N = len(labels)
+        angles = np.linspace(0, 2*np.pi, N, endpoint=False).tolist()
+        angles += angles[:1]
+        ax_radar.set_theta_offset(np.pi / 2); ax_radar.set_theta_direction(-1)
+        ax_radar.set_xticks(angles[:-1]); ax_radar.set_xticklabels(labels, fontsize=self.viz_config.fontsize_labels)
+        for gi, g in enumerate(groups):
+            vals = mat[:, gi].tolist(); vals += vals[:1]
+            ax_radar.plot(angles, vals, linewidth=2, color=cols[gi], label=g)
+            ax_radar.fill(angles, vals, color=cols[gi], alpha=0.15)
+        ax_radar.set_title("Group Comparison (normalized)", fontweight=self.viz_config.fontweight_title)
+        ax_radar.legend(loc='upper right', bbox_to_anchor=(1.25, 1.10), fontsize=8)
+
+        # Row 1 right: final-state scatter + insights box
+        ax_fs = fig.add_subplot(gs[0, 2])
+        ax_fs.scatter(final_var, final_mag, s=40)
+        for i, g in enumerate(groups):
+            ax_fs.annotate(g, (final_var[i], final_mag[i]), fontsize=8)
+        ax_fs.set_xlabel("Final Variance"); ax_fs.set_ylabel("Final Magnitude")
+        ax_fs.set_title("Final State")
+
+        # Insights box
+        txt = "Key Insights:\n" + "\n".join("• "+s for s in insights)
+        ax_fs.text(0.02, 0.02, txt, transform=ax_fs.transAxes,
+                fontsize=10, va='bottom', ha='left',
+                bbox=dict(facecolor='white', alpha=0.9, boxstyle='round'))
+
+        # Row 2: per-timestep curves
+        ax_sp = fig.add_subplot(gs[1, 0])
+        for c, g in zip(cols, groups):
+            y = spatial_curves[g]
+            if y is not None:
+                ax_sp.plot(range(len(y)), y, color=c, label=g, alpha=0.9)
+        ax_sp.set_title("Spatial Variance over Diffusion")
+        ax_sp.set_xlabel("Step"); ax_sp.set_ylabel("Spatial variance")
+        ax_sp.grid(True, alpha=0.3)
+
+        ax_vp = fig.add_subplot(gs[1, 1])
+        for c, g in zip(cols, groups):
+            y = var_prog[g]
+            ax_vp.plot(range(len(y)), y, color=c, alpha=0.9)
+        ax_vp.set_title("Global Variance Progression")
+        ax_vp.set_xlabel("Step"); ax_vp.set_ylabel("Variance")
+        ax_vp.grid(True, alpha=0.3)
+
+        ax_mp = fig.add_subplot(gs[1, 2])
+        for c, g in zip(cols, groups):
+            y = mag_prog[g]
+            ax_mp.plot(range(len(y)), y, color=c, alpha=0.9)
+        ax_mp.set_title("Global Magnitude Progression")
+        ax_mp.set_xlabel("Step"); ax_mp.set_ylabel("Magnitude")
+        ax_mp.grid(True, alpha=0.3)
+
+        # Row 3: bar summaries
+        ax_l = fig.add_subplot(gs[2, 0]); ax_l.bar(groups, length, color=cols); ax_l.set_title("Trajectory Length (SNR)") ; ax_l.tick_params(axis='x', rotation=45)
+        ax_v = fig.add_subplot(gs[2, 1]); ax_v.bar(groups, velocity, color=cols); ax_v.set_title("Mean Velocity (SNR)"); ax_v.tick_params(axis='x', rotation=45)
+        ax_a = fig.add_subplot(gs[2, 2]); ax_a.bar(groups, accel, color=cols); ax_a.set_title("Mean Acceleration (Full)"); ax_a.tick_params(axis='x', rotation=45)
+        # Optionally replace ax_a with Late/Early; we keep Accel here, Late/Early is in radar + could add a 4th panel if desired
+
+        plt.tight_layout()
+        plt.savefig(viz_dir / f"comprehensive_analysis_dashboard.{self.viz_config.save_format}",
+                    dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
+        plt.close()
 
     def _plot_structural_analysis(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
         """Plot structural analysis visualizations."""
@@ -5667,82 +5779,253 @@ Please check the analysis logs for detailed error information.
     # NEW ADVANCED GEOMETRIC ANALYSIS VISUALIZATIONS
     # =============================================================================
     
-    def _plot_convex_hull_analysis(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
-        """Plot convex hull proxy metrics with numerically stable scales."""
+    
+    def _plot_convex_hull_analysis(
+        self, 
+        results: LatentTrajectoryAnalysis, 
+        viz_dir: Path
+    ):
+        """Convex hull proxies: plot Δ% vs baseline (first group), with optional CIs if present."""
+        import numpy as np
+        import matplotlib.pyplot as plt
+
         data = results.convex_hull_analysis
-        group_names = sorted(data.keys())
-        if not group_names:
+        groups = sorted(data.keys())
+        if not groups:
             return
-    
-        # Collect metrics with fallbacks
-        log_vols = []
-        eff_sides = []
-        densities = []
-        areas = []
-        for g in group_names:
-            d = data[g]
-            log_v = d.get('log_bbox_volume', None)
-            if log_v is None:
-                v = max(float(d.get('hull_volume', 0.0)), 1e-300)
-                log_v = math.log(v)
-            log_vols.append(log_v)
-            eff = d.get('effective_side', None)
-            if eff is None:
-                D = max(int(d.get('latent_dim_used', 1)), 1)
-                eff = math.exp(log_v / D)
-            eff_sides.append(eff)
-            densities.append(float(d.get('density_metric', 0.0)))
-            areas.append(float(d.get('hull_surface_area', 0.0)))
-    
-        colors = self.viz_config.get_colors(len(group_names)) if hasattr(self, 'viz_config') else sns.color_palette("husl", len(group_names))
-    
-        # Figure 1: Log Volume and Effective Side
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-    
-        bars1 = ax1.bar(group_names, log_vols, color=colors, alpha=0.85)
-        ax1.set_title('Convex Hull Proxy: Log Bounding-Box Volume', fontsize=12, fontweight='bold')
-        ax1.set_xlabel('Prompt Group'); ax1.set_ylabel('log Volume')
-        ax1.tick_params(axis='x', rotation=45)
-        for bar, v in zip(bars1, log_vols):
-            ax1.text(bar.get_x() + bar.get_width()/2., bar.get_height(),
-                     f'{v:.2f}', ha='center', va='bottom', fontsize=8, rotation=90)
-    
-        bars2 = ax2.bar(group_names, eff_sides, color=colors, alpha=0.85)
-        ax2.set_title('Convex Hull Proxy: Effective Side Length (Geometric Mean)', fontsize=12, fontweight='bold')
-        ax2.set_xlabel('Prompt Group'); ax2.set_ylabel('Effective Side')
-        ax2.tick_params(axis='x', rotation=45)
-        for bar, v in zip(bars2, eff_sides):
-            ax2.text(bar.get_x() + bar.get_width()/2., bar.get_height(),
-                     f'{v:.3e}', ha='center', va='bottom', fontsize=8, rotation=90)
-    
+
+        logvol = np.array([data[g].get('log_bbox_volume', np.nan) for g in groups], dtype=float)
+        eff    = np.array([data[g].get('effective_side',   np.nan) for g in groups], dtype=float)
+
+        def pct_delta(arr):
+            base = arr[0]
+            return 100.0 * (arr - base) / (base + 1e-12)
+
+        y1 = pct_delta(logvol)
+        y2 = pct_delta(eff)
+
+        # Optional: 68% CI bands if you later store bootstrap arrays as lists
+        def maybe_ci(key):
+            lows, highs = [], []
+            have_ci = True
+            for g in groups:
+                boot = data[g].get(key)
+                if isinstance(boot, (list, tuple)) and len(boot) > 8:
+                    b = np.asarray(boot, dtype=float)
+                    lo, hi = np.percentile(b, [16, 84])
+                    lows.append(lo); highs.append(hi)
+                else:
+                    have_ci = False
+                    break
+            if not have_ci:
+                return None, None
+            return np.array(lows), np.array(highs)
+
+        # If you later add e.g. 'bootstrap_log_bbox_volume' to each group, these will render.
+        # For now they will be None and we just draw bars without error bands.
+        lv_lo, lv_hi = maybe_ci('bootstrap_log_bbox_volume')
+        es_lo, es_hi = maybe_ci('bootstrap_effective_side')
+
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+
+        # Log volume Δ%
+        ax1.bar(groups, y1, alpha=0.85)
+        if lv_lo is not None:
+            ax1.errorbar(groups, pct_delta(lv_lo*0 + logvol),  # center ignored; just show band if you store deltas
+                        yerr=[pct_delta(logvol) - pct_delta(lv_lo),
+                            pct_delta(lv_hi)  - pct_delta(logvol)],
+                        fmt='none', ecolor='k', capsize=3, linewidth=1)
+        ax1.set_title('Log-BBox Volume Δ% vs baseline')
+        ax1.set_ylabel('% change'); ax1.tick_params(axis='x', rotation=45); ax1.grid(True, alpha=0.3)
+
+        # Effective side Δ%
+        ax2.bar(groups, y2, alpha=0.85)
+        if es_lo is not None:
+            ax2.errorbar(groups, pct_delta(eff),
+                        yerr=[pct_delta(eff) - pct_delta(es_lo),
+                            pct_delta(es_hi) - pct_delta(eff)],
+                        fmt='none', ecolor='k', capsize=3, linewidth=1)
+        ax2.set_title('Effective Side Δ% vs baseline')
+        ax2.set_ylabel('% change'); ax2.tick_params(axis='x', rotation=45); ax2.grid(True, alpha=0.3)
+
         plt.tight_layout()
-        fmt = getattr(self.viz_config, 'save_format', 'png') if hasattr(self, 'viz_config') else 'png'
-        dpi = getattr(self.viz_config, 'dpi', 300) if hasattr(self, 'viz_config') else 300
-        plt.savefig(viz_dir / f"convex_hull_proxies_1.{fmt}", dpi=dpi, bbox_inches='tight')
-        plt.close(fig)
-    
-        # Figure 2: Density and Volume vs Area
-        fig2, (bx1, bx2) = plt.subplots(1, 2, figsize=(15, 6))
-    
-        bars3 = bx1.bar(group_names, densities, color=colors, alpha=0.85)
-        bx1.set_title('Density Metric (points / volume)', fontsize=12, fontweight='bold')
-        bx1.set_xlabel('Prompt Group'); bx1.set_ylabel('Density')
-        bx1.tick_params(axis='x', rotation=45)
-        for bar, v in zip(bars3, densities):
-            bx1.text(bar.get_x() + bar.get_width()/2., bar.get_height(),
-                     f'{v:.3e}', ha='center', va='bottom', fontsize=8, rotation=90)
-    
-        # Scatter: log volume vs area proxy
-        bx2.scatter(log_vols, areas, c=list(range(len(group_names))), cmap='viridis', s=90, edgecolors='black')
-        for i, g in enumerate(group_names):
-            bx2.annotate(g, (log_vols[i], areas[i]), xytext=(6, 6), textcoords='offset points', fontsize=8)
-        bx2.set_title('Log Volume vs Area Proxy', fontsize=12, fontweight='bold')
-        bx2.set_xlabel('log Volume'); bx2.set_ylabel('Area Proxy (sum of ranges)')
-        bx2.grid(True, alpha=0.3)
-    
+        plt.savefig(viz_dir / f'convex_hull_proxies_delta.{self.viz_config.save_format}',
+                    dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
+        plt.close()
+
+
+    def _plot_paired_seed_significance(
+        self, 
+        results: LatentTrajectoryAnalysis, 
+        viz_dir: Path
+    ):
+        '''Paired-seed tests for adjacent rungs: length (SNR), velocity, acceleration (if arrays available).'''
+        import numpy as np
+        import matplotlib.pyplot as plt
+        try:
+            from scipy.stats import ttest_rel, wilcoxon
+            HAVE_SCIPY = True
+        except Exception:
+            HAVE_SCIPY = False
+
+        ta = results.temporal_analysis
+        groups = sorted(ta.keys())
+        if len(groups) < 2:
+            return
+
+        def get_per_video(key_chain):
+            out = {}
+            for g in groups:
+                d = results.temporal_analysis[g]
+                cur = d
+                ok = True
+                for k in key_chain:
+                    if k not in cur:
+                        ok=False; break
+                    cur = cur[k]
+                if not ok or cur is None:
+                    out[g] = None
+                    continue
+                arr = np.array(cur, dtype=float)
+                out[g] = arr if arr.ndim==1 else arr.reshape(-1)
+            return out
+
+        lengths = get_per_video(['trajectory_length','individual_lengths'])
+        vels    = get_per_video(['velocity_analysis','mean_velocity'])
+        accels  = get_per_video(['acceleration_analysis','mean_acceleration'])
+
+        rows = []
+        for i in range(len(groups)-1):
+            g1, g2 = groups[i], groups[i+1]
+            for label, series in [('Length', lengths), ('Velocity', vels), ('Acceleration', accels)]:
+                a, b = series.get(g1), series.get(g2)
+                if a is None or b is None or a.size==0 or b.size==0 or a.size!=b.size:
+                    continue
+                diff = b - a
+                d = float(diff.mean() / (diff.std(ddof=1)+1e-12))
+                if HAVE_SCIPY:
+                    t_p = float(ttest_rel(b, a).pvalue)
+                    try:
+                        w_p = float(wilcoxon(b, a, zero_method='wilcox').pvalue) if not np.allclose(diff, 0) else None
+                    except Exception:
+                        w_p = None
+                else:
+                    t_p, w_p = None, None
+                rows.append((f"{g1}→{g2}", label, -np.log10(t_p) if t_p else np.nan, d))
+
+        if not rows:
+            return
+
+        pairs = sorted({r[0] for r in rows})
+        metrics = sorted({r[1] for r in rows})
+        heat = np.full((len(metrics), len(pairs)), np.nan)
+        annot = np.empty_like(heat, dtype=object)
+        for (pair, label, logp, d) in rows:
+            i = metrics.index(label); j = pairs.index(pair)
+            heat[i,j] = logp
+            annot[i,j] = f"{d:.2f}"
+
+        fig, ax = plt.subplots(figsize=(1.8*len(pairs)+3, 1.2*len(metrics)+2))
+        im = ax.imshow(heat, cmap='YlOrRd', aspect='auto')
+        ax.set_xticks(range(len(pairs))); ax.set_xticklabels(pairs, rotation=45)
+        ax.set_yticks(range(len(metrics))); ax.set_yticklabels(metrics)
+        ax.set_title("Paired-seed significance (−log10 p) with Cohen's d")
+        for i in range(len(metrics)):
+            for j in range(len(pairs)):
+                if not np.isnan(heat[i,j]):
+                    ax.text(j, i, annot[i,j], ha='center', va='center', fontsize=8)
+        fig.colorbar(im, ax=ax, label="−log10 p (paired t-test)")
         plt.tight_layout()
-        plt.savefig(viz_dir / f"convex_hull_proxies_2.{fmt}", dpi=dpi, bbox_inches='tight')
-        plt.close(fig2)
+        plt.savefig(viz_dir / f'paired_seed_significance.{self.viz_config.save_format}', dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
+        plt.close()
+
+    def _plot_trajectory_atlas_umap(
+        self,
+        results: LatentTrajectoryAnalysis,
+        viz_dir: Path,
+        group_tensors: Optional[Dict[str, Dict[str, torch.Tensor]]] = None
+    ):
+        """2-D map (UMAP/PCA) of step embeddings, colored by step index; centroids per prompt group."""
+        import numpy as np
+        import matplotlib.pyplot as plt
+        try:
+            from sklearn.decomposition import PCA
+            HAVE_SK = True
+        except Exception:
+            HAVE_SK = False
+        try:
+            import umap
+            HAVE_UMAP = True
+        except Exception:
+            HAVE_UMAP = False
+
+        # Load on demand to avoid RAM spikes
+        if group_tensors is None:
+            try:
+                prompt_groups = results.analysis_metadata.get('prompt_groups', [])
+                group_tensors = self._load_and_batch_trajectory_data(prompt_groups)
+            except Exception:
+                group_tensors = None
+        if not group_tensors:
+            return
+
+        # Sample a few canonical steps across the schedule
+        sample = next(iter(group_tensors.values()))['trajectory_tensor']
+        T = sample.shape[1]
+        steps_keep = sorted(set([0, max(1, T//5), max(2, T//5), max(3, T//5), T-1]))
+
+        Xs, cols, marks = [], [], []
+        groups = sorted(group_tensors.keys())
+        for gi, g in enumerate(groups):
+            tens = group_tensors[g]['trajectory_tensor']   # [N, T, C, F, H, W]
+            flat = self._apply_normalization(tens, group_tensors[g])  # [N, T, D]
+            for si in steps_keep:
+                pts = flat[:, si, :]
+                Xs.append(pts.float().cpu().numpy())
+                cols.extend([si] * pts.shape[0])
+                marks.extend([gi] * pts.shape[0])
+
+        if not Xs:
+            return
+        X = np.concatenate(Xs, axis=0)
+        if X.shape[0] < 10:
+            return
+
+        # Dimensionality reduction
+        if HAVE_SK:
+            X50 = PCA(n_components=min(50, X.shape[1]), random_state=42).fit_transform(X)
+        else:
+            X50 = X
+
+        if HAVE_UMAP:
+            X2 = umap.UMAP(n_components=2, n_neighbors=30, min_dist=0.1, metric='cosine',
+                        random_state=42).fit_transform(X50)
+        else:
+            if HAVE_SK and X50.shape[1] > 2:
+                X2 = PCA(n_components=2, random_state=42).fit_transform(X50)
+            else:
+                X2 = X50[:, :2]
+
+        # Plot atlas
+        fig, ax = plt.subplots(figsize=(10, 8))
+        sc = ax.scatter(X2[:, 0], X2[:, 1], c=cols, cmap='viridis', alpha=0.6, s=14)
+        cb = plt.colorbar(sc, ax=ax); cb.set_label('Diffusion Step (sampled)')
+
+        groups_arr = np.array(marks)
+        for gi, g in enumerate(groups):
+            mask = groups_arr == gi
+            if mask.any():
+                cx, cy = X2[mask, 0].mean(), X2[mask, 1].mean()
+                ax.scatter([cx], [cy], s=120, edgecolor='k', facecolor='none', label=g, marker='o')
+
+        ax.legend(title='Prompt Group', loc='best', fontsize=8)
+        ax.set_title('Trajectory Atlas (UMAP/PCA)')
+        ax.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(viz_dir / f'trajectory_atlas_umap.{self.viz_config.save_format}',
+                    dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
+        plt.close()
+
 
     def _plot_functional_pca_analysis(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
         """Plot Functional PCA analysis showing trajectory shape decomposition."""
@@ -5846,156 +6129,186 @@ Please check the analysis logs for detailed error information.
             self.logger.error(f"Error creating FPCA visualization: {e}")
             plt.close()
 
-    def _plot_individual_trajectory_geometry_dashboard(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
-        """Create comprehensive dashboard for individual trajectory geometry metrics."""
-        try:
-            geometry_data = results.individual_trajectory_geometry
-            sorted_group_names = sorted(geometry_data.keys())
-            colors = self.viz_config.get_colors(len(sorted_group_names))
-            
-            # Create main dashboard
-            fig = plt.figure(figsize=(20, 16))
-            
-            # Plot 1: Speed Distribution
-            ax1 = plt.subplot(3, 3, 1)
-            speed_means = []
-            speed_stds = []
-            for group_name in sorted_group_names:
-                data = geometry_data[group_name]
-                if 'error' not in data:
-                    speed_means.append(data['speed_stats']['mean'])
-                    speed_stds.append(data['speed_stats']['std'])
-                else:
-                    speed_means.append(0)
-                    speed_stds.append(0)
-            
-            bars = ax1.bar(sorted_group_names, speed_means, yerr=speed_stds, 
-                          alpha=self.viz_config.alpha, color=colors, capsize=5)
-            ax1.set_ylabel('Mean Speed', fontsize=self.viz_config.fontsize_labels)
-            ax1.set_title('Trajectory Speed\n(Step Size)', fontweight=self.viz_config.fontweight_title)
-            ax1.tick_params(axis='x', rotation=45, labelsize=self.viz_config.fontsize_labels)
-            ax1.grid(True, alpha=self.viz_config.grid_alpha)
-            
-            # Plot 2: Log Volume Distribution
-            ax2 = plt.subplot(3, 3, 2)
-            volume_means = []
-            volume_stds = []
-            for group_name in sorted_group_names:
-                data = geometry_data[group_name]
-                if 'error' not in data:
-                    volume_means.append(data['log_volume_stats']['mean'])
-                    volume_stds.append(data['log_volume_stats']['std'])
-                else:
-                    volume_means.append(0)
-                    volume_stds.append(0)
-            
-            bars = ax2.bar(sorted_group_names, volume_means, yerr=volume_stds, 
-                          alpha=self.viz_config.alpha, color=colors, capsize=5)
-            ax2.set_ylabel('Mean Log Volume', fontsize=self.viz_config.fontsize_labels)
-            ax2.set_title('Individual Trajectory Log Volume\n(Exploration)', fontweight=self.viz_config.fontweight_title)
-            ax2.tick_params(axis='x', rotation=45, labelsize=self.viz_config.fontsize_labels)
-            ax2.grid(True, alpha=self.viz_config.grid_alpha)
-            
-            # Plot 3: Circuitousness Distribution
-            ax3 = plt.subplot(3, 3, 3)
-            circuit_means = []
-            circuit_stds = []
-            for group_name in sorted_group_names:
-                data = geometry_data[group_name]
-                if 'error' not in data:
-                    circuit_means.append(data['circuitousness_stats']['mean'])
-                    circuit_stds.append(data['circuitousness_stats']['std'])
-                else:
-                    circuit_means.append(0)
-                    circuit_stds.append(0)
-            
-            bars = ax3.bar(sorted_group_names, circuit_means, yerr=circuit_stds, 
-                          alpha=self.viz_config.alpha, color=colors, capsize=5)
-            ax3.set_ylabel('Mean Circuitousness', fontsize=self.viz_config.fontsize_labels)
-            ax3.set_title('Trajectory Circuitousness\n(Efficiency)', fontweight=self.viz_config.fontweight_title)
-            ax3.tick_params(axis='x', rotation=45, labelsize=self.viz_config.fontsize_labels)
-            ax3.grid(True, alpha=self.viz_config.grid_alpha)
-            
-            # Plot 4: Speed vs Log Volume scatter
-            ax4 = plt.subplot(3, 3, 4)
-            for i, group_name in enumerate(sorted_group_names):
-                data = geometry_data[group_name]
-                if 'error' not in data:
-                    speeds = data['speed_stats']['individual_values'][:20]  # Sample
-                    volumes = data['log_volume_stats']['individual_values'][:20]  # Sample
-                    ax4.scatter(speeds, volumes, label=group_name, alpha=0.7, color=colors[i])
-            
-            ax4.set_xlabel('Speed', fontsize=self.viz_config.fontsize_labels)
-            ax4.set_ylabel('Log Volume', fontsize=self.viz_config.fontsize_labels)
-            ax4.set_title('Speed vs Log Volume\n(Individual Trajectories)', fontweight=self.viz_config.fontweight_title)
-            ax4.legend(fontsize=self.viz_config.fontsize_legend)
-            ax4.grid(True, alpha=self.viz_config.grid_alpha)
-            
-            # Plot 5: Circuitousness vs Speed scatter
-            ax5 = plt.subplot(3, 3, 5)
-            for i, group_name in enumerate(sorted_group_names):
-                data = geometry_data[group_name]
-                if 'error' not in data:
-                    speeds = data['speed_stats']['individual_values'][:20]  # Sample
-                    circuits = data['circuitousness_stats']['individual_values'][:20]  # Sample
-                    ax5.scatter(speeds, circuits, label=group_name, alpha=0.7, color=colors[i])
-            
-            ax5.set_xlabel('Speed', fontsize=self.viz_config.fontsize_labels)
-            ax5.set_ylabel('Circuitousness', fontsize=self.viz_config.fontsize_labels)
-            ax5.set_title('Speed vs Circuitousness\n(Efficiency Patterns)', fontweight=self.viz_config.fontweight_title)
-            ax5.legend(fontsize=self.viz_config.fontsize_legend)
-            ax5.grid(True, alpha=self.viz_config.grid_alpha)
-            
-            # Plot 6: Trajectory Efficiency Metrics
-            ax6 = plt.subplot(3, 3, 6)
-            ballistic_counts, meandering_counts = [], []
-            for group_name in sorted_group_names:
-                data = geometry_data[group_name]
-                if 'error' in data:
-                    ballistic_counts.append(0); meandering_counts.append(0); continue
-                vals = np.array(data['turning_angle_stats']['individual_values'])
-                if vals.size == 0:
-                    ballistic_counts.append(0); meandering_counts.append(0); continue
-                lo, hi = np.quantile(vals, 0.20), np.quantile(vals, 0.80)
-                ballistic_counts.append(int((vals <= lo).sum()))
-                meandering_counts.append(int((vals >= hi).sum()))
-            x = np.arange(len(sorted_group_names)); width = 0.35
-            ax6.bar(x - width/2, ballistic_counts, width, label='Low curvature (20% q)')
-            ax6.bar(x + width/2, meandering_counts, width, label='High curvature (80% q)')
-            ax6.set_xlabel('Prompt Group', fontsize=self.viz_config.fontsize_labels)
-            ax6.set_ylabel('Trajectory Count', fontsize=self.viz_config.fontsize_labels)
-            ax6.set_title('Trajectory Efficiency Types (turning-angle quantiles)', fontweight=self.viz_config.fontweight_title)
-            ax6.set_xticks(x); ax6.set_xticklabels(sorted_group_names, rotation=45, fontsize=self.viz_config.fontsize_labels)
-            ax6.legend(fontsize=self.viz_config.fontsize_legend)
-            ax6.grid(True, alpha=self.viz_config.grid_alpha)
-            
-            # Plot 7-9: Individual value distributions (histograms) for first 3 groups
-            plot_groups = sorted_group_names[:3]  # Show first 3 groups
-            for idx, group_name in enumerate(plot_groups):
-                ax = plt.subplot(3, 3, 7 + idx)
-                data = geometry_data[group_name]
-                if 'error' not in data:
-                    circuitousness_values = data['circuitousness_stats']['individual_values']
-                    ax.hist(circuitousness_values, bins=10, alpha=0.7, color=colors[sorted_group_names.index(group_name)])
-                    ax.set_xlabel('Circuitousness', fontsize=self.viz_config.fontsize_labels)
-                    ax.set_ylabel('Frequency', fontsize=self.viz_config.fontsize_labels)
-                    ax.set_title(f'{group_name}\nCircuitousness Distribution', fontweight=self.viz_config.fontweight_title)
-                    ax.grid(True, alpha=self.viz_config.grid_alpha)
-                else:
-                    ax.text(0.5, 0.5, f'No data\nfor {group_name}', ha='center', va='center', transform=ax.transAxes)
-            
-            plt.suptitle('Individual Trajectory Geometry Analysis Dashboard', 
-                        fontsize=16, fontweight='bold', y=0.98)
-            plt.tight_layout()
-            plt.savefig(viz_dir / f"individual_trajectory_geometry_dashboard.{self.viz_config.save_format}", 
-                       dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
-            plt.close()
-            
-        except Exception as e:
-            self.logger.error(f"Error creating individual trajectory geometry dashboard: {e}")
-            plt.close()
 
-    def _plot_intrinsic_dimension_analysis(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
+
+    
+    def _plot_individual_trajectory_geometry_dashboard(
+        self, 
+        results: LatentTrajectoryAnalysis, 
+        viz_dir: Path
+    ):
+        """
+        Restored + improved geometry dashboard:
+        • Trajectory speed (per-group mean)
+        • Per-trajectory log volumes (violin)
+        • Circuitousness − 1.0 (mean bar)
+        • Scatter: Speed vs Log Volume (points = trajectories)
+        • Scatter: Speed vs Circuitousness (points = trajectories)
+        • Turning angle distribution (violin) + endpoint alignment overlay
+        • Convex-hull proxies: Δ% vs baseline for log-volume & effective side
+        """
+        import numpy as np
+        import matplotlib.pyplot as plt
+
+        # ---------- helpers ----------
+        def _palette(n):
+            base = plt.get_cmap('tab10')
+            return [base(i % 10) for i in range(n)]
+
+        ta = results.temporal_analysis
+        geom = results.individual_trajectory_geometry
+        hull = results.convex_hull_analysis if hasattr(results, 'convex_hull_analysis') else {}
+
+        groups = sorted(ta.keys())
+        colors = _palette(len(groups))
+
+        # -------- per-group scalars for bars --------
+        speed_mean = [ta[g]['velocity_analysis']['overall_mean_velocity'] for g in groups]
+        circuit_means = []
+        for g in groups:
+            if g in geom and 'error' not in geom[g]:
+                vals = np.array(geom[g]['circuitousness_stats']['individual_values'], dtype=float)
+                circuit_means.append(float(np.nanmean(vals - 1.0)))
+            else:
+                circuit_means.append(np.nan)
+
+        # -------- per-trajectory arrays for scatters/violins --------
+        logvol_by_group = []
+        circ_by_group = []
+        speed_by_group = []
+        for g in groups:
+            # log-volumes
+            if g in geom and 'error' not in geom[g]:
+                logv = np.array(geom[g]['log_volume_stats']['individual_values'], dtype=float)
+                logvol_by_group.append(logv)
+                circ = np.array(geom[g]['circuitousness_stats']['individual_values'], dtype=float)
+                circ_by_group.append(circ)
+            else:
+                logvol_by_group.append(np.array([]))
+                circ_by_group.append(np.array([]))
+
+            # speeds: per-video mean velocity
+            mv = np.array(ta[g]['velocity_analysis'].get('mean_velocity_by_video',
+                                                        ta[g]['velocity_analysis'].get('mean_velocity', [])),
+                        dtype=float)
+            speed_by_group.append(mv)
+
+        # ---------- convex hull proxies (Δ% vs baseline) ----------
+        def _pct_delta(arr):
+            arr = np.asarray(arr, dtype=float)
+            if arr.size == 0: return arr
+            base = arr[0]
+            return 100.0 * (arr - base) / (base + 1e-12)
+
+        if hull:
+            logvol_group = np.array([hull[g].get('log_bbox_volume', np.nan) for g in groups], dtype=float)
+            eff_group    = np.array([hull[g].get('effective_side',   np.nan) for g in groups], dtype=float)
+            # NOTE: If you want strict consistency, derive eff_group from logvol_group here:
+            # D = <same dimension used in analysis>; if unknown, we skip to avoid wrong scaling.
+            logvol_delta = _pct_delta(logvol_group)
+            eff_delta    = _pct_delta(eff_group)
+        else:
+            logvol_delta = eff_delta = np.array([])
+
+        # ---------- figure ----------
+        fig = plt.figure(figsize=(18, 14))
+
+        # Row 1: speed bar, per-traject log-vol violin, circuit-1 bar
+        ax1 = plt.subplot(3,3,1)
+        ax1.bar(groups, speed_mean, color=colors)
+        ax1.set_title("Trajectory Speed (mean per group)")
+        ax1.tick_params(axis='x', rotation=45)
+
+        ax2 = plt.subplot(3,3,2)
+        valid = [lv if lv.size else np.array([np.nan]) for lv in logvol_by_group]
+        parts = ax2.violinplot(valid, showmeans=True, showextrema=False)
+        ax2.set_xticks(np.arange(1, len(groups)+1)); ax2.set_xticklabels(groups, rotation=45)
+        ax2.set_title("Per-trajectory Log BBox Volume (violin)")
+
+        ax3 = plt.subplot(3,3,3)
+        ax3.bar(groups, circuit_means, color=colors)
+        # Tighten y to highlight small differences
+        if np.isfinite(circuit_means).any():
+            arr = np.array([x for x in circuit_means if np.isfinite(x)], dtype=float)
+            span = max(0.02, (arr.max() - arr.min()) * 1.3)
+            ax3.set_ylim(arr.min() - 0.1*span, arr.min() + span)
+        ax3.set_title("Trajectory Circuitousness − 1.0 (mean)")
+        ax3.tick_params(axis='x', rotation=45)
+
+        # Row 2: scatters
+        ax4 = plt.subplot(3,3,4)
+        for g, c, v_speed, v_log in zip(groups, colors, speed_by_group, logvol_by_group):
+            n = min(len(v_speed), len(v_log))
+            if n > 0:
+                ax4.scatter(v_speed[:n], v_log[:n], s=18, alpha=0.65, color=c, label=g)
+        ax4.set_xlabel("Speed (mean per trajectory)")
+        ax4.set_ylabel("Log BBox Volume")
+        ax4.set_title("Speed vs Log Volume (points = trajectories)")
+        ax4.legend(fontsize=8, loc='best')
+
+        ax5 = plt.subplot(3,3,5)
+        for g, c, v_speed, v_circ in zip(groups, colors, speed_by_group, circ_by_group):
+            n = min(len(v_speed), len(v_circ))
+            if n > 0:
+                ax5.scatter(v_speed[:n], v_circ[:n]-1.0, s=18, alpha=0.65, color=c, label=g)
+        ax5.set_xlabel("Speed (mean per trajectory)")
+        ax5.set_ylabel("Circuitousness − 1.0")
+        ax5.set_title("Speed vs Circuitousness (points = trajectories)")
+
+        ax6 = plt.subplot(3,3,6)
+        turn_vals = [np.array(geom[g]['turning_angle_stats']['individual_values'], dtype=float)
+                    if g in geom and 'error' not in geom[g] else np.array([np.nan]) for g in groups]
+        try:
+            ax6.violinplot([v[~np.isnan(v)] if v.size else np.array([np.nan]) for v in turn_vals],
+                        showmeans=True, showextrema=False)
+        except Exception:
+            pass
+        ax6.set_xticks(np.arange(1, len(groups)+1)); ax6.set_xticklabels(groups, rotation=45)
+        ax6.set_title("Turning Angle distribution (violin)")
+        # Overlay endpoint alignment
+        ax6b = ax6.twinx()
+        align_means = [float(np.nanmean(np.array(geom[g]['endpoint_alignment_stats']['individual_values'], dtype=float)))
+                    if g in geom and 'error' not in geom[g] else np.nan for g in groups]
+        ax6b.plot(np.arange(1, len(groups)+1), align_means, 's--', linewidth=2, label='Endpoint Alignment')
+        ax6b.legend(loc='upper right', fontsize=8)
+
+        # Row 3: convex-hull Δ% bars
+        ax7 = plt.subplot(3,3,7)
+        if logvol_delta.size:
+            ax7.bar(groups, logvol_delta, color=colors)
+            ax7.set_title("Convex Hull: Log BBox Volume Δ% vs baseline")
+            ax7.set_ylabel("% change")
+            ax7.tick_params(axis='x', rotation=45)
+            ax7.grid(True, alpha=0.3)
+        else:
+            ax7.set_axis_off(); ax7.text(0.5, 0.5, "No convex-hull data", ha='center', va='center')
+
+        ax8 = plt.subplot(3,3,8)
+        if eff_delta.size:
+            ax8.bar(groups, eff_delta, color=colors)
+            ax8.set_title("Convex Hull: Effective Side Δ% vs baseline")
+            ax8.set_ylabel("% change")
+            ax8.tick_params(axis='x', rotation=45)
+            ax8.grid(True, alpha=0.3)
+        else:
+            ax8.set_axis_off(); ax8.text(0.5, 0.5, "No convex-hull data", ha='center', va='center')
+
+        # Keep last panel free for future (or show a legend/color key)
+        ax9 = plt.subplot(3,3,9)
+        ax9.axis('off')
+        lines = [plt.Line2D([0], [0], color=c, lw=6) for c in colors]
+        ax9.legend(lines, groups, title="Groups", loc='center', fontsize=8, ncol=2, frameon=False)
+
+        plt.tight_layout()
+        plt.savefig(viz_dir / f"individual_trajectory_geometry_dashboard.{self.viz_config.save_format}",
+                    dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
+        plt.close()
+
+    def _plot_intrinsic_dimension_analysis(
+        self, 
+        results: LatentTrajectoryAnalysis, 
+        viz_dir: Path
+    ):
         """Plot intrinsic dimension analysis showing manifold complexity."""
         try:
             fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=self.viz_config.figsize_standard)

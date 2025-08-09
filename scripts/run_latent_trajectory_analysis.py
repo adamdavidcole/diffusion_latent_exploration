@@ -7,6 +7,7 @@ with command-line flexibility for specifying batch name, device, and prompt grou
 """
 
 import argparse
+import json
 import logging
 import sys
 import time
@@ -18,6 +19,7 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.analysis.latent_trajectory_analyzer import LatentTrajectoryAnalyzer
+from src.utils.prompt_utils import load_prompt_metadata
 
 
 def setup_logging():
@@ -141,10 +143,11 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
         logger.info(f"🚀 Starting analysis on groups: {prompt_groups}")
         analysis_start = time.time()
         
-        # Descriptions can be empty or generated dynamically later
-        prompt_descriptions = [f"Description for {g}" for g in prompt_groups]
+        # Load prompt metadata from batch configuration
+        logger.info("📋 Loading prompt metadata...")
+        prompt_descriptions, prompt_metadata = load_prompt_metadata(batch_name, prompt_groups)
 
-        results = analyzer.analyze_prompt_groups(prompt_groups, prompt_descriptions)
+        results = analyzer.run_dual_tracks(prompt_groups, prompt_descriptions, prompt_metadata)
         analysis_time = time.time() - analysis_start
         
         logger.info(f"📊 Analysis completed in {analysis_time:.2f} seconds")

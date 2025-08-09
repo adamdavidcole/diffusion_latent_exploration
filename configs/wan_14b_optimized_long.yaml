@@ -24,7 +24,7 @@ video_settings:
   height: 480                # Video height (must be divisible by 8) - lower than 720p to save memory
   fps: 12                    # Frames per second
   duration: null             # Video duration in seconds
-  frames: 61                  # Total frames (calculated from fps * duration if null)
+  frames: 57                  # Total frames (calculated from fps * duration if null)
 
 
 # Batch settings (smaller batches for memory management)
