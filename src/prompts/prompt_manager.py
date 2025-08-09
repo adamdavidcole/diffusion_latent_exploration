@@ -1,244 +1,509 @@
 """
-Prompt template and variation handling for video generation.
-Supports creating multiple prompt variations from templates with variable keywords.
+Enhanced Prompt Manager with support for nested bracket syntax.
+
+This module provides PromptTemplate class that can handle complex nested bracket
+syntax for generating prompt variations, including:
+- Up to 3 layers of recursive depth
+- Weighted options using (option:weight) syntax
+- Proper validation and error handling
+- Only '|' as separator (no '/' support)
+
+Examples:
+- Simple: "[cat|dog] on the beach"
+- Weighted: "[cat:2.0|dog] on the beach"
+- Nested: "[scary [movie|book]|funny [sign:2.0|poster]] scene"
+- Complex: "[a [big [red|blue]|small [green|yellow]] [car|truck]|motorcycle] driving"
 """
+
 import re
 import itertools
-from typing import List, Dict, Tuple, Optional
-from dataclasses import dataclass
-from pathlib import Path
+from typing import List, Dict, Any, Tuple, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 
-@dataclass
-class PromptVariation:
-    """Single prompt variation with metadata."""
-    text: str
-    variation_id: str
-    variables: Dict[str, str]
-    weighted_text: Optional[str] = None  # For prompt weighting version
-    
+class PromptValidationError(Exception):
+    """Custom exception for prompt template validation errors."""
+    pass
 
-@dataclass 
-class WeightingConfig:
-    """Configuration for prompt weighting."""
-    enable_weighting: bool = False
-    variation_weight: float = 1.5
-    base_weight: float = 1.0
-    
 
 class PromptTemplate:
-    """Handles prompt templates with variable sections."""
+    """
+    Enhanced template class supporting nested bracket syntax for prompt variations.
     
-    def __init__(self, template: str, weighting_config: Optional[WeightingConfig] = None):
-        self.template = template
-        self.variables = self._extract_variables()
-        self.weighting_config = weighting_config or WeightingConfig()
+    Supports up to 3 layers of nested brackets with weighted options and proper
+    validation of malformed syntax.
+    """
     
-    def _extract_variables(self) -> Dict[str, List[str]]:
-        """Extract variable sections from template."""
-        # Pattern to match [option1|option2|option3] syntax
-        pattern = r'\[([^\]]+)\]'
-        variables = {}
+    def __init__(self, template: str, max_depth: int = 3):
+        """
+        Initialize the prompt template.
         
+        Args:
+            template: The template string with bracket syntax
+            max_depth: Maximum nesting depth allowed (default: 3)
+        """
+        self.template = template
+        self.max_depth = max_depth
+        self.variables = []
+        self.parsed_structure = None
+        
+        # Validate and parse the template
+        self.validate_template()
+        self._parse_template()
+    
+    def validate_template(self) -> bool:
+        """
+        Validate the template syntax for proper bracket matching and nesting depth.
+        
+        Returns:
+            True if template is valid
+            
+        Raises:
+            PromptValidationError: If template has malformed syntax
+        """
+        if not self.template:
+            raise PromptValidationError("Template cannot be empty")
+        
+        # Check for forbidden '/' separator
+        if '/' in self.template and '[' in self.template:
+            # Only check for '/' inside brackets
+            bracket_content = re.findall(r'\[([^\[\]]*)\]', self.template)
+            for content in bracket_content:
+                if '/' in content:
+                    raise PromptValidationError("Only '|' separator is supported, found '/' in bracket content")
+        
+        # Check bracket matching and nesting depth
+        stack = []
+        depth = 0
+        max_depth_found = 0
+        
+        for i, char in enumerate(self.template):
+            if char == '[':
+                stack.append(i)
+                depth += 1
+                max_depth_found = max(max_depth_found, depth)
+                
+                if depth > self.max_depth:
+                    raise PromptValidationError(
+                        f"Nesting depth {depth} exceeds maximum allowed depth of {self.max_depth} at position {i}"
+                    )
+            elif char == ']':
+                if not stack:
+                    raise PromptValidationError(f"Unmatched closing bracket ']' at position {i}")
+                stack.pop()
+                depth -= 1
+        
+        if stack:
+            raise PromptValidationError(f"Unmatched opening bracket '[' at position {stack[-1]}")
+        
+        # Validate bracket contents
+        self._validate_bracket_contents()
+        
+        return True
+    
+    def _validate_bracket_contents(self):
+        """Validate the contents within brackets for proper syntax."""
+        # Find all bracket contents (including nested)
+        pattern = r'\[([^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*)\]'
         matches = re.finditer(pattern, self.template)
-        for i, match in enumerate(matches):
-            var_name = f"var_{i}"
-            options = [opt.strip() for opt in match.group(1).split('|')]
-            variables[var_name] = options
+        
+        for match in matches:
+            content = match.group(1)
+            if not content.strip():
+                raise PromptValidationError(f"Empty bracket content at position {match.start()}")
+            
+            # Check for proper option syntax
+            options = content.split('|')
+            for option in options:
+                option = option.strip()
+                if not option:
+                    raise PromptValidationError(f"Empty option in bracket content: '{content}'")
+                
+                # Validate weight syntax if present
+                if ':' in option:
+                    parts = option.split(':')
+                    if len(parts) != 2:
+                        raise PromptValidationError(f"Invalid weight syntax in option: '{option}'")
+                    
+                    try:
+                        weight = float(parts[1])
+                        if weight <= 0:
+                            raise PromptValidationError(f"Weight must be positive, got {weight} in option: '{option}'")
+                    except ValueError:
+                        raise PromptValidationError(f"Invalid weight value in option: '{option}'")
+    
+    def _parse_template(self):
+        """Parse the template into a structured format for variation generation."""
+        self.parsed_structure = self._parse_nested_brackets(self.template)
+        self.variables = self._extract_all_variables(self.parsed_structure)
+    
+    def _parse_nested_brackets(self, text: str, depth: int = 0) -> Dict[str, Any]:
+        """
+        Recursively parse nested bracket structures.
+        
+        Args:
+            text: Text to parse
+            depth: Current nesting depth
+            
+        Returns:
+            Parsed structure as nested dictionaries
+        """
+        if depth > self.max_depth:
+            raise PromptValidationError(f"Maximum nesting depth {self.max_depth} exceeded")
+        
+        result = {
+            'type': 'text',
+            'content': text,
+            'variables': [],
+            'depth': depth
+        }
+        
+        # Find brackets at the current level only (not nested ones)
+        variables = []
+        i = 0
+        var_index = 0
+        
+        while i < len(text):
+            if text[i] == '[':
+                # Find the matching closing bracket
+                bracket_count = 1
+                start = i
+                j = i + 1
+                
+                while j < len(text) and bracket_count > 0:
+                    if text[j] == '[':
+                        bracket_count += 1
+                    elif text[j] == ']':
+                        bracket_count -= 1
+                    j += 1
+                
+                if bracket_count == 0:
+                    # Found complete bracket
+                    end = j
+                    var_content = text[start + 1:end - 1]
+                    var_id = f"var_{depth}_{var_index}"
+                    
+                    # Parse options within this bracket
+                    options = []
+                    option_parts = self._split_options(var_content)
+                    
+                    for option_text in option_parts:
+                        option_text = option_text.strip()
+                        if not option_text:
+                            continue
+                        
+                        # Check for weight
+                        weight = 1.0
+                        if ':' in option_text and not '[' in option_text.split(':')[1]:
+                            # Only consider it a weight if there's no bracket after the colon
+                            parts = option_text.rsplit(':', 1)  # Split from the right
+                            try:
+                                weight = float(parts[1])
+                                option_text = parts[0].strip()
+                            except ValueError:
+                                weight = 1.0
+                        
+                        # Recursively parse nested content
+                        parsed_option = self._parse_nested_brackets(option_text, depth + 1)
+                        parsed_option['weight'] = weight
+                        options.append(parsed_option)
+                    
+                    variable = {
+                        'id': var_id,
+                        'start': start,
+                        'end': end,
+                        'options': options,
+                        'depth': depth
+                    }
+                    variables.append(variable)
+                    var_index += 1
+                    i = end
+                else:
+                    i += 1
+            else:
+                i += 1
+        
+        result['variables'] = variables
+        return result
+    
+    def _split_options(self, content: str) -> List[str]:
+        """Split option content by '|' while respecting nested brackets."""
+        options = []
+        current_option = ""
+        bracket_count = 0
+        
+        for char in content:
+            if char == '[':
+                bracket_count += 1
+                current_option += char
+            elif char == ']':
+                bracket_count -= 1
+                current_option += char
+            elif char == '|' and bracket_count == 0:
+                # This '|' is at the top level, so it's a separator
+                options.append(current_option)
+                current_option = ""
+            else:
+                current_option += char
+        
+        # Add the last option
+        if current_option:
+            options.append(current_option)
+        
+        return options
+    
+    def _extract_all_variables(self, structure: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Extract all variables from the parsed structure."""
+        variables = []
+        
+        if 'variables' in structure:
+            for var in structure['variables']:
+                variables.append(var)
+                # Recursively extract from options
+                for option in var['options']:
+                    variables.extend(self._extract_all_variables(option))
         
         return variables
     
-    def _create_weighted_prompt(self, text: str, selected_variation: str) -> str:
-        """Create a weighted version of the prompt emphasizing the variation."""
-        if not self.weighting_config.enable_weighting:
-            return text
-            
-        # Apply weighting to the selected variation
-        if selected_variation in text:
-            weighted_variation = f"({selected_variation}:{self.weighting_config.variation_weight})"
-            weighted_text = text.replace(selected_variation, weighted_variation)
-            
-            # Optionally weight the base parts too
-            if self.weighting_config.base_weight != 1.0:
-                # Split text around the weighted variation and apply base weight
-                parts = weighted_text.split(weighted_variation)
-                if len(parts) == 2:
-                    before = parts[0].strip()
-                    after = parts[1].strip()
-                    weighted_parts = []
-                    
-                    if before:
-                        weighted_parts.append(f"({before}:{self.weighting_config.base_weight})")
-                    weighted_parts.append(weighted_variation)
-                    if after:
-                        weighted_parts.append(f"({after}:{self.weighting_config.base_weight})")
-                        
-                    weighted_text = " ".join(weighted_parts)
-            
-            return weighted_text
+    def generate_variations(self, max_variations: int = 100) -> List[str]:
+        """
+        Generate all possible variations of the template.
         
-        return text
-    
-    def generate_variations(self) -> List[PromptVariation]:
-        """Generate all possible prompt variations."""
+        Args:
+            max_variations: Maximum number of variations to generate
+            
+        Returns:
+            List of generated prompt variations
+        """
         if not self.variables:
-            return [PromptVariation(
-                text=self.template,
-                variation_id="single",
-                variables={}
-            )]
+            return [self.template]
         
         variations = []
-        variable_names = list(self.variables.keys())
-        variable_options = [self.variables[name] for name in variable_names]
         
-        # Generate all combinations
-        for i, combination in enumerate(itertools.product(*variable_options)):
-            # Create variable mapping
-            var_map = dict(zip(variable_names, combination))
-            
-            # Replace variables in template
-            text = self.template
-            pattern = r'\[([^\]]+)\]'
-            selected_variations = []  # Track what variations were selected
-            
-            def replace_func(match):
-                options = [opt.strip() for opt in match.group(1).split('|')]
-                var_key = f"var_{len([m for m in re.finditer(pattern, self.template[:match.start()])])}"
-                selected = var_map.get(var_key, options[0])
-                selected_variations.append(selected)
-                return selected
-            
-            text = re.sub(pattern, replace_func, text)
-            
-            # Create weighted version if enabled
-            weighted_text = None
-            if self.weighting_config.enable_weighting and selected_variations:
-                # Use the first selected variation as the main one to weight
-                main_variation = selected_variations[0]
-                weighted_text = self._create_weighted_prompt(text, main_variation)
-            
-            # Create variation ID
-            variation_id = "_".join([
-                self._sanitize_for_filename(val) for val in combination
-            ])
-            
-            variations.append(PromptVariation(
-                text=text,
-                variation_id=variation_id,
-                variables=var_map,
-                weighted_text=weighted_text
-            ))
+        try:
+            # Generate combinations of variable choices
+            variation_count = 0
+            for variation in self._generate_all_combinations():
+                if variation_count >= max_variations:
+                    logger.warning(f"Reached maximum variations limit of {max_variations}")
+                    break
+                
+                variations.append(variation)
+                variation_count += 1
+                
+        except Exception as e:
+            logger.error(f"Error generating variations: {e}")
+            # Return at least the original template
+            return [self.template]
         
-        return variations
+        return variations if variations else [self.template]
     
-    def _sanitize_for_filename(self, text: str) -> str:
-        """Sanitize text for use in filenames."""
-        # Remove or replace problematic characters
-        sanitized = re.sub(r'[<>:"/\\|?*]', '_', text)
-        sanitized = re.sub(r'\s+', '_', sanitized)
-        sanitized = sanitized.strip('_')
-        return sanitized[:50]  # Limit length
+    def _generate_all_combinations(self):
+        """Generate all possible combinations using the parsed structure."""
+        def get_all_choice_combinations(structure: Dict[str, Any], prefix: str = "") -> List[Dict[str, int]]:
+            """Get all possible choice combinations for a structure."""
+            combinations = []
+            
+            if not structure.get('variables'):
+                return [{}]
+            
+            # Get combinations for first variable
+            first_var = structure['variables'][0]
+            var_id = first_var['id']
+            
+            for i, option in enumerate(first_var['options']):
+                # Get combinations for this option
+                option_combinations = get_all_choice_combinations(option, f"{prefix}{var_id}_{i}_")
+                
+                # Add current choice to each combination
+                for combo in option_combinations:
+                    combo[var_id] = i
+                    combinations.append(combo)
+            
+            # Process remaining variables at this level
+            if len(structure['variables']) > 1:
+                rest_structure = {
+                    'variables': structure['variables'][1:],
+                    'content': structure['content']
+                }
+                rest_combinations = get_all_choice_combinations(rest_structure, prefix)
+                
+                # Combine with existing combinations
+                new_combinations = []
+                for combo1 in combinations:
+                    for combo2 in rest_combinations:
+                        merged = {**combo1, **combo2}
+                        new_combinations.append(merged)
+                combinations = new_combinations
+            
+            return combinations
+        
+        def apply_choices(structure: Dict[str, Any], choices: Dict[str, int]) -> str:
+            """Apply choice selections to generate final text."""
+            text = structure['content']
+            
+            # Process variables in reverse order to maintain positions
+            for var in reversed(structure.get('variables', [])):
+                var_id = var['id']
+                choice_idx = choices.get(var_id, 0)
+                
+                if choice_idx < len(var['options']):
+                    chosen_option = var['options'][choice_idx]
+                    # Recursively apply choices to the chosen option
+                    replacement = apply_choices(chosen_option, choices)
+                    # Replace the bracket with the processed content
+                    text = text[:var['start']] + replacement + text[var['end']:]
+            
+            return text
+        
+        # Generate all possible choice combinations
+        all_combinations = get_all_choice_combinations(self.parsed_structure)
+        
+        if not all_combinations:
+            yield self.template
+            return
+        
+        # Generate text for each combination
+        for choices in all_combinations:
+            try:
+                result = apply_choices(self.parsed_structure, choices)
+                yield result
+            except Exception as e:
+                logger.warning(f"Failed to generate variation with choices {choices}: {e}")
+                continue
     
-    def preview_variations(self, max_preview: int = 10) -> List[str]:
-        """Preview the first few variations without generating all."""
-        variations = self.generate_variations()
-        return [var.text for var in variations[:max_preview]]
+    def get_variable_info(self) -> List[Dict[str, Any]]:
+        """
+        Get information about all variables in the template.
+        
+        Returns:
+            List of dictionaries containing variable information
+        """
+        info = []
+        for var in self.variables:
+            var_info = {
+                'id': var['id'],
+                'depth': var['depth'],
+                'position': (var['start'], var['end']),
+                'options': []
+            }
+            
+            for option in var['options']:
+                option_info = {
+                    'text': option['content'],
+                    'weight': option.get('weight', 1.0)
+                }
+                var_info['options'].append(option_info)
+            
+            info.append(var_info)
+        
+        return info
 
 
-class PromptManager:
-    """Manages prompt templates and variations."""
+def test_prompt_template():
+    """Test function to demonstrate the enhanced PromptTemplate functionality."""
     
-    def __init__(self):
-        self.templates = {}
-        self.current_template = None
+    print("=== Enhanced Prompt Template Test ===\n")
     
-    def load_template(self, template: str, weighting_config: Optional[WeightingConfig] = None, name: Optional[str] = None) -> PromptTemplate:
-        """Load a prompt template with optional weighting configuration."""
-        prompt_template = PromptTemplate(template, weighting_config)
+    # Test cases with different complexity levels
+    test_cases = [
+        # Simple cases
+        "[cat|dog] on the beach",
+        "[red:2.0|blue|green] car",
         
-        if name:
-            self.templates[name] = prompt_template
-            self.current_template = prompt_template
+        # Nested cases
+        "[scary [movie|book]|funny [sign:2.0|poster]] scene",
+        "[big [red|blue] car|small truck] driving",
         
-        return prompt_template
+        # Complex 3-level nesting
+        "[a [big [red|blue]|small [green|yellow]] [car|truck]|motorcycle] driving fast",
+        
+        # Edge cases
+        "simple text without brackets",
+        "[single] option",
+
+        "[|[a (romantic) (cinematic) (kiss) between [two (people) | a (man:2.5) and a (woman:2.5)| two (men:2.5) | two (women:2.5) | two (gay:2.5) (men) | two (lesbian:2.5) (women) | a (dog:2.5) and a (cat:2.5)]]"
+    ]
     
-    def load_template_from_file(self, file_path: str, weighting_config: Optional[WeightingConfig] = None, name: Optional[str] = None) -> PromptTemplate:
-        """Load prompt template from file with optional weighting configuration."""
-        with open(file_path, 'r', encoding='utf-8') as f:
-            template = f.read().strip()
-        
-        return self.load_template(template, weighting_config, name)
+    # Error cases to test validation
+    error_cases = [
+        "[unclosed bracket",
+        "unopened bracket]",
+        "[nested [too [deep [level [four]]]]]",  # Too deep
+        "[option1/option2]",  # Forbidden separator
+        "[]",  # Empty bracket
+        "[option1||option3]",  # Empty option
+        "[option:invalid_weight]",  # Invalid weight
+    ]
     
-    def save_template(self, template: PromptTemplate, file_path: str):
-        """Save template to file."""
-        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-        
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(template.template)
+    # Test valid cases
+    print("Testing valid templates:")
+    print("-" * 50)
     
-    def get_template(self, name: str) -> Optional[PromptTemplate]:
-        """Get a named template."""
-        return self.templates.get(name)
+    for i, template in enumerate(test_cases, 1):
+        print(f"\nTest {i}: {template}")
+        try:
+            pt = PromptTemplate(template)
+            variations = pt.generate_variations(max_variations=10)
+            print(f"Generated {len(variations)} variations:")
+            for j, var in enumerate(variations[:5], 1):  # Show first 5
+                print(f"  {j}. {var}")
+            if len(variations) > 5:
+                print(f"  ... and {len(variations) - 5} more")
+                
+            # Show variable info
+            var_info = pt.get_variable_info()
+            if var_info:
+                print(f"Variables found: {len(var_info)}")
+                for var in var_info:
+                    print(f"  - {var['id']} (depth {var['depth']}): {len(var['options'])} options")
+                    
+        except Exception as e:
+            print(f"  ERROR: {e}")
     
-    def list_templates(self) -> List[str]:
-        """List all loaded template names."""
-        return list(self.templates.keys())
+    # Test error cases
+    print("\n\nTesting error cases:")
+    print("-" * 50)
     
-    def validate_template(self, template: str) -> Tuple[bool, List[str]]:
-        """Validate template syntax and return any issues."""
-        issues = []
-        
-        # Check for unmatched brackets
-        bracket_count = 0
-        for char in template:
-            if char == '[':
-                bracket_count += 1
-            elif char == ']':
-                bracket_count -= 1
-                if bracket_count < 0:
-                    issues.append("Unmatched closing bracket ']'")
-                    bracket_count = 0
-        
-        if bracket_count > 0:
-            issues.append("Unmatched opening bracket '['")
-        
-        # Check for empty variable sections
-        empty_sections = re.findall(r'\[\s*\]', template)
-        if empty_sections:
-            issues.append("Empty variable sections found")
-        
-        # Check for sections without options
-        single_option_sections = re.findall(r'\[([^\|\]]*)\]', template)
-        if single_option_sections:
-            for section in single_option_sections:
-                if '|' not in section:
-                    issues.append(f"Single option in variable section: [{section}]")
-        
-        return len(issues) == 0, issues
+    for i, template in enumerate(error_cases, 1):
+        print(f"\nError Test {i}: {template}")
+        try:
+            pt = PromptTemplate(template)
+            print(f"  UNEXPECTED: Should have failed but didn't")
+        except PromptValidationError as e:
+            print(f"  EXPECTED ERROR: {e}")
+        except Exception as e:
+            print(f"  UNEXPECTED ERROR: {e}")
+    
+    # Demonstrate complex nested template
+    print("\n\nAdvanced Example:")
+    print("-" * 50)
+    
+    complex_template = "[a [beautiful [sunset:3.0|sunrise]|mysterious [forest|cave]] with [golden|silver] light|stormy [ocean:2.0|mountain] landscape] in [photorealistic|artistic] style"
+    print(f"Template: {complex_template}")
+    
+    try:
+        pt = PromptTemplate(complex_template)
+        variations = pt.generate_variations(max_variations=20)
+        print(f"\nGenerated {len(variations)} variations:")
+        for i, var in enumerate(variations[:10], 1):
+            print(f"  {i:2d}. {var}")
+        if len(variations) > 10:
+            print(f"     ... and {len(variations) - 10} more")
+            
+        print(f"\nStructure analysis:")
+        var_info = pt.get_variable_info()
+        for var in var_info:
+            print(f"  Variable {var['id']} (depth {var['depth']}):")
+            for j, opt in enumerate(var['options']):
+                weight_str = f" (weight: {opt['weight']})" if opt['weight'] != 1.0 else ""
+                print(f"    {j+1}. '{opt['text']}'{weight_str}")
+                
+    except Exception as e:
+        print(f"ERROR: {e}")
 
 
-# Example usage and utility functions
-def create_example_templates() -> Dict[str, str]:
-    """Create example templates for common use cases."""
-    examples = {
-        "romance": "a romantic kiss between [two people|two men|two women|a man and a woman]",
-        "action": "a [dramatic|intense|explosive] [chase scene|fight scene|battle] in [the city|the countryside|space]",
-        "nature": "a [beautiful|serene|dramatic] [sunset|sunrise|storm] over [mountains|ocean|forest|desert]",
-        "portrait": "a [professional|artistic|casual] portrait of [a man|a woman|a child] with [blue eyes|brown eyes|green eyes]",
-        "animals": "a [cute|majestic|playful] [cat|dog|lion|elephant] in [natural habitat|urban environment|studio setting]"
-    }
-    return examples
-
-
-def analyze_template_complexity(template: str) -> Dict[str, int]:
-    """Analyze template to understand variation complexity."""
-    prompt_template = PromptTemplate(template)
-    variations = prompt_template.generate_variations()
-    
-    return {
-        "total_variations": len(variations),
-        "variable_count": len(prompt_template.variables),
-        "max_variation_length": max(len(var.text) for var in variations) if variations else 0,
-        "min_variation_length": min(len(var.text) for var in variations) if variations else 0
-    }
+if __name__ == "__main__":
+    test_prompt_template()
