@@ -10,7 +10,7 @@ import seaborn as sns
 import logging
 import traceback
 
-from src.analysis.latent_trajectory_analyzer import LatentTrajectoryAnalysis
+from src.analysis.data_structures import LatentTrajectoryAnalysis
 from src.config.visualization_config import VisualizationConfig
 
 
