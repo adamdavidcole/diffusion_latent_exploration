@@ -16,40 +16,12 @@ Key GPU optimizations:
 import logging
 import time
 import json
-import numpy as np
 import torch
-import torch.nn.functional as F
-import math
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple
-
-
-from .load_and_batch_trajectory_data import load_and_batch_trajectory_data
+from typing import Dict, List, Any, Optional
 
 from.data_structures import LatentTrajectoryAnalysis
-
-# Try to import FFT functions
-try:
-    from torch.fft import fft, ifft, fft2, ifft2, fftshift
-    TORCH_FFT_AVAILABLE = True
-except ImportError:
-    TORCH_FFT_AVAILABLE = False
-
-# Advanced geometry and statistical imports for new metrics
-try:
-    from scipy.spatial import ConvexHull
-    from scipy.spatial.distance import pdist, squareform
-    from sklearn.decomposition import PCA, TruncatedSVD
-    from sklearn.neighbors import NearestNeighbors
-    ADVANCED_GEOMETRY_AVAILABLE = True
-except ImportError:
-    ADVANCED_GEOMETRY_AVAILABLE = False
-    
-try:
-    import skdim
-    INTRINSIC_DIM_AVAILABLE = True
-except ImportError:
-    INTRINSIC_DIM_AVAILABLE = False
+from .load_and_batch_trajectory_data import load_and_batch_trajectory_data
 
 from .latent_trajectory_analysis.analyze_individual_trajectory_geometry import analyze_individual_trajectory_geometry
 from .latent_trajectory_analysis.analyze_spatial_patterns import analyze_spatial_patterns
@@ -385,6 +357,21 @@ class LatentTrajectoryAnalyzer:
             # Always restore
             self.output_dir = orig_out
             self.norm_cfg = orig_norm
+
+    def _save_results(self, results: LatentTrajectoryAnalysis):
+        """Save analysis results to disk."""
+        # Save main results
+        results_file = self.output_dir / "latent_trajectory_analysis_results.json"
+        with open(results_file, 'w') as f:
+            json.dump(results.to_dict(), f, indent=2, default=str)
+        
+        # Save performance report
+        perf_file = self.output_dir / "gpu_performance_report.json"
+        with open(perf_file, 'w') as f:
+            json.dump(self.performance_stats, f, indent=2, default=str)
+        
+        self.logger.info(f"Results saved to: {results_file}")
+        self.logger.info(f"Performance report saved to: {perf_file}")
 
     def _track_gpu_memory(self, stage: str):
         """Track GPU memory usage at different stages."""
