@@ -1,7 +1,7 @@
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass
 
-from attrs import asdict
+from dataclasses import asdict
 
 @dataclass
 class LatentTrajectoryAnalysis:

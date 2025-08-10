@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import logging
 from pathlib import Path
+import traceback
 
 from typing import Dict, List, Any, Optional, Tuple, TYPE_CHECKING
 from dataclasses import dataclass, fields
@@ -32,7 +33,19 @@ from .plotters.plot_information_content_analysis import plot_information_content
 from .plotters.plot_complexity_measures import plot_complexity_measures
 from .plotters.plot_statistical_significance import plot_statistical_significance
 from .plotters.plot_temporal_analysis import plot_temporal_analysis
+
 from .plotters.plot_convex_hull_analysis import plot_convex_hull_analysis
+from .plotters.plot_trajectory_corridor_atlas import plot_trajectory_corridor_atlas
+from .plotters.plot_functional_pca_analysis import plot_functional_pca_analysis
+from .plotters.plot_individual_trajectory_geometry_dashboard import plot_individual_trajectory_geometry_dashboard
+from .plotters.plot_intrinsic_dimension_analysis import plot_intrinsic_dimension_analysis
+from .plotters.plot_structural_analysis import plot_structural_analysis
+from .plotters.plot_paired_seed_significance import plot_paired_seed_significance
+from .plotters.plot_comprehensive_analysis_dashboard import plot_comprehensive_analysis_dashboard
+from .plotters.plot_trajectory_atlas_umap import plot_trajectory_atlas_umap
+from .plotters.plot_log_volume_delta_panel import plot_log_volume_delta_panel
+from src.visualization.batch_grid import create_batch_image_grid
+from .plotters.plot_comprehensive_analysis_insight_board import plot_comprehensive_analysis_insight_board
 
 class LatentTrajectoryVisualizer:
     def __init__(
@@ -73,10 +86,12 @@ class LatentTrajectoryVisualizer:
             return group_meta.get('prompt_var_text', group_name)
         return group_name
 
-    def create_comprehensive_visualizations(self, results: 'LatentTrajectoryAnalysis'):
+    def create_comprehensive_visualizations(
+            self, 
+            results: 'LatentTrajectoryAnalysis'
+    ):
         """Create comprehensive visualizations for all key statistical analyses."""
         try:
-            import seaborn as sns
             
             
             # Set style
@@ -160,72 +175,81 @@ class LatentTrajectoryVisualizer:
             # # 10. Convex Hull Volume Analysis
             output_path = plot_convex_hull_analysis(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
             self.logger.info(f"Saved convex hull volume analysis plot to {output_path}")
-            
+       
+            # 11. Functional PCA Analysis
+            output_path = plot_functional_pca_analysis(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
+            self.logger.info(f"Saved functional PCA analysis plot to {output_path}")
 
+            # 12. Individual Trajectory Geometry Dashboard
+            output_path = plot_individual_trajectory_geometry_dashboard(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
+            self.logger.info(f"Saved individual trajectory geometry dashboard plot to {output_path}")
+
+            # 13. Intrinsic Dimension Analysis
+            output_path = plot_intrinsic_dimension_analysis(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
+            self.logger.info(f"Saved intrinsic dimension analysis plot to {output_path}")
     
-            
-            # # 11. Functional PCA Analysis
-            # self._plot_functional_pca_analysis(results, viz_dir)
-            
-            # # 12. Individual Trajectory Geometry Dashboard
-            # self._plot_individual_trajectory_geometry_dashboard(results, viz_dir)
-            
-            # # 13. Intrinsic Dimension Analysis
-            # self._plot_intrinsic_dimension_analysis(results, viz_dir)
-            
-            # # 15. Temporal Stability Windows
+            # # 14. Temporal Stability Windows
             # output_path = plot_temporal_stability_windows(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
             # self.logger.info(f"Saved temporal stability windows plot to {output_path}")
-            
-            # # 16. Channel Evolution Patterns
+
+            # # 15. Channel Evolution Patterns
             output_path = plot_channel_evolution_patterns(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
             self.logger.info(f"Saved channel evolution patterns plot to {output_path}")
             
-            # # 17. Global Structure Analysis
+            # # 16. Global Structure Analysis
             output_path = plot_global_structure_analysis(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
             self.logger.info(f"Saved global structure analysis plot to {output_path}")
             
-            # # 18. Information Content Analysis
+            # # 17. Information Content Analysis
             output_path = plot_information_content_analysis(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
             self.logger.info(f"Saved information content analysis plot to {output_path}")
             
-            # # 19. Complexity Measures
+            # # 18. Complexity Measures
             output_path = plot_complexity_measures(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
             self.logger.info(f"Saved complexity measures plot to {output_path}")
             
-            # # 20. Statistical Significance Tests
+            # # 19. Statistical Significance Tests
             output_path = plot_statistical_significance(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
             self.logger.info(f"Saved statistical significance plot to {output_path}")
             
-            # # 21. Temporal Analysis Visualizations
+            # # 20. Temporal Analysis Visualizations
             output_path = plot_temporal_analysis(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
             self.logger.info(f"Saved temporal analysis plot to {output_path}")
 
-            # # 21. Structural Analysis Visualizations
-            # self._plot_structural_analysis(results, viz_dir)
-            
-            # # 22. Paired-seed significance
-            # self._plot_paired_seed_significance(results, viz_dir)
-            
-            # # 23. Comprehensive Dashboard
-            # self._plot_comprehensive_analysis_dashboard(results, viz_dir)
-            # self._plot_trajectory_atlas_umap(results, viz_dir, self.group_tensors)
+            # 21. Structural Analysis Visualizations
+            output_path = plot_structural_analysis(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
+            self.logger.info(f"Saved structural analysis plot to {output_path}")
 
-            # self._plot_log_volume_delta_panel(results, viz_dir)
+            # 22. Paired-seed significance
+            output_path = plot_paired_seed_significance(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
+            self.logger.info(f"Saved paired-seed significance plot to {output_path}")
 
-            # self._create_batch_image_grid(results, viz_dir)
+            # 23. Comprehensive Dashboard
+            output_path = plot_comprehensive_analysis_dashboard(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
+            self.logger.info(f"Saved comprehensive analysis dashboard plot to {output_path}")
 
-            # batch_image_grid_path = self._get_batch_image_grid_path()
-            # self._plot_comprehensive_analysis_insight_board(results, viz_dir, results_full=None, video_grid_path=batch_image_grid_path)
+            # 24. Atlas UMAP
+            # If group_tensors are needed, pass them here if available
+            output_path = plot_trajectory_atlas_umap(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
+            self.logger.info(f"Saved trajectory atlas UMAP plot to {output_path}")
 
-            # self._plot_trajectory_corridor_atlas(results, viz_dir)
+            # 25. Log volume delta
+            output_path = plot_log_volume_delta_panel(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
+            self.logger.info(f"Saved log volume delta panel plot to {output_path}")
 
+            # 26. Create batch image grid
+            # This function returns a string path
+            batch_image_grid_path = create_batch_image_grid(batch_path=str(self.batch_dir), output_path=str(self.output_dir / "video_batch_grid.png"))
+            self.logger.info(f"Saved batch image grid to {batch_image_grid_path}")
 
-            # self.logger.info(f"✅ Visualizations saved to: {viz_dir}")
-            
+            # 27. Comprehensive Analysis Insight Board
+            output_path = plot_comprehensive_analysis_insight_board(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map, video_grid_path=batch_image_grid_path)
+            self.logger.info(f"Saved comprehensive analysis insight board plot to {output_path}")
+
+            # 28. Trajectory Corridor Atlas
+            output_path = plot_trajectory_corridor_atlas(results, self.output_dir, viz_config=self.viz_config)
+            self.logger.info(f"Saved trajectory corridor atlas plot to {output_path}")
+
         except Exception as e:
-            import traceback
-            self.logger.error(f"Visualization creation failed: {e}")
-            self.logger.error(f"Full traceback:\n{traceback.format_exc()}")
-
- 
+            self.logger.error(f"Error occurred while creating visualizations: {e}")
+            self.logger.error(traceback.format_exc())

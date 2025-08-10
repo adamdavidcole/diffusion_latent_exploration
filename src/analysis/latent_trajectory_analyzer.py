@@ -973,26 +973,32 @@ class LatentTrajectoryAnalyzer:
             # 19. Statistical Significance Tests
             self._plot_statistical_significance(results, viz_dir)
             
-            # 16. Temporal Analysis Visualizations
+            # 20. Temporal Analysis Visualizations
             self._plot_temporal_analysis(results, viz_dir)
             
-            # 17. Structural Analysis Visualizations
+            # 21. Structural Analysis Visualizations
             self._plot_structural_analysis(results, viz_dir)
             
-            # Paired-seed significance
+            # 22. Paired-seed significance
             self._plot_paired_seed_significance(results, viz_dir)
             
-            # 18. Comprehensive Dashboard
+            # 23. Comprehensive Dashboard
             self._plot_comprehensive_analysis_dashboard(results, viz_dir)
+
+            # 24. Atlas UMAP
             self._plot_trajectory_atlas_umap(results, viz_dir, self.group_tensors)
 
+            # 25. Log volume delta
             self._plot_log_volume_delta_panel(results, viz_dir)
 
+            # 26. Create batch image grid
             self._create_batch_image_grid(results, viz_dir)
 
+            # 27. Comprehensive Analysis Insight Board
             batch_image_grid_path = self._get_batch_image_grid_path()
             self._plot_comprehensive_analysis_insight_board(results, viz_dir, results_full=None, video_grid_path=batch_image_grid_path)
 
+            # 28. Trajectory Corridor Atlas
             self._plot_trajectory_corridor_atlas(results, viz_dir)
 
 

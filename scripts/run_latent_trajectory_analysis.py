@@ -206,6 +206,7 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
                 # Run dual tracks analysis
                 print(f"🔬 Running dual tracks analysis with differenct norm configs")
                 results = analyzer.run_dual_tracks(prompt_groups, prompt_metadata)
+                # TODO: handle dual analysis run
         
         # TODO: visualizer
         visualizer.create_comprehensive_visualizations(results)
