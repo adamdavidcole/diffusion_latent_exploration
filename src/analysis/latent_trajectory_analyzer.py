@@ -55,6 +55,26 @@ try:
 except ImportError:
     INTRINSIC_DIM_AVAILABLE = False
 
+from .latent_trajectory_analysis.analyze_individual_trajectory_geometry import analyze_individual_trajectory_geometry
+from .latent_trajectory_analysis.analyze_spatial_patterns import analyze_spatial_patterns
+from .latent_trajectory_analysis.analyze_temporal_coherence import analyze_temporal_coherence
+from .latent_trajectory_analysis.analyze_channel_patterns import analyze_channel_patterns
+from .latent_trajectory_analysis.analyze_patch_diversity import analyze_patch_diversity
+from .latent_trajectory_analysis.analyze_global_structure import analyze_global_structure
+from .latent_trajectory_analysis.analyze_information_content import analyze_information_content
+from .latent_trajectory_analysis.analyze_complexity_measures import analyze_complexity_measures
+from .latent_trajectory_analysis.analyze_frequency_patterns import analyze_frequency_patterns
+from .latent_trajectory_analysis.analyze_group_separability import analyze_group_separability
+from .latent_trajectory_analysis.analyze_temporal_trajectories import analyze_temporal_trajectories
+from .latent_trajectory_analysis.analyze_structural_patterns import analyze_structural_patterns
+from .latent_trajectory_analysis.analyze_intrinsic_dimension import analyze_intrinsic_dimension
+from .latent_trajectory_analysis.test_statistical_significance import test_statistical_significance
+from .latent_trajectory_analysis.analyze_corridor_metrics import analyze_corridor_metrics
+from .latent_trajectory_analysis.analyze_geometry_derivatives import analyze_geometry_derivatives
+from .latent_trajectory_analysis.attach_confidence_intervals import attach_confidence_intervals
+from .latent_trajectory_analysis.log_volume_deltas import log_volume_deltas
+from .latent_trajectory_analysis.compute_normative_strength import compute_normative_strength
+
 class LatentTrajectoryAnalyzer:
     """GPU-accelerated structure-aware latent analysis with trajectory preservation."""
 
@@ -649,45 +669,60 @@ class LatentTrajectoryAnalyzer:
         with autocast_context:
             # Core trajectory-aware analyses
             self.logger.info("Running spatial pattern analysis...")
-            analysis_results['spatial_patterns'] = self._gpu_analyze_spatial_patterns(group_tensors)
+            # analysis_results['spatial_patterns'] = self._gpu_analyze_spatial_patterns(group_tensors)
+            analysis_results['spatial_patterns'] = analyze_spatial_patterns(group_tensors)
             self._track_gpu_memory("spatial_analysis")
             
             self.logger.info("Running temporal coherence analysis...")
-            analysis_results['temporal_coherence'] = self._gpu_analyze_temporal_coherence(group_tensors)
+            # analysis_results['temporal_coherence'] = self._gpu_analyze_temporal_coherence(group_tensors)
+            analysis_results['temporal_coherence'] = analyze_temporal_coherence(group_tensors, device=self.device)
             self._track_gpu_memory("temporal_analysis")
             
             self.logger.info("Running channel pattern analysis...")
-            analysis_results['channel_analysis'] = self._gpu_analyze_channel_patterns(group_tensors)
+            # analysis_results['channel_analysis'] = self._gpu_analyze_channel_patterns(group_tensors)
+            analysis_results['channel_analysis'] = analyze_channel_patterns(group_tensors)
             self._track_gpu_memory("channel_analysis")
             
             # Multi-scale analysis
             self.logger.info("Running patch diversity analysis...")
-            analysis_results['patch_diversity'] = self._gpu_analyze_patch_diversity(group_tensors)
+            # analysis_results['patch_diversity'] = self._gpu_analyze_patch_diversity(group_tensors)
+            analysis_results['patch_diversity'] = analyze_patch_diversity(group_tensors)
+
             
             self.logger.info("Running global structure analysis...")
-            analysis_results['global_structure'] = self._gpu_analyze_global_structure(group_tensors)
-            
+            # analysis_results['global_structure'] = self._gpu_analyze_global_structure(group_tensors)
+            analysis_results['global_structure'] = analyze_global_structure(group_tensors)
+
+
             # Simplified additional analyses
             self.logger.info("Running information content analysis...")
-            analysis_results['information_content'] = self._gpu_analyze_information_content(group_tensors)
+            # analysis_results['information_content'] = self._gpu_analyze_information_content(group_tensors)
+            analysis_results['information_content'] = analyze_information_content(group_tensors)
+
             
             self.logger.info("Running complexity analysis...")
-            analysis_results['complexity_measures'] = self._gpu_analyze_complexity_measures(group_tensors)
-            
+            # analysis_results['complexity_measures'] = self._gpu_analyze_complexity_measures(group_tensors)
+            analysis_results['complexity_measures'] = analyze_complexity_measures(group_tensors)
+
             self.logger.info("Running frequency analysis...")
-            analysis_results['frequency_patterns'] = self._gpu_analyze_frequency_patterns(group_tensors)
+            # analysis_results['frequency_patterns'] = self._gpu_analyze_frequency_patterns(group_tensors)
+            analysis_results['frequency_patterns'] = analyze_frequency_patterns(group_tensors)
+
             
             # Group separability
             self.logger.info("Running group separability analysis...")
-            analysis_results['group_separability'] = self._gpu_analyze_group_separability(group_tensors, prompt_groups)
-            
+            # analysis_results['group_separability'] = self._gpu_analyze_group_separability(group_tensors, prompt_groups)
+            analysis_results['group_separability'] = analyze_group_separability(group_tensors)
+
             # Temporal trajectory analysis
             self.logger.info("Running temporal trajectory analysis...")
-            analysis_results['temporal_analysis'] = self._gpu_analyze_temporal_trajectories(group_tensors, prompt_groups)
-            
+            # analysis_results['temporal_analysis'] = self._gpu_analyze_temporal_trajectories(group_tensors, prompt_groups)
+            analysis_results['temporal_analysis'] = analyze_temporal_trajectories(group_tensors, prompt_groups, device=self.device, norm_cfg=self.norm_cfg)
+
             # Structural analysis
             self.logger.info("Running structural analysis...")
-            analysis_results['structural_analysis'] = self._gpu_analyze_structural_patterns(group_tensors, prompt_groups)
+            # analysis_results['structural_analysis'] = self._gpu_analyze_structural_patterns(group_tensors, prompt_groups)
+            analysis_results['structural_analysis'] = analyze_structural_patterns(group_tensors, prompt_groups, device=self.device)
             
             # NEW: Advanced geometric analysis
             self.logger.info("Running convex hull analysis...")
@@ -697,32 +732,43 @@ class LatentTrajectoryAnalyzer:
             analysis_results['functional_pca_analysis'] = self._gpu_analyze_functional_pca(group_tensors, prompt_groups)
             
             self.logger.info("Running individual trajectory geometry analysis...")
-            analysis_results['individual_trajectory_geometry'] = self._gpu_analyze_individual_trajectory_geometry(group_tensors, prompt_groups)
+            # analysis_results['individual_trajectory_geometry'] = self._gpu_analyze_individual_trajectory_geometry(group_tensors, prompt_groups)
+            analysis_results['individual_trajectory_geometry'] = analyze_individual_trajectory_geometry(group_tensors)
             
+            # TODO: maybe skip -- function only stubbed
             self.logger.info("Running intrinsic dimension analysis...")
-            analysis_results['intrinsic_dimension_analysis'] = self._gpu_analyze_intrinsic_dimension(group_tensors, prompt_groups)
-            
+            # analysis_results['intrinsic_dimension_analysis'] = self._gpu_analyze_intrinsic_dimension(group_tensors, prompt_groups)
+            analysis_results['intrinsic_dimension_analysis'] = analyze_intrinsic_dimension(group_tensors)
+
             # Statistical significance
             self.logger.info("Running statistical significance tests...")
-            analysis_results['statistical_significance'] = self._gpu_test_statistical_significance(group_tensors, prompt_groups)
+            # analysis_results['statistical_significance'] = self._gpu_test_statistical_significance(group_tensors, prompt_groups)
+            analysis_results['statistical_significance'] = test_statistical_significance(group_tensors)
 
             # Corridor metrics
             self.logger.info("Running corridor metrics tests...")
-            analysis_results['corridor_metrics'] = self._analyze_corridor_metrics(group_tensors)
+            # analysis_results['corridor_metrics'] = self._analyze_corridor_metrics(group_tensors)
+            analysis_results['corridor_metrics'] = analyze_corridor_metrics(group_tensors, norm_cfg=self.norm_cfg)
 
-            # Geometry derivatives metrics
+            # # Geometry derivatives metrics
             self.logger.info("Running geometry derivatives analysis...")
-            analysis_results['geometry_derivatives'] = self._analyze_geometry_derivatives(group_tensors)
+            # analysis_results['geometry_derivatives'] = self._analyze_geometry_derivatives(group_tensors)
+            analysis_results['geometry_derivatives'] = analyze_geometry_derivatives(group_tensors, norm_cfg=self.norm_cfg)
 
             self.logger.info("Attaching confidence intervals...")
-            analysis_results['confidence_intervals'] = self._attach_confidence_intervals(analysis_results)
+            # analysis_results['confidence_intervals'] = self._attach_confidence_intervals(analysis_results)
+            analysis_results['confidence_intervals'] = attach_confidence_intervals(analysis_results)
+
 
             self.logger.info("Log volume delta vs baseline...")
-            analysis_results['log_volume_delta_vs_baseline'] = self._add_log_volume_deltas(analysis_results)
+            # analysis_results['log_volume_delta_vs_baseline'] = self._add_log_volume_deltas(analysis_results)
+            analysis_results['log_volume_delta_vs_baseline'] = log_volume_deltas(analysis_results)
+
 
             self.logger.info("Running normative strength...")
-            analysis_results['normative_strength'] = self._compute_normative_strength(analysis_results)
-     
+            # analysis_results['normative_strength'] = self._compute_normative_strength(analysis_results)
+            analysis_results['normative_strength'] = compute_normative_strength(analysis_results)
+
         self._track_gpu_memory("analysis_complete")
         
         # 3. Create analysis metadata
@@ -1753,46 +1799,6 @@ Please check the analysis logs for detailed error information.
         
         return significance_analysis
 
-    def _select_baseline_group(self, prompt_groups: List[str], strategy: str = "auto") -> str:
-        """
-        Select baseline group using different strategies for research comparison.
-        
-        Args:
-            prompt_groups: List of prompt group names
-            strategy: "auto", "empty_prompt", "first_class_specific", or "alphabetical"
-        """
-        if strategy == "empty_prompt":
-            # Look for empty/no prompt - typically prompt_000 or similar
-            empty_candidates = [p for p in prompt_groups if '000' in p or 'empty' in p.lower() or 'no_prompt' in p.lower()]
-            if empty_candidates:
-                baseline = sorted(empty_candidates)[0]
-                self.logger.info(f"Selected empty prompt baseline: {baseline}")
-                return baseline
-        
-        elif strategy == "first_class_specific":
-            # Look for first class-specific prompt (e.g., "flower" vs more specific variants)
-            # This would be prompt_001 in your flower specificity sequence
-            sorted_groups = sorted(prompt_groups)
-            if len(sorted_groups) > 1:
-                baseline = sorted_groups[1]  # Second group (001) assuming 000 is empty
-                self.logger.info(f"Selected first class-specific baseline: {baseline}")
-                return baseline
-        
-        elif strategy == "alphabetical":
-            baseline = sorted(prompt_groups)[0]
-            self.logger.info(f"Selected alphabetical baseline: {baseline}")
-            return baseline
-        
-        # Auto strategy: prefer empty prompt if available, otherwise alphabetical
-        empty_candidates = [p for p in prompt_groups if '000' in p]
-        if empty_candidates:
-            baseline = sorted(empty_candidates)[0]
-            self.logger.info(f"Auto-selected empty prompt baseline: {baseline}")
-        else:
-            baseline = sorted(prompt_groups)[0]
-            self.logger.info(f"Auto-selected alphabetical baseline: {baseline}")
-        
-        return baseline
 
     def _gpu_analyze_temporal_trajectories(self, group_tensors: Dict[str, Dict[str, torch.Tensor]], 
                                           prompt_groups: List[str]) -> Dict[str, Any]:

@@ -12,6 +12,8 @@ dist
 dist-ssr
 *.local
 
+gpu_structure_analysis.log
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

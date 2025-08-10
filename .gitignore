@@ -8,6 +8,8 @@ run_batch_scripts/
 *.mkv
 *.webm
 
+gpu_structure_analysis.log
+
 # Python
 __pycache__/
 *.py[cod]
