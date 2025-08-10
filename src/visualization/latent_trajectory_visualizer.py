@@ -7,59 +7,14 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple, TYPE_CHECKING
 from dataclasses import dataclass, fields
 
-
+from src.visualization.visualization_config import VisualizationConfig
+from src.analysis.data_structures import LatentTrajectoryAnalysis
 
 from .plotters.test import test_visualizer
 from .plotters.plot_trajectory_spatial_evolution import plot_trajectory_spatial_evolution
 from .plotters.plot_cross_trajectory_synchronization import plot_cross_trajectory_synchronization
+from .plotters.plot_temporal_momentum import plot_temporal_momentum_analysis
 
-from src.analysis.data_structures import LatentTrajectoryAnalysis
-
-@dataclass
-class VisualizationConfig:
-    """Configuration for visualization generation with consistent design system."""
-    # Figure settings
-    dpi: int = 300
-    figsize_standard: tuple = (15, 12)
-    figsize_wide: tuple = (20, 8)
-    figsize_dashboard: tuple = (20, 24)
-    save_format: str = "png"
-    bbox_inches: str = "tight"
-    
-    # Design system settings
-    color_palette: str = "husl"
-    alpha: float = 0.8
-    linewidth: float = 2.0
-    markersize: float = 3.0
-    
-    # Typography settings
-    fontsize_labels: int = 8
-    fontsize_legend: int = 9
-    fontsize_title: int = 10
-    fontweight_title: str = "bold"
-    
-    # Layout settings
-    legend_bbox_anchor: tuple = (1.05, 1)
-    legend_loc: str = "upper left"
-    grid_alpha: float = 0.3
-    
-    # Color variations for different plot types
-    heatmap_cmap: str = "RdYlBu_r"
-    diverging_cmap: str = "coolwarm"
-    sequential_cmap: str = "YlOrRd"
-    
-    def get_colors(self, n_groups: int) -> list:
-        """Get color palette for n groups."""
-        return sns.color_palette(self.color_palette, n_groups)
-    
-    def apply_style_settings(self):
-        """Apply style settings to matplotlib."""
-        plt.rcParams['figure.dpi'] = self.dpi
-        plt.rcParams['savefig.dpi'] = self.dpi
-        plt.rcParams['font.size'] = self.fontsize_labels
-        plt.rcParams['axes.titlesize'] = self.fontsize_title
-        plt.rcParams['axes.labelsize'] = self.fontsize_labels
-        plt.rcParams['legend.fontsize'] = self.fontsize_legend
 
 
 class LatentTrajectoryVisualizer:
@@ -129,15 +84,17 @@ class LatentTrajectoryVisualizer:
 
 
             # # 1. Trajectory Spatial Evolution (U-shaped pattern)
-            output_path = plot_trajectory_spatial_evolution(results, self.output_dir, labels_map)
-            self.logger.info(f"Saved trajectory spatial evolution plot to {output_path}")   
+            output_path = plot_trajectory_spatial_evolution(results, self.output_dir, labels_map=labels_map)
+            self.logger.info(f"Saved trajectory spatial evolution plot to {output_path}")
 
             # # 2. Cross-Trajectory Synchronization
-            plot_cross_trajectory_synchronization(results, self.output_dir)
-            
+            output_path = plot_cross_trajectory_synchronization(results, self.output_dir)
+            self.logger.info(f"Saved cross-trajectory synchronization plot to {output_path}")
+
             # # 3. Temporal Momentum Analysis
-            # self._plot_temporal_momentum_analysis(results, viz_dir)
-            
+            output_path = plot_temporal_momentum_analysis(results, self.output_dir, labels_map=labels_map, viz_config=self.viz_config)
+            self.logger.info(f"Saved temporal momentum analysis plot to {output_path}")
+
             # # 4. Phase Transition Detection
             # self._plot_phase_transition_detection(results, viz_dir)
             
