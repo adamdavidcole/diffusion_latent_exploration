@@ -9,8 +9,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from src.analysis.data_structures import LatentTrajectoryAnalysis
-from src.config.visualization_config import VisualizationConfig
-
+from src.visualization.visualization_config import VisualizationConfig
 
 def plot_information_content_analysis(results: LatentTrajectoryAnalysis, viz_dir: Path, 
                                      viz_config: VisualizationConfig = None, 

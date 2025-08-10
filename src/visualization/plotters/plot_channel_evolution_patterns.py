@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from src.analysis.data_structures import LatentTrajectoryAnalysis
-from src.config.visualization_config import VisualizationConfig
+from src.visualization.visualization_config import VisualizationConfig
 
 
 def plot_channel_evolution_patterns(results: LatentTrajectoryAnalysis, viz_dir: Path, 

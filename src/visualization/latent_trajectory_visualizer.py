@@ -32,6 +32,7 @@ from .plotters.plot_information_content_analysis import plot_information_content
 from .plotters.plot_complexity_measures import plot_complexity_measures
 from .plotters.plot_statistical_significance import plot_statistical_significance
 from .plotters.plot_temporal_analysis import plot_temporal_analysis
+from .plotters.plot_convex_hull_analysis import plot_convex_hull_analysis
 
 class LatentTrajectoryVisualizer:
     def __init__(
@@ -127,37 +128,54 @@ class LatentTrajectoryVisualizer:
             output_path = plot_spatial_progression_patterns(results, self.output_dir, labels_map=labels_map)
             self.logger.info(f"Saved spatial progression patterns plot to {output_path}")
             
-            # # 8. Edge Formation Trends Dashboard (extracted from spatial progression)
+            # # 8a. Edge Formation Trends Dashboard (extracted from spatial progression)
             output_path = plot_edge_formation_trends_dashboard(results, self.output_dir, labels_map=labels_map)
             self.logger.info(f"Saved edge formation trends dashboard plot to {output_path}")
             
-            # # 9. Edge Density Evolution
+            # # 8b. Edge Density Evolution
             output_path = plot_edge_density_evolution(results, self.output_dir, viz_config=self.viz_config)
             self.logger.info(f"Saved edge density evolution plot to {output_path}")
             
-            # # 10. Spatial Coherence Patterns
+            # # 9a. Spatial Coherence Patterns
             output_path = plot_spatial_coherence_patterns(results, self.output_dir, logger=self.logger)
             self.logger.info(f"Saved spatial coherence patterns plot to {output_path}")
             
-            # # 11. Individual Video Coherence Dashboard (extracted from spatial coherence)
+            # # 9b. Individual Video Coherence Dashboard (extracted from spatial coherence)
             output_path = plot_individual_video_coherence_dashboard(results, self.output_dir)
             self.logger.info(f"Saved individual video coherence dashboard plot to {output_path}")
             
-            # # 12. Spatial Coherence Individual Trajectories (new detailed view)
+            # # 9c. Spatial Coherence Individual Trajectories (new detailed view)
             output_path = plot_spatial_coherence_individual(results, self.output_dir, viz_config=self.viz_config)
             self.logger.info(f"Saved spatial coherence individual trajectories to {output_path}")
             
-            # # 13. Research-focused Radar Chart (multi-metric profiles)
+            # # 9d. Research-focused Radar Chart (multi-metric profiles)
             output_path = plot_research_radar_chart(results, self.output_dir, results_full=None, viz_config=self.viz_config)
             self.logger.info(f"Saved research radar chart plot to {output_path}")
             
-            # # 14. Endpoint Constellation Analysis (final latent space positions)
+            # # 9e. Endpoint Constellation Analysis (final latent space positions)
             output_path = plot_endpoint_constellations(results, self.output_dir, labels_map=labels_map, viz_config=self.viz_config)
             self.logger.info(f"Saved endpoint constellations plot to {output_path}")
             
+            # # NEW: Advanced Geometric Analysis Visualizations
+            # # 10. Convex Hull Volume Analysis
+            output_path = plot_convex_hull_analysis(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
+            self.logger.info(f"Saved convex hull volume analysis plot to {output_path}")
+            
+
+    
+            
+            # # 11. Functional PCA Analysis
+            # self._plot_functional_pca_analysis(results, viz_dir)
+            
+            # # 12. Individual Trajectory Geometry Dashboard
+            # self._plot_individual_trajectory_geometry_dashboard(results, viz_dir)
+            
+            # # 13. Intrinsic Dimension Analysis
+            # self._plot_intrinsic_dimension_analysis(results, viz_dir)
+            
             # # 15. Temporal Stability Windows
-            output_path = plot_temporal_stability_windows(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
-            self.logger.info(f"Saved temporal stability windows plot to {output_path}")
+            # output_path = plot_temporal_stability_windows(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
+            # self.logger.info(f"Saved temporal stability windows plot to {output_path}")
             
             # # 16. Channel Evolution Patterns
             output_path = plot_channel_evolution_patterns(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
@@ -182,41 +200,7 @@ class LatentTrajectoryVisualizer:
             # # 21. Temporal Analysis Visualizations
             output_path = plot_temporal_analysis(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
             self.logger.info(f"Saved temporal analysis plot to {output_path}")
-            
-            # # NEW: Advanced Geometric Analysis Visualizations
-            # # 22. Convex Hull Volume Analysis
-            # self._plot_convex_hull_analysis(results, viz_dir)
-            
-            # # 11. Functional PCA Analysis
-            # self._plot_functional_pca_analysis(results, viz_dir)
-            
-            # # 12. Individual Trajectory Geometry Dashboard
-            # self._plot_individual_trajectory_geometry_dashboard(results, viz_dir)
-            
-            # # 13. Intrinsic Dimension Analysis
-            # self._plot_intrinsic_dimension_analysis(results, viz_dir)
-            
-            # # 14. Temporal Stability Windows
-            # self._plot_temporal_stability_windows(results, viz_dir)
-            
-            # # 15. Channel Evolution Patterns
-            # self._plot_channel_evolution_patterns(results, viz_dir)
-            
-            # # 16. Global Structure Analysis
-            # self._plot_global_structure_analysis(results, viz_dir)
-            
-            # # 17. Information Content Analysis
-            # self._plot_information_content_analysis(results, viz_dir)
-            
-            # # 18. Complexity Measures
-            # self._plot_complexity_measures(results, viz_dir)
-            
-            # # 19. Statistical Significance Tests
-            # self._plot_statistical_significance(results, viz_dir)
-            
-            # # 20. Temporal Analysis Visualizations
-            # self._plot_temporal_analysis(results, viz_dir)
-            
+
             # # 21. Structural Analysis Visualizations
             # self._plot_structural_analysis(results, viz_dir)
             

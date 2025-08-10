@@ -10,8 +10,7 @@ import seaborn as sns
 import logging
 
 from src.analysis.data_structures import LatentTrajectoryAnalysis
-from src.config.visualization_config import VisualizationConfig
-
+from src.visualization.visualization_config import VisualizationConfig
 
 def plot_global_structure_analysis(results: LatentTrajectoryAnalysis, viz_dir: Path, 
                                   viz_config: VisualizationConfig = None, 
