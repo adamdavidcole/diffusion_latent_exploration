@@ -33,7 +33,7 @@ def setup_logging():
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
             logging.StreamHandler(),
-            logging.FileHandler('gpu_structure_analysis.log')
+            # logging.FileHandler('gpu_structure_analysis.log')
         ]
     )
 
@@ -121,14 +121,12 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
         logger.error(f"❌ Latents directory not found: {latents_dir}")
         sys.exit(1)
 
-    visualizations_dir = Path(batch_name) / "latent_trajectory_analysis_visualization"
 
     if device is None:
         device = check_gpu_availability()
 
     logger.info(f"Device selected: {device}")
     logger.info(f"Latents directory: {latents_dir}")
-    logger.info(f"Visualizations directory: {visualizations_dir}")
     logger.info(f"Prompt groups: {prompt_groups}")
 
     # Performance configuration
@@ -172,7 +170,8 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
             hull_time_budget_ms=args.hull_time_budget_ms if args else 3000,
         )
 
-        
+        visualizations_dir = analyzer.output_dir / "latent_trajectory_analysis_visualization"
+
         
         init_time = time.time() - start_time
         logger.info(f"✅ Analyzer initialized in {init_time:.2f} seconds")
@@ -185,41 +184,64 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
         prompt_metadata = load_prompt_metadata(batch_name, prompt_groups)
 
         results = None
+        results_full = None
         group_tensors = None
 
-        if args.results_file_path:
-            # Load results from the specified file
-            with open(args.results_file_path, 'r') as f:
-                json_data = json.load(f)
-            results = LatentTrajectoryAnalysis.from_dict(json_data)
-            logger.info(f"📁 Loaded existing results from: {args.results_file_path}")
-        else:
-            if args.no_dual_run:
-                # Run single track analysis
-                print(f"🔬 Running single analysis (no dual tracks) with {norm_cfg}")
-                results, group_tensors = analyzer.analyze_prompt_groups(prompt_groups, prompt_metadata)
-            
-            else:
-                # Run dual tracks analysis
-                print(f"🔬 Running dual tracks analysis with differenct norm configs")
-                results, group_tensors = analyzer.run_dual_tracks(prompt_groups, prompt_metadata)
-                # TODO: handle dual analysis run
-        
         # TODO: visualizer
         visualizer = LatentTrajectoryVisualizer(
             batch_dir=batch_name,
             output_dir=visualizations_dir,
-            group_tensors=group_tensors
         )
-        visualizer.create_comprehensive_visualizations(results)
-            
 
+        if args.results_file_path:
+            # Load results from the specified file
+            logger.info(f"📁 Loaded existing results from: {args.results_file_path}")
+            with open(args.results_file_path, 'r') as f:
+                json_data = json.load(f)
+            results = LatentTrajectoryAnalysis.from_dict(json_data)
+            visualizer.create_comprehensive_visualizations(results)
+        else:
+            if args.no_dual_run:
+                # Run single track analysis
+                print(f"🔬 Running single analysis (no dual tracks) with {norm_cfg}")
+                results = analyzer.analyze_prompt_groups(prompt_groups, prompt_metadata)
+                visualizer.create_comprehensive_visualizations(results)
+
+            
+            else:
+                # Run dual tracks analysis
+                print(f"🔬 Running dual tracks analysis with differen   t norm configs")
+                results = analyzer.run_dual_tracks(prompt_groups, prompt_metadata)
+
+                # Get results for each normalization config
+                results_snr_only = results['snr_only']
+                results_full_norm = results['full_norm']
+
+                # Create visualizations for each normalization config
+                output_dir= visualizations_dir / "snr_norm"
+                visualizer.create_comprehensive_visualizations(results_snr_only, output_dir=output_dir)
+
+                output_dir= visualizations_dir / "full_norm"
+                visualizer.create_comprehensive_visualizations(results_full_norm, output_dir=output_dir)
+
+                visualizer.create_dual_run_visualizations(results_snr_only, results_full_norm, output_dir=visualizations_dir)
+
+                # TODO: handle dual analysis run
+                # self._plot_comprehensive_analysis_dashboard(saved['snr_only'], viz_dir, results_full=saved.get('full_norm'))
+                # self._plot_research_radar_chart(saved['snr_only'], viz_dir, results_full=saved.get('full_norm'))
+                # self._plot_research_radar_chart(saved['snr_only'], viz_dir, results_full=saved.get('full_norm'))
+
+                # video_grid_path = self._get_batch_image_grid_path()
+                # self._plot_comprehensive_analysis_insight_board(saved['snr_only'], viz_dir, results_full=saved.get('full_norm'), video_grid_path=video_grid_path)
         
-        # analysis_time = time.time() - analysis_start
         
-        # logger.info(f"📊 Analysis completed in {analysis_time:.2f} seconds")
-        # logger.info(f"📁 Results saved to: {analyzer.output_dir}")
-        # return results
+
+
+        analysis_time = time.time() - analysis_start
+        
+        logger.info(f"📊 Analysis completed in {analysis_time:.2f} seconds")
+        logger.info(f"📁 Results saved to: {analyzer.output_dir}")
+        return results
 
     except Exception as e:
         logger.exception(f"❌ Analysis failed: {e}")

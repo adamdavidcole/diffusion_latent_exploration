@@ -824,12 +824,12 @@ class LatentTrajectoryAnalyzer:
         self._save_results(results)
         
         # Generate comprehensive visualizations
-        self._create_comprehensive_visualizations(results) # TODO: delete
-        
-        self.logger.info(f"GPU-optimized analysis completed in {total_time:.2f} seconds")
+        # self._create_comprehensive_visualizations(results) # TODO: delete
+
+        self.logger.info(f"Latent Trajectory Analysis completed in {total_time:.2f} seconds")
 
         # TODO: figure out better solution than returning group tensors
-        return results, self.group_tensors
+        return results
 
     def _get_batch_image_grid_path(self) -> str:
         """Gets path to batch image grid."""
@@ -870,8 +870,8 @@ class LatentTrajectoryAnalyzer:
             # Build combined high-level board at the root
             self.output_dir = base_out
             self.norm_cfg = orig_norm
-            viz_dir = self.output_dir / 'visualizations'
-            viz_dir.mkdir(exist_ok=True)
+            # viz_dir = self.output_dir / 'visualizations'
+            # viz_dir.mkdir(exist_ok=True)
 
             # Combined dashboard + dual radars
             # self._plot_comprehensive_analysis_dashboard(saved['snr_only'], viz_dir, results_full=saved.get('full_norm'))
@@ -881,7 +881,7 @@ class LatentTrajectoryAnalyzer:
             # video_grid_path = self._get_batch_image_grid_path()
             # self._plot_comprehensive_analysis_insight_board(saved['snr_only'], viz_dir, results_full=saved.get('full_norm'), video_grid_path=video_grid_path)
 
-            return saved, self.group_tensors
+            return saved
         finally:
             # Always restore
             self.output_dir = orig_out

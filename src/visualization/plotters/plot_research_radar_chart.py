@@ -11,7 +11,7 @@ def plot_research_radar_chart(
     results: LatentTrajectoryAnalysis, 
     viz_dir: Path, 
     results_full: Optional[LatentTrajectoryAnalysis] = None,
-    viz_config: VisualizationConfig = None
+    viz_config: VisualizationConfig = VisualizationConfig()
 ) -> Path:
     """
     Multi-group radar comparison over key metrics.
@@ -19,11 +19,12 @@ def plot_research_radar_chart(
     Scale (SNR-only): Length, Velocity
     Shape (Full): Acceleration, Late/Early, Turning Angle, Alignment
     """
-    if viz_config is None:
-        viz_config = VisualizationConfig()
-        
+    has_different_results_full = False
+    
+
     if results_full is None:
         results_full = results
+        has_different_results_full = True
 
     groups = sorted(results.temporal_analysis.keys())
 
@@ -84,6 +85,10 @@ def plot_research_radar_chart(
     plt.tight_layout()
     
     output_path = viz_dir / f"research_radar_chart.{viz_config.save_format}"
+
+    if has_different_results_full:
+        output_path = viz_dir / f"research_radar_chart_results_full_norm.{viz_config.save_format}"
+
     plt.savefig(output_path, dpi=viz_config.dpi, bbox_inches=viz_config.bbox_inches)
     plt.close()
 

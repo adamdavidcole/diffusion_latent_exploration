@@ -25,8 +25,11 @@ def plot_comprehensive_analysis_insight_board(
     Middle:    Per-timestep curves (Spatial variance, Global variance, Global magnitude)
     Bottom:    Bars (Length, Velocity) [SNR track], (Acceleration, Late/Early, Turning, Alignment) [Full track]
     """ 
+    has_different_results_full = False
+
     if results_full is None:
         results_full = results
+        has_different_results_full = True
 
     # ---- palette & helpers ----
     groups = sorted(results.temporal_analysis.keys())
@@ -161,6 +164,9 @@ def plot_comprehensive_analysis_insight_board(
     plt.tight_layout()
 
     output_path = viz_dir / f"comprehensive_insights_dashboard.{viz_config.save_format}"
+
+    if has_different_results_full:
+        output_path = viz_dir / f"comprehensive_insights_dashboard_results_full_norm.{viz_config.save_format}"
     plt.savefig(output_path, dpi=viz_config.dpi, bbox_inches=viz_config.bbox_inches)
     plt.close()
 
