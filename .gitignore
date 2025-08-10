@@ -1,6 +1,7 @@
 # Generated content - never commit these
 outputs/
 logs/
+run_batch_scripts/
 *.mp4
 *.avi
 *.mov

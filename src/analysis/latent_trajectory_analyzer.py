@@ -1002,7 +1002,8 @@ class LatentTrajectoryAnalyzer:
             import traceback
             self.logger.error(f"Visualization creation failed: {e}")
             self.logger.error(f"Full traceback:\n{traceback.format_exc()}")
-
+    
+    # TODO: Delete
     def _get_prompt_group_label(self, results: LatentTrajectoryAnalysis, group_name: str) -> str:
         """Get the label for a prompt group."""
         if self.use_prompt_labels:
@@ -1056,6 +1057,7 @@ class LatentTrajectoryAnalyzer:
         plt.savefig(viz_dir / "trajectory_spatial_evolution.png", dpi=300, bbox_inches='tight')
         plt.close()
 
+    # TODO: delete
     def _plot_cross_trajectory_synchronization(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
         """Plot cross-trajectory synchronization analysis."""
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
@@ -1118,6 +1120,7 @@ class LatentTrajectoryAnalyzer:
         plt.savefig(viz_dir / "cross_trajectory_synchronization.png", dpi=300, bbox_inches='tight')
         plt.close()
 
+    # TODO: delete
     def _plot_temporal_momentum_analysis(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
         """Plot temporal momentum patterns with improved clarity and individual group views."""
         momentum_data = results.temporal_coherence['temporal_momentum_analysis']
@@ -1290,6 +1293,7 @@ class LatentTrajectoryAnalyzer:
         plt.savefig(output_path_individual, dpi=300, bbox_inches='tight')
         plt.close(fig_individual)
 
+    # TODO: delete
     def _plot_phase_transition_detection(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
         """Plot phase transition patterns."""
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
@@ -1422,6 +1426,7 @@ class LatentTrajectoryAnalyzer:
         plt.savefig(viz_dir / "phase_transition_detection.png", dpi=300, bbox_inches='tight')
         plt.close()
 
+    # TODO: DELETE - moved to src/visualization/plotters/plot_temporal_frequency_signatures.py
     def _plot_temporal_frequency_signatures(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
         """Plot temporal frequency analysis with consistent design system."""
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=self.viz_config.figsize_standard)
@@ -1537,6 +1542,7 @@ class LatentTrajectoryAnalyzer:
                    dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
         plt.close()
 
+    # TODO: DELETE - moved to src/visualization/plotters/plot_group_separability.py
     def _plot_group_separability(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
         """Plot group separability analysis with consistent design system."""
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
@@ -1606,6 +1612,7 @@ class LatentTrajectoryAnalyzer:
         plt.savefig(viz_dir / "group_separability.png", dpi=300, bbox_inches='tight')
         plt.close()
 
+    # TODO: DELETE - moved to src/visualization/plotters/plot_spatial_progression_patterns.py
     def _plot_spatial_progression_patterns(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
         """Plot spatial progression pattern analysis."""
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
@@ -1663,6 +1670,7 @@ class LatentTrajectoryAnalyzer:
         plt.savefig(viz_dir / "spatial_progression_patterns.png", dpi=300, bbox_inches='tight')
         plt.close()
 
+    # TODO: DELETE - moved to src/visualization/plotters/plot_edge_formation_trends_dashboard.py
     def _plot_edge_formation_trends_dashboard(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
         """Plot edge formation trends dashboard (extracted from spatial progression patterns)."""
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
@@ -1757,6 +1765,7 @@ class LatentTrajectoryAnalyzer:
         plt.savefig(viz_dir / "edge_formation_trends_dashboard.png", dpi=300, bbox_inches='tight')
         plt.close()
 
+    # TODO: DELETE - moved to src/visualization/plotters/plot_edge_density_evolution.py
     def _plot_edge_density_evolution(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
         """Plot edge density evolution analysis with comprehensive error handling."""
         try:
@@ -2003,6 +2012,7 @@ class LatentTrajectoryAnalyzer:
             
             raise
 
+    # TODO: DELETE - moved to src/visualization/plotters/plot_spatial_coherence_patterns.py
     def _plot_spatial_coherence_patterns(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
         """Plot spatial coherence analysis."""
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
@@ -2185,6 +2195,7 @@ class LatentTrajectoryAnalyzer:
         plt.savefig(viz_dir / "spatial_coherence_patterns.png", dpi=300, bbox_inches='tight')
         plt.close()
 
+    # TODO: DELETE - moved to src/visualization/plotters/plot_individual_video_coherence_dashboard.py
     def _plot_individual_video_coherence_dashboard(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
         """Plot individual video coherence trajectories by prompt group (extracted from spatial coherence)."""
         coherence_data = results.spatial_patterns['spatial_coherence_patterns']
@@ -2257,6 +2268,7 @@ class LatentTrajectoryAnalyzer:
         plt.savefig(viz_dir / "individual_video_coherence_dashboard.png", dpi=300, bbox_inches='tight')
         plt.close()
 
+    # TODO: DELETE - moved to src/visualization/plotters/plot_spatial_coherence_individual.py
     def _plot_spatial_coherence_individual(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
         """Create separate visualization files for each prompt group showing all individual video trajectories."""
         try:
@@ -2447,6 +2459,7 @@ class LatentTrajectoryAnalyzer:
             raise
 
     
+    # TODO: DELETE - moved to src/visualization/plotters/plot_research_radar_chart.py
     def _plot_research_radar_chart(
         self, 
         results: LatentTrajectoryAnalysis, 
@@ -2527,6 +2540,7 @@ class LatentTrajectoryAnalyzer:
         plt.close()
 
 
+    # TODO: DELETE - moved to src/visualization/plotters/plot_endpoint_constellations.py
     def _plot_endpoint_constellations(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
         """Create endpoint constellation analysis showing final latent space positions with confidence ellipses."""
         try:
