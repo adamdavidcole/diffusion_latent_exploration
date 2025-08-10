@@ -30,6 +30,8 @@ import traceback
 
 from src.visualization.batch_grid import create_batch_image_grid
 
+from.data_structures import LatentTrajectoryAnalysis
+
 # Try to import FFT functions
 try:
     from torch.fft import fft, ifft, fft2, ifft2, fftshift
@@ -53,7 +55,7 @@ try:
 except ImportError:
     INTRINSIC_DIM_AVAILABLE = False
 
-
+# TODO: DELTETE
 @dataclass
 class VisualizationConfig:
     """Configuration for visualization generation with consistent design system."""
@@ -101,52 +103,6 @@ class VisualizationConfig:
         plt.rcParams['legend.fontsize'] = self.fontsize_legend
 
 
-@dataclass
-class LatentTrajectoryAnalysis:
-    """Data structure for GPU-optimized analysis results."""
-    spatial_patterns: Dict[str, Any]
-    temporal_coherence: Dict[str, Any]
-    channel_analysis: Dict[str, Any]
-    patch_diversity: Dict[str, Any]
-    global_structure: Dict[str, Any]
-    information_content: Dict[str, Any]
-    complexity_measures: Dict[str, Any]
-    frequency_patterns: Dict[str, Any]
-    group_separability: Dict[str, Any]
-    temporal_analysis: Dict[str, Any]
-    structural_analysis: Dict[str, Any]
-    statistical_significance: Dict[str, Any]
-    # New advanced geometric analysis components
-    convex_hull_analysis: Dict[str, Any]
-    functional_pca_analysis: Dict[str, Any]
-    individual_trajectory_geometry: Dict[str, Any]
-    intrinsic_dimension_analysis: Dict[str, Any]
-    gpu_performance_stats: Dict[str, Any]
-    analysis_metadata: Dict[str, Any]
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
-        return {
-            'spatial_patterns': self.spatial_patterns,
-            'temporal_coherence': self.temporal_coherence,
-            'channel_analysis': self.channel_analysis,
-            'patch_diversity': self.patch_diversity,
-            'global_structure': self.global_structure,
-            'information_content': self.information_content,
-            'complexity_measures': self.complexity_measures,
-            'frequency_patterns': self.frequency_patterns,
-            'group_separability': self.group_separability,
-            'temporal_analysis': self.temporal_analysis,
-            'structural_analysis': self.structural_analysis,
-            'statistical_significance': self.statistical_significance,
-            'convex_hull_analysis': self.convex_hull_analysis,
-            'functional_pca_analysis': self.functional_pca_analysis,
-            'individual_trajectory_geometry': self.individual_trajectory_geometry,
-            'intrinsic_dimension_analysis': self.intrinsic_dimension_analysis,
-            'gpu_performance_stats': self.gpu_performance_stats,
-            'analysis_metadata': self.analysis_metadata
-        }
-
 
 class LatentTrajectoryAnalyzer:
     """GPU-accelerated structure-aware latent analysis with trajectory preservation."""
@@ -158,7 +114,7 @@ class LatentTrajectoryAnalyzer:
         enable_mixed_precision: bool = True,
         batch_size: int = 32,
         output_dir: Optional[str] = None,
-        viz_config: Optional[VisualizationConfig] = None,
+        viz_config: Optional[VisualizationConfig] = None, # TODO: Delete
         use_prompt_labels = False, # use variation text label as label or group name (prompt_000)
         # Distance normalization config
         norm_cfg: Optional[Dict[str, Any]] = None,
@@ -212,6 +168,7 @@ class LatentTrajectoryAnalyzer:
         self.viz_config = viz_config or VisualizationConfig()
         self.viz_config.apply_style_settings()
 
+        # self.latentTrajectoryVisualizer = LatentTrajectoryVisualizer()
 
         # Use prompt label variation text in visualizations (default to True)
         self.use_prompt_labels = use_prompt_labels
@@ -865,7 +822,7 @@ class LatentTrajectoryAnalyzer:
         self._save_results(results)
         
         # Generate comprehensive visualizations
-        self._create_comprehensive_visualizations(results)
+        self._create_comprehensive_visualizations(results) # TODO: delete
         
         self.logger.info(f"GPU-optimized analysis completed in {total_time:.2f} seconds")
         return results
@@ -944,7 +901,7 @@ class LatentTrajectoryAnalyzer:
             self.logger.info("Creating comprehensive analysis visualizations...")
             
             # 1. Trajectory Spatial Evolution (U-shaped pattern)
-            self._plot_trajectory_spatial_evolution(results, viz_dir)
+            self._plot_trajectory_spatial_evolution(results, viz_dir) # TODO: delete
             
             # 2. Cross-Trajectory Synchronization
             self._plot_cross_trajectory_synchronization(results, viz_dir)

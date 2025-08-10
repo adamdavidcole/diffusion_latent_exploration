@@ -20,7 +20,10 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.analysis.latent_trajectory_analyzer import LatentTrajectoryAnalyzer
+from src.visualization.latent_trajectory_visualizer import LatentTrajectoryVisualizer
 from src.utils.prompt_utils import load_prompt_metadata
+
+from src.analysis.data_structures import LatentTrajectoryAnalysis
 
 
 def setup_logging():
@@ -78,6 +81,13 @@ def parse_arguments():
         help="Use this flag to run only single analysis (disables dual run)."
     )
 
+    parser.add_argument(
+        '--results-file-path',
+        type=str, 
+        default=None,
+        help="Path to the file where results are already saved (will skip analysis and only do visualization)."
+    )
+
 
     # Hull performance/accuracy controls
     parser.add_argument("--hull-mode", type=str, default="auto", choices=["auto", "exact", "approx", "proxy", "off"],
@@ -111,11 +121,14 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
         logger.error(f"❌ Latents directory not found: {latents_dir}")
         sys.exit(1)
 
+    visualizations_dir = Path(batch_name) / "latent_trajectory_analysis_visualization"
+
     if device is None:
         device = check_gpu_availability()
 
     logger.info(f"Device selected: {device}")
     logger.info(f"Latents directory: {latents_dir}")
+    logger.info(f"Visualizations directory: {visualizations_dir}")
     logger.info(f"Prompt groups: {prompt_groups}")
 
     # Performance configuration
@@ -158,6 +171,12 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
             hull_sample_features=args.hull_sample_features if args else 8192,
             hull_time_budget_ms=args.hull_time_budget_ms if args else 3000,
         )
+
+        visualizer = LatentTrajectoryVisualizer(
+            batch_dir=batch_name,
+            output_dir=visualizations_dir
+        )
+        visualizer.visualize()
         
         init_time = time.time() - start_time
         logger.info(f"✅ Analyzer initialized in {init_time:.2f} seconds")
@@ -169,21 +188,35 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
         logger.info("📋 Loading prompt metadata...")
         prompt_metadata = load_prompt_metadata(batch_name, prompt_groups)
 
-        if args.no_dual_run:
-            # Run single track analysis
-            print(f"🔬 Running single analysis (no dual tracks) with {norm_cfg}")
-            results = analyzer.analyze_prompt_groups(prompt_groups, prompt_metadata)
+        results = None
+
+        if args.results_file_path:
+            # Load results from the specified file
+            with open(args.results_file_path, 'r') as f:
+                json_data = json.load(f)
+            results = LatentTrajectoryAnalysis.from_dict(json_data)
+            logger.info(f"📁 Loaded existing results from: {args.results_file_path}")
         else:
-            # Run dual tracks analysis
-            print(f"🔬 Running dual tracks analysis with differenct norm configs")
-            results = analyzer.run_dual_tracks(prompt_groups, prompt_metadata)
+            if args.no_dual_run:
+                # Run single track analysis
+                print(f"🔬 Running single analysis (no dual tracks) with {norm_cfg}")
+                results = analyzer.analyze_prompt_groups(prompt_groups, prompt_metadata)
+            
+            else:
+                # Run dual tracks analysis
+                print(f"🔬 Running dual tracks analysis with differenct norm configs")
+                results = analyzer.run_dual_tracks(prompt_groups, prompt_metadata)
+        
+        # TODO: visualizer
+        visualizer.create_comprehensive_visualizations(results)
+            
 
         
-        analysis_time = time.time() - analysis_start
+        # analysis_time = time.time() - analysis_start
         
-        logger.info(f"📊 Analysis completed in {analysis_time:.2f} seconds")
-        logger.info(f"📁 Results saved to: {analyzer.output_dir}")
-        return results
+        # logger.info(f"📊 Analysis completed in {analysis_time:.2f} seconds")
+        # logger.info(f"📁 Results saved to: {analyzer.output_dir}")
+        # return results
 
     except Exception as e:
         logger.exception(f"❌ Analysis failed: {e}")
