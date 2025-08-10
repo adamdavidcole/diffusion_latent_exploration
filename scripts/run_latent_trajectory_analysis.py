@@ -172,11 +172,7 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
             hull_time_budget_ms=args.hull_time_budget_ms if args else 3000,
         )
 
-        visualizer = LatentTrajectoryVisualizer(
-            batch_dir=batch_name,
-            output_dir=visualizations_dir
-        )
-        visualizer.visualize()
+        
         
         init_time = time.time() - start_time
         logger.info(f"✅ Analyzer initialized in {init_time:.2f} seconds")
@@ -189,6 +185,7 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
         prompt_metadata = load_prompt_metadata(batch_name, prompt_groups)
 
         results = None
+        group_tensors = None
 
         if args.results_file_path:
             # Load results from the specified file
@@ -200,15 +197,20 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
             if args.no_dual_run:
                 # Run single track analysis
                 print(f"🔬 Running single analysis (no dual tracks) with {norm_cfg}")
-                results = analyzer.analyze_prompt_groups(prompt_groups, prompt_metadata)
+                results, group_tensors = analyzer.analyze_prompt_groups(prompt_groups, prompt_metadata)
             
             else:
                 # Run dual tracks analysis
                 print(f"🔬 Running dual tracks analysis with differenct norm configs")
-                results = analyzer.run_dual_tracks(prompt_groups, prompt_metadata)
+                results, group_tensors = analyzer.run_dual_tracks(prompt_groups, prompt_metadata)
                 # TODO: handle dual analysis run
         
         # TODO: visualizer
+        visualizer = LatentTrajectoryVisualizer(
+            batch_dir=batch_name,
+            output_dir=visualizations_dir,
+            group_tensors=group_tensors
+        )
         visualizer.create_comprehensive_visualizations(results)
             
 

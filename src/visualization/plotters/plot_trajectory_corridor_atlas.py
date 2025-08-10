@@ -1,3 +1,5 @@
+# TODO: NEEDS TO HANDLE NORMALIZATION
+
 """
 Trajectory Corridor Atlas plotting functionality.
 Extracted from LatentTrajectoryAnalyzer._plot_trajectory_corridor_atlas.
@@ -18,7 +20,7 @@ logger = logging.getLogger(__name__)
 def plot_trajectory_corridor_atlas(
     results: LatentTrajectoryAnalysis,
     viz_dir: Path,
-    viz_config: Optional[VisualizationConfig] = None,
+    viz_config: Optional[VisualizationConfig] = VisualizationConfig(),
     group_tensors: Optional[Dict[str, Dict[str, Any]]] = None,
     steps_keep: Optional[List[int]] = None,
     max_seeds_per_group: int = 12,
@@ -26,20 +28,22 @@ def plot_trajectory_corridor_atlas(
     **kwargs
 ) -> Optional[Path]:
     """
-    Visualizes the *corridor* structure:
-    • Fit reducer on a sampled set of flattened step latents (Full norm) across all groups & seeds
-    • For each group, plot the *mean path* (polyline across steps)
-    • Add translucent 1σ ellipses per step representing cross-seed spread (corridor width)
-    • Color encodes step index; legend encodes group
-    """
-    if viz_config is None:
-        viz_config = VisualizationConfig()
+        Visualizes the *corridor* structure:
+        • Fit reducer on a sampled set of flattened step latents (Full norm) across all groups & seeds
+        • For each group, plot the *mean path* (polyline across steps)
+        • Add translucent 1σ ellipses per step representing cross-seed spread (corridor width)
+        • Color encodes step index; legend encodes group
+        """
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Ellipse
 
     try:
         from sklearn.decomposition import PCA
         HAVE_SK = True
     except Exception:
         HAVE_SK = False
+
     HAVE_UMAP = False
     if reducer == "umap":
         try:
@@ -50,14 +54,12 @@ def plot_trajectory_corridor_atlas(
 
     # ---- load tensors on demand ----
     if group_tensors is None:
-        try:
-            prompt_groups = results.analysis_metadata.get('prompt_groups', [])
-            group_tensors = results.group_tensors if hasattr(results, 'group_tensors') else None
-        except Exception:
-            group_tensors = None
-    if not group_tensors:
-        logger.warning("No group tensors found, returning early.")
+        logger.warning("⚠️ Group tensors not available, returning early")
         return None
+
+    logger.info("plot_trajectory_corridor_atlas not implemented yet, return early")
+    return None
+
 
     groups = sorted(group_tensors.keys())
     # Determine step set
@@ -68,29 +70,31 @@ def plot_trajectory_corridor_atlas(
 
     # ---- collect normalized flattened latents ----
     X_blocks, labels_step, labels_group = [], [], []
-    per_group_step_arrays = {}
+    per_group_step_arrays = {}  # for later means/ellipses
+
     for gi, g in enumerate(groups):
-        tens = group_tensors[g]['trajectory_tensor']  # [N, T, ...]
+        tens = group_tensors[g]['trajectory_tensor']  # [N, T, C, F, H, W]
         N = min(tens.shape[0], max_seeds_per_group)
         tens = tens[:N]
-        flat = tens.reshape(N, T, -1)  # [N, T, D]
+        flat = self._apply_normalization(tens, group_tensors[g])  # [N, T, D]
+
         per_group_step_arrays[g] = {}
         for si in steps_keep:
-            pts = flat[:, si, :]
+            pts = flat[:, si, :].float().cpu().numpy()  # [N, D]
             per_group_step_arrays[g][si] = pts
             X_blocks.append(pts)
             labels_step.extend([si] * pts.shape[0])
             labels_group.extend([gi] * pts.shape[0])
 
     X = np.concatenate(X_blocks, axis=0)
-    if X.shape[0] < 10:
-        return None
+    if X.shape[0] < 10: return
 
     # ---- reduce ----
     if HAVE_SK:
         X50 = PCA(n_components=min(50, X.shape[1]), random_state=42).fit_transform(X)
     else:
         X50 = X
+
     if reducer == "umap" and HAVE_UMAP:
         X2 = umap.UMAP(n_components=2, n_neighbors=30, min_dist=0.1, metric='cosine', random_state=42).fit_transform(X50)
     else:
@@ -111,15 +115,16 @@ def plot_trajectory_corridor_atlas(
     for si in steps_keep:
         mask = labels_step == si
         P = X2[mask]
-        if P.shape[0] < 5:
-            continue
+        if P.shape[0] < 5: continue
         mu = P.mean(axis=0)
         cov = np.cov(P.T)
+        # Eigen-decomp for ellipse axes
         w, v = np.linalg.eigh(cov + 1e-9*np.eye(2))
         order = np.argsort(w)[::-1]; w = w[order]; v = v[:, order]
         angle = np.degrees(np.arctan2(v[1,0], v[0,0]))
+        # 1σ ellipse
         ell = Ellipse(xy=mu, width=2*np.sqrt(w[0]), height=2*np.sqrt(w[1]),
-                      angle=angle, facecolor=cmap(si / max(1, T-1)), alpha=0.12, edgecolor='none')
+                    angle=angle, facecolor=cmap(si / max(1, T-1)), alpha=0.12, edgecolor='none')
         ax.add_artist(ell)
 
     # overlay per-group mean polylines through steps
@@ -144,6 +149,10 @@ def plot_trajectory_corridor_atlas(
     plt.tight_layout()
 
     output_path = viz_dir / f"trajectory_corridor_atlas.{viz_config.save_format}"
-    plt.savefig(output_path, dpi=viz_config.dpi, bbox_inches=viz_config.bbox_inches)
+    plt.savefig(output_path,
+                dpi=viz_config.dpi, bbox_inches=viz_config.bbox_inches)
     plt.close()
+
+    logger.info(f"🗺️ Trajectory corridor atlas saved to: {output_path}")
+
     return output_path

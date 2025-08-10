@@ -799,33 +799,37 @@ class LatentTrajectoryAnalyzer:
         
         # 4. Save results
         results = LatentTrajectoryAnalysis(
-            spatial_patterns=analysis_results['spatial_patterns'],
-            temporal_coherence=analysis_results['temporal_coherence'],
-            channel_analysis=analysis_results['channel_analysis'],
-            patch_diversity=analysis_results['patch_diversity'],
-            global_structure=analysis_results['global_structure'],
-            information_content=analysis_results['information_content'],
-            complexity_measures=analysis_results['complexity_measures'],
-            frequency_patterns=analysis_results['frequency_patterns'],
-            group_separability=analysis_results['group_separability'],
-            temporal_analysis=analysis_results['temporal_analysis'],
-            structural_analysis=analysis_results['structural_analysis'],
-            statistical_significance=analysis_results['statistical_significance'],
-            convex_hull_analysis=analysis_results['convex_hull_analysis'],
-            functional_pca_analysis=analysis_results['functional_pca_analysis'],
-            individual_trajectory_geometry=analysis_results['individual_trajectory_geometry'],
-            intrinsic_dimension_analysis=analysis_results['intrinsic_dimension_analysis'],
+            spatial_patterns=analysis_results.get('spatial_patterns', {}),
+            temporal_coherence=analysis_results.get('temporal_coherence', {}),
+            channel_analysis=analysis_results.get('channel_analysis', {}),
+            patch_diversity=analysis_results.get('patch_diversity', {}),
+            global_structure=analysis_results.get('global_structure', {}),
+            information_content=analysis_results.get('information_content', {}),
+            complexity_measures=analysis_results.get('complexity_measures', {}),
+            frequency_patterns=analysis_results.get('frequency_patterns', {}),
+            group_separability=analysis_results.get('group_separability', {}),
+            temporal_analysis=analysis_results.get('temporal_analysis', {}),
+            structural_analysis=analysis_results.get('structural_analysis', {}),
+            statistical_significance=analysis_results.get('statistical_significance', {}),
+            convex_hull_analysis=analysis_results.get('convex_hull_analysis', {}),
+            functional_pca_analysis=analysis_results.get('functional_pca_analysis', {}),
+            individual_trajectory_geometry=analysis_results.get('individual_trajectory_geometry', {}),
+            intrinsic_dimension_analysis=analysis_results.get('intrinsic_dimension_analysis', {}),
+            
+            # These were not from analysis_results, so they can remain as they are.
             gpu_performance_stats=self.performance_stats,
             analysis_metadata=analysis_metadata
         )
-        
+                
         self._save_results(results)
         
         # Generate comprehensive visualizations
         self._create_comprehensive_visualizations(results) # TODO: delete
         
         self.logger.info(f"GPU-optimized analysis completed in {total_time:.2f} seconds")
-        return results
+
+        # TODO: figure out better solution than returning group tensors
+        return results, self.group_tensors
 
     def _get_batch_image_grid_path(self) -> str:
         """Gets path to batch image grid."""
@@ -870,14 +874,14 @@ class LatentTrajectoryAnalyzer:
             viz_dir.mkdir(exist_ok=True)
 
             # Combined dashboard + dual radars
-            self._plot_comprehensive_analysis_dashboard(saved['snr_only'], viz_dir, results_full=saved.get('full_norm'))
-            self._plot_research_radar_chart(saved['snr_only'], viz_dir, results_full=saved.get('full_norm'))
-            self._plot_research_radar_chart(saved['snr_only'], viz_dir, results_full=saved.get('full_norm'))
+            # self._plot_comprehensive_analysis_dashboard(saved['snr_only'], viz_dir, results_full=saved.get('full_norm'))
+            # self._plot_research_radar_chart(saved['snr_only'], viz_dir, results_full=saved.get('full_norm'))
+            # self._plot_research_radar_chart(saved['snr_only'], viz_dir, results_full=saved.get('full_norm'))
 
-            video_grid_path = self._get_batch_image_grid_path()
-            self._plot_comprehensive_analysis_insight_board(saved['snr_only'], viz_dir, results_full=saved.get('full_norm'), video_grid_path=video_grid_path)
+            # video_grid_path = self._get_batch_image_grid_path()
+            # self._plot_comprehensive_analysis_insight_board(saved['snr_only'], viz_dir, results_full=saved.get('full_norm'), video_grid_path=video_grid_path)
 
-            return saved
+            return saved, self.group_tensors
         finally:
             # Always restore
             self.output_dir = orig_out

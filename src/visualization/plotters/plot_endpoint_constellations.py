@@ -1,3 +1,5 @@
+# TODO: This is very indeterministic between runs -- need to better understand it
+
 import matplotlib.pyplot as plt
 import numpy as np
 import logging
@@ -6,19 +8,18 @@ from pathlib import Path
 from src.analysis.data_structures import LatentTrajectoryAnalysis
 from src.visualization.visualization_config import VisualizationConfig
 
+from .utils.add_confidence_ellipse import add_confidence_ellipse
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def plot_endpoint_constellations(
     results: LatentTrajectoryAnalysis, 
     viz_dir: Path,
     labels_map: dict[str, str],
-    viz_config: VisualizationConfig = None
+    viz_config: VisualizationConfig = VisualizationConfig(),
 ) -> Path:
     """Create endpoint constellation analysis showing final latent space positions with confidence ellipses."""
-    if viz_config is None:
-        viz_config = VisualizationConfig()
-        
-    logger = logging.getLogger(__name__)
-    
     try:
         logger.info("🌟 Creating endpoint constellation analysis...")
         
@@ -109,29 +110,29 @@ def plot_endpoint_constellations(
             group_data = df[df['Prompt'] == group]
             if len(group_data) > 0:
                 ax.scatter(group_data['PC1'], group_data['PC2'], 
-                         color=group_color_map[group], label=label, 
-                         s=60, alpha=0.7, edgecolors='black', linewidth=0.5)
+                            color=group_color_map[group], label=label, 
+                            s=60, alpha=0.7, edgecolors='black', linewidth=0.5)
         
         # Add confidence ellipses for each group
         for group in group_names:
             group_data = df[df['Prompt'] == group]
             if len(group_data) > 2:  # Need at least 3 points for ellipse
-                _add_confidence_ellipse(
+                add_confidence_ellipse(
                     group_data['PC1'], group_data['PC2'], ax,
                     color=group_color_map[group], alpha=0.15, n_std=2.0
                 )
         
         # Customize plot
         ax.set_xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.1%} variance)', 
-                     fontsize=viz_config.fontsize_labels)
+                        fontsize=viz_config.fontsize_labels)
         ax.set_ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.1%} variance)', 
-                     fontsize=viz_config.fontsize_labels)
+                        fontsize=viz_config.fontsize_labels)
         ax.set_title('Endpoint Constellations in Latent Space\nFinal Trajectory Positions with Confidence Regions', 
                     fontsize=viz_config.fontsize_title, fontweight=viz_config.fontweight_title)
         
         # Legend and grid
         ax.legend(title="Prompt Group", fontsize=viz_config.fontsize_legend, 
-                 title_fontsize=viz_config.fontsize_legend)
+                    title_fontsize=viz_config.fontsize_legend)
         ax.grid(True, linestyle='--', alpha=viz_config.grid_alpha)
         
         # Add interpretation text
@@ -143,16 +144,16 @@ def plot_endpoint_constellations(
         )
         
         ax.text(0.02, 0.98, interpretation_text, transform=ax.transAxes, 
-               fontsize=10, verticalalignment='top',
-               bbox=dict(boxstyle="round,pad=0.5", facecolor="lightblue", alpha=0.8))
+                fontsize=10, verticalalignment='top',
+                bbox=dict(boxstyle="round,pad=0.5", facecolor="lightblue", alpha=0.8))
         
         # Save
         output_path = viz_dir / f"endpoint_constellations.{viz_config.save_format}"
         plt.savefig(output_path, dpi=viz_config.dpi, bbox_inches=viz_config.bbox_inches)
         plt.close()
         
-        logger.info(f"✅ Endpoint constellation analysis saved to: {output_path}")
-        
+        return output_path
+
     except Exception as e:
         logger.error(f"❌ Failed to create endpoint constellation analysis: {e}")
         logger.exception("Full traceback:")
@@ -161,8 +162,8 @@ def plot_endpoint_constellations(
         try:
             fig, ax = plt.subplots(1, 1, figsize=(10, 8))
             ax.text(0.5, 0.5, f'Endpoint Constellation Analysis Failed\n\nError: {str(e)}\n\nCheck logs for details', 
-                   ha='center', va='center', transform=ax.transAxes, fontsize=12,
-                   bbox=dict(boxstyle="round,pad=0.5", facecolor="lightcoral", alpha=0.8))
+                    ha='center', va='center', transform=ax.transAxes, fontsize=12,
+                    bbox=dict(boxstyle="round,pad=0.5", facecolor="lightcoral", alpha=0.8))
             ax.set_title('Endpoint Constellation Analysis - Error')
             ax.axis('off')
             
@@ -171,49 +172,3 @@ def plot_endpoint_constellations(
             plt.close()
         except:
             pass
-
-    return output_path
-
-
-def _add_confidence_ellipse(x, y, ax, color, alpha=0.15, n_std=2.0):
-    """Add confidence ellipse to plot."""
-    try:
-        from matplotlib.patches import Ellipse
-        import matplotlib.transforms as transforms
-        
-        if len(x) < 2 or len(y) < 2:
-            return
-        
-        # Calculate covariance matrix
-        cov = np.cov(x, y)
-        
-        # Check for degenerate cases
-        if np.isclose(np.std(x), 0) or np.isclose(np.std(y), 0):
-            return
-        
-        # Calculate ellipse parameters
-        pearson = cov[0, 1] / np.sqrt(cov[0, 0] * cov[1, 1])
-        
-        # Ellipse radii
-        ell_radius_x = np.sqrt(1 + pearson)
-        ell_radius_y = np.sqrt(1 - pearson)
-        
-        # Create ellipse
-        ellipse = Ellipse((0, 0), width=ell_radius_x * 2, height=ell_radius_y * 2,
-                        facecolor=color, edgecolor=color, alpha=alpha)
-        
-        # Scale and position
-        scale_x = np.sqrt(cov[0, 0]) * n_std
-        mean_x = np.mean(x)
-        scale_y = np.sqrt(cov[1, 1]) * n_std
-        mean_y = np.mean(y)
-        
-        # Apply transformation
-        transf = transforms.Affine2D().rotate_deg(45).scale(scale_x, scale_y).translate(mean_x, mean_y)
-        ellipse.set_transform(transf + ax.transData)
-        
-        ax.add_patch(ellipse)
-        
-    except Exception as e:
-        # Silently ignore ellipse errors to avoid breaking the main plot
-        pass

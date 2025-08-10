@@ -53,7 +53,8 @@ class LatentTrajectoryVisualizer:
         batch_dir, 
         output_dir,
         viz_config: Optional[VisualizationConfig] = None,
-        use_prompt_variation_text_label: Optional[bool] = False
+        use_prompt_variation_text_label: Optional[bool] = False,
+        group_tensors: Optional[Dict[str, Dict[str, Any]]] = None
     ):
         self.batch_dir = batch_dir
         self.output_dir = output_dir
@@ -62,6 +63,8 @@ class LatentTrajectoryVisualizer:
         self.viz_config.apply_style_settings()
 
         self.use_prompt_variation_text_label = use_prompt_variation_text_label
+
+        self.group_tensors = group_tensors
 
         self.logger = self._setup_logger()
 
@@ -92,8 +95,6 @@ class LatentTrajectoryVisualizer:
     ):
         """Create comprehensive visualizations for all key statistical analyses."""
         try:
-            
-            
             # Set style
             plt.style.use('default')
             sns.set_palette("husl")
@@ -104,10 +105,7 @@ class LatentTrajectoryVisualizer:
 
             test_visualizer(self.batch_dir, self.output_dir)
 
-            field_names = [f.name for f in fields(results)]
-            self.logger.info(f"Loaded results fields: {field_names}")
-
-            all_group_names = results.temporal_analysis.keys()
+            all_group_names = results.analysis_metadata['prompt_groups']
             labels_map = {
                 name: self._get_prompt_group_label(results, name)
                 for name in all_group_names
@@ -188,23 +186,23 @@ class LatentTrajectoryVisualizer:
             output_path = plot_intrinsic_dimension_analysis(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
             self.logger.info(f"Saved intrinsic dimension analysis plot to {output_path}")
     
-            # # 14. Temporal Stability Windows
-            # output_path = plot_temporal_stability_windows(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
-            # self.logger.info(f"Saved temporal stability windows plot to {output_path}")
+            # 14. Temporal Stability Windows
+            output_path = plot_temporal_stability_windows(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
+            self.logger.info(f"Saved temporal stability windows plot to {output_path}")
 
-            # # 15. Channel Evolution Patterns
+            # 15. Channel Evolution Patterns
             output_path = plot_channel_evolution_patterns(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
             self.logger.info(f"Saved channel evolution patterns plot to {output_path}")
             
-            # # 16. Global Structure Analysis
+            # 16. Global Structure Analysis
             output_path = plot_global_structure_analysis(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
             self.logger.info(f"Saved global structure analysis plot to {output_path}")
             
-            # # 17. Information Content Analysis
+            # 17. Information Content Analysis
             output_path = plot_information_content_analysis(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
             self.logger.info(f"Saved information content analysis plot to {output_path}")
             
-            # # 18. Complexity Measures
+            # 18. Complexity Measures
             output_path = plot_complexity_measures(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
             self.logger.info(f"Saved complexity measures plot to {output_path}")
             
@@ -212,7 +210,7 @@ class LatentTrajectoryVisualizer:
             output_path = plot_statistical_significance(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
             self.logger.info(f"Saved statistical significance plot to {output_path}")
             
-            # # 20. Temporal Analysis Visualizations
+            # 20. Temporal Analysis Visualizations
             output_path = plot_temporal_analysis(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
             self.logger.info(f"Saved temporal analysis plot to {output_path}")
 
@@ -228,11 +226,6 @@ class LatentTrajectoryVisualizer:
             output_path = plot_comprehensive_analysis_dashboard(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
             self.logger.info(f"Saved comprehensive analysis dashboard plot to {output_path}")
 
-            # 24. Atlas UMAP
-            # If group_tensors are needed, pass them here if available
-            output_path = plot_trajectory_atlas_umap(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
-            self.logger.info(f"Saved trajectory atlas UMAP plot to {output_path}")
-
             # 25. Log volume delta
             output_path = plot_log_volume_delta_panel(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
             self.logger.info(f"Saved log volume delta panel plot to {output_path}")
@@ -246,9 +239,15 @@ class LatentTrajectoryVisualizer:
             output_path = plot_comprehensive_analysis_insight_board(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map, video_grid_path=batch_image_grid_path)
             self.logger.info(f"Saved comprehensive analysis insight board plot to {output_path}")
 
-            # 28. Trajectory Corridor Atlas
-            output_path = plot_trajectory_corridor_atlas(results, self.output_dir, viz_config=self.viz_config)
-            self.logger.info(f"Saved trajectory corridor atlas plot to {output_path}")
+
+            # # 24. Atlas UMAP
+            # # If group_tensors are needed, pass them here if available, TODO: needs tensore, maybe move elsewhere
+            # output_path = plot_trajectory_atlas_umap(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
+            # self.logger.info(f"Saved trajectory atlas UMAP plot to {output_path}")
+
+            # # 28. Trajectory Corridor Atlas TODO: needs tensors, maybe move
+            # output_path = plot_trajectory_corridor_atlas(results, self.output_dir, viz_config=self.viz_config, group_tensors=self.group_tensors)
+            # self.logger.info(f"Saved trajectory corridor atlas plot to {output_path}")
 
         except Exception as e:
             self.logger.error(f"Error occurred while creating visualizations: {e}")
