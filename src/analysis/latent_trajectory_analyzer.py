@@ -426,6 +426,89 @@ class LatentTrajectoryAnalyzer:
             entropy = -torch.sum(probs * torch.log(probs + 1e-8))
             return entropy.item()
         return 0.0
+
+    def _analyze_corridor_metrics(
+        self, 
+        group_tensors: Dict[str, Dict[str, torch.Tensor]]
+    ):
+        """
+        Corridor metrics computed on Full normalization:
+        - width_by_step[g][t]     : mean cross-seed std at step t (corridor width)
+        - centroid_path[g][t,:]   : mean embedding at step t
+        - exit_distance[g]        : L2 distance between g's centroid path and baseline centroid path (cum. over steps)
+        - branch_divergence[g][t] : distance between g's centroid and baseline's centroid at step t
+        """
+        import numpy as np
+        metrics = {'width_by_step': {}, 'centroid_path': {}, 'branch_divergence': {}, 'exit_distance': {}}
+        groups = sorted(group_tensors.keys())
+        if not groups: return metrics
+
+        # compute flattened Full-norm embeddings per group
+        flat_by_group = {}
+        for g in groups:
+            tens = group_tensors[g]['trajectory_tensor']  # [N, T, ...]
+            flat = self._apply_normalization(tens, group_tensors[g])  # [N, T, D]
+            flat_by_group[g] = flat.cpu().numpy()
+
+        T = flat_by_group[groups[0]].shape[1]
+        base = groups[0]
+
+        for g in groups:
+            X = flat_by_group[g]  # [N,T,D]
+            # width = mean std across seeds per step (norm of std vector)
+            stds = X.std(axis=0)               # [T, D]
+            width = np.linalg.norm(stds, axis=1)  # [T]
+            metrics['width_by_step'][g] = width.tolist()
+            centroid = X.mean(axis=0)          # [T, D]
+            metrics['centroid_path'][g] = centroid
+
+        # baseline centroid
+        base_centroid = metrics['centroid_path'][base]  # [T, D]
+
+        for g in groups:
+            C = metrics['centroid_path'][g]
+            branch = np.linalg.norm(C - base_centroid, axis=1)  # [T]
+            metrics['branch_divergence'][g] = branch.tolist()
+            metrics['exit_distance'][g] = float(np.sum(branch))
+
+        # convert centroids to lists for JSON
+        metrics['centroid_path'] = {g: v.tolist() for g, v in metrics['centroid_path'].items()}
+        return metrics
+
+    def _analyze_geometry_derivatives(
+        self, 
+        group_tensors: Dict[str, Dict[str, torch.Tensor]]
+    ):
+        """
+        Derivatives along trajectories (Full norm):
+        curvature_t   = ||Δv_t|| / (||v_t|| + eps),  v_t = x_{t+1} - x_t
+        jerk_t        = ||Δa_t||,                    a_t = v_{t+1} - v_t
+        Returns per-group summaries: mean peak curvature, mean peak jerk, and their step indices (averaged).
+        """
+        import numpy as np
+        out = {}
+        for g, pack in group_tensors.items():
+            X = self._apply_normalization(pack['trajectory_tensor'], pack).cpu().numpy()  # [N,T,D]
+            N, T, D = X.shape
+            peaks_c, peaks_j, steps_c, steps_j = [], [], [], []
+            for n in range(N):
+                traj = X[n]                           # [T,D]
+                v = np.diff(traj, axis=0)             # [T-1, D]
+                a = np.diff(v, axis=0)                # [T-2, D]
+                curv = np.linalg.norm(np.diff(v, axis=0), axis=1) / (np.linalg.norm(v[1:], axis=1) + 1e-12)  # [T-2]
+                jerk = np.linalg.norm(np.diff(a, axis=0), axis=1)  # [T-3]
+                if curv.size:
+                    k_idx = int(np.argmax(curv)); peaks_c.append(float(np.max(curv))); steps_c.append(k_idx+1)
+                if jerk.size:
+                    j_idx = int(np.argmax(jerk)); peaks_j.append(float(np.max(jerk))); steps_j.append(j_idx+2)
+            out[g] = {
+                'curvature_peak_mean': float(np.mean(peaks_c)) if peaks_c else np.nan,
+                'curvature_peak_step_mean': float(np.mean(steps_c)) if steps_c else np.nan,
+                'jerk_peak_mean': float(np.mean(peaks_j)) if peaks_j else np.nan,
+                'jerk_peak_step_mean': float(np.mean(steps_j)) if steps_j else np.nan,
+            }
+        return out
+
     
     def _find_peaks_gpu(self, signal: torch.Tensor) -> List[int]:
         """Simple peak detection on GPU tensor."""
@@ -484,6 +567,134 @@ class LatentTrajectoryAnalyzer:
                                                           mode='linear', align_corners=False).view(-1)
             flat = flat * inv.view(1,-1,1)
         return flat
+
+    def _bootstrap_ci(
+        self, 
+        arr: np.ndarray, 
+        n_boot: int = 2000, 
+        alpha: float = 0.05
+    ):
+        """Return (mean, lo, hi) with (1-alpha) CI via bootstrap; NaN-safe."""
+        import numpy as np
+        x = np.asarray(arr, dtype=float)
+        x = x[np.isfinite(x)]
+        if x.size == 0:
+            return (np.nan, np.nan, np.nan)
+        rng = np.random.default_rng(123)
+        boots = np.empty(n_boot, dtype=float)
+        for i in range(n_boot):
+            s = rng.choice(x, size=x.size, replace=True)
+            boots[i] = float(np.mean(s))
+        lo, hi = np.quantile(boots, [alpha/2, 1 - alpha/2])
+        return (float(np.mean(x)), float(lo), float(hi))
+
+    def _attach_confidence_intervals(self, results: LatentTrajectoryAnalysis):
+        """
+        Adds bootstrap CIs for per-group bar metrics:
+        length, velocity, acceleration, circuitousness−1, turning, alignment, late/early
+        """
+        import numpy as np
+        CIs = {}
+
+        temporal_analysis = results['temporal_analysis']
+        geom = results['individual_trajectory_geometry']
+
+        # temporal_analysis = getattr(results, 'temporal_analysis', {})
+        groups = sorted(temporal_analysis.keys())
+
+        for g in groups:
+            CIs[g] = {}
+            # per-video arrays
+            L = np.array(temporal_analysis[g]['trajectory_length']['individual_lengths'], dtype=float)
+            V = np.array(temporal_analysis[g]['velocity_analysis'].get('mean_velocity_by_video',
+                    temporal_analysis[g]['velocity_analysis'].get('mean_velocity', [])), dtype=float)
+            A = np.array(temporal_analysis[g]['acceleration_analysis'].get('mean_acceleration_individual',
+                    temporal_analysis[g]['acceleration_analysis'].get('mean_acceleration', [])), dtype=float)
+            CIs[g]['length']       = self._bootstrap_ci(L)
+            CIs[g]['velocity']     = self._bootstrap_ci(V)
+            CIs[g]['acceleration'] = self._bootstrap_ci(A)
+
+            if g in geom and 'error' not in geom[g]:
+                circ = np.array(geom[g]['circuitousness_stats']['individual_values'], dtype=float) - 1.0
+                turn = np.array(geom[g]['turning_angle_stats']['individual_values'], dtype=float)
+                ali  = np.array(geom[g]['endpoint_alignment_stats']['individual_values'], dtype=float)
+                CIs[g]['circuitousness_minus1'] = self._bootstrap_ci(circ)
+                CIs[g]['turning_angle']         = self._bootstrap_ci(turn)
+                CIs[g]['endpoint_alignment']    = self._bootstrap_ci(ali)
+            # late/early is group-level; skip CI unless you store per-video curves
+        return CIs
+        
+    def _compute_normative_strength(
+        self, 
+        results: LatentTrajectoryAnalysis
+    ):
+        """
+        Prototype dominance index combining:
+        + early corridor width (steps 0..k)
+        - exit distance from baseline (sum over steps)
+        - late-recovery area (from spatial variance curve; larger area = more late effort)
+        Returns z-scored composite per group.
+        """
+        import numpy as np
+        out = {}
+        # need corridor metrics & spatial curves
+        corridor = getattr(results, 'corridor_metrics', None)
+        if not corridor: 
+            self.logger.warning("No corridor metrics found.")
+            return out
+        groups = sorted(corridor['width_by_step'].keys())
+        k = 3  # early window (t=0..3) for width
+
+        # late recovery area from spatial curve
+        def late_area(g):
+            sp = results['spatial_patterns']['trajectory_spatial_evolution'][g]
+            curve = None
+            for kname in ('spatial_variance_curve','spatial_variance_by_step','variance_curve'):
+                if kname in sp: curve = np.array(sp[kname], dtype=float)
+            if curve is None or curve.size < 4: return np.nan
+            t = np.arange(curve.size)
+            # area after the minimum (late recovery)
+            t0 = int(np.argmin(curve))
+            return float(np.trapz(curve[t0:], t[t0:]))
+
+        w_early = np.array([np.nanmean(corridor['width_by_step'][g][:k+1]) for g in groups], dtype=float)
+        exit_d  = np.array([corridor['exit_distance'][g] for g in groups], dtype=float)
+        late    = np.array([late_area(g) for g in groups], dtype=float)
+
+        def z(a): 
+            m, s = np.nanmean(a), np.nanstd(a)
+            return (a - m) / (s + 1e-12)
+
+        # dominance: more early width, less distance to exit, less late recovery
+        score = +z(w_early) - z(exit_d) - z(late)
+        for i,g in enumerate(groups):
+            out[g] = {'dominance_index': float(score[i]),
+                    'z_early_width': float(z(w_early)[i]),
+                    'z_exit_distance': float(z(exit_d)[i]),
+                    'z_late_area': float(z(late)[i])}
+        return out
+
+
+    def _add_log_volume_deltas(
+        self, 
+        results: LatentTrajectoryAnalysis
+    ):
+        """Adds group-level and (if possible) paired per-video Δ% vs baseline for individual log-volumes."""
+        import numpy as np
+        geom = results['individual_trajectory_geometry']
+        groups = sorted(geom.keys())
+        means = np.array([float(geom[g]['log_volume_stats']['mean']) if 'error' not in geom[g] else np.nan for g in groups])
+        base = means[0] if means.size else np.nan
+        group_delta = 100.0 * (means - base) / (base + 1e-12)
+
+        res = {
+            'groups': groups,
+            'group_means': means.tolist(),
+            'group_delta_percent': group_delta.tolist()
+        }
+        return res
+
+
     def _track_gpu_memory(self, stage: str):
         """Track GPU memory usage at different stages."""
         if self.device.startswith("cuda"):
@@ -595,7 +806,24 @@ class LatentTrajectoryAnalyzer:
             # Statistical significance
             self.logger.info("Running statistical significance tests...")
             analysis_results['statistical_significance'] = self._gpu_test_statistical_significance(group_tensors, prompt_groups)
-        
+
+            # Corridor metrics
+            self.logger.info("Running corridor metrics tests...")
+            analysis_results['corridor_metrics'] = self._analyze_corridor_metrics(group_tensors)
+
+            # Geometry derivatives metrics
+            self.logger.info("Running geometry derivatives analysis...")
+            analysis_results['geometry_derivatives'] = self._analyze_geometry_derivatives(group_tensors)
+
+            self.logger.info("Attaching confidence intervals...")
+            analysis_results['confidence_intervals'] = self._attach_confidence_intervals(analysis_results)
+
+            self.logger.info("Log volume delta vs baseline...")
+            analysis_results['log_volume_delta_vs_baseline'] = self._add_log_volume_deltas(analysis_results)
+
+            self.logger.info("Running normative strength...")
+            analysis_results['normative_strength'] = self._compute_normative_strength(analysis_results)
+     
         self._track_gpu_memory("analysis_complete")
         
         # 3. Create analysis metadata
@@ -801,10 +1029,14 @@ class LatentTrajectoryAnalyzer:
             self._plot_comprehensive_analysis_dashboard(results, viz_dir)
             self._plot_trajectory_atlas_umap(results, viz_dir, self.group_tensors)
 
+            self._plot_log_volume_delta_panel(results, viz_dir)
+
             self._create_batch_image_grid(results, viz_dir)
 
             batch_image_grid_path = self._get_batch_image_grid_path()
             self._plot_comprehensive_analysis_insight_board(results, viz_dir, results_full=None, video_grid_path=batch_image_grid_path)
+
+            self._plot_trajectory_corridor_atlas(results, viz_dir)
 
 
             self.logger.info(f"✅ Visualizations saved to: {viz_dir}")
@@ -5265,7 +5497,7 @@ Please check the analysis logs for detailed error information.
         
         # Run the full analysis
         analysis_results = self.analyze_prompt_groups(prompt_groups)
-        
+
         # Restructure results for convenience
         structured_results = {
             'summary': {
@@ -5896,10 +6128,13 @@ Please check the analysis logs for detailed error information.
         ax2.set_ylabel('% change'); ax2.tick_params(axis='x', rotation=45); ax2.grid(True, alpha=0.3)
 
         plt.tight_layout()
-        plt.savefig(viz_dir / f'convex_hull_proxies_delta.{self.viz_config.save_format}',
+
+        output_path = viz_dir / f'convex_hull_proxies_delta.{self.viz_config.save_format}'
+        plt.savefig(output_path,
                     dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
         plt.close()
 
+        self.logger.info(f"🚢 Convex hull analysis plots saved to: {output_path}")
 
     def _plot_paired_seed_significance(
         self, 
@@ -5999,11 +6234,13 @@ Please check the analysis logs for detailed error information.
             from sklearn.decomposition import PCA
             HAVE_SK = True
         except Exception:
+            self.logger.warning("⚠️ HAVE_SK PCA not available")
             HAVE_SK = False
         try:
             import umap
             HAVE_UMAP = True
         except Exception:
+            self.logger.warning("⚠️ HAVE UMAP not available")
             HAVE_UMAP = False
 
         # Load on demand to avoid RAM spikes
@@ -6038,12 +6275,11 @@ Please check the analysis logs for detailed error information.
         if X.shape[0] < 10:
             return
 
+        # Dimensionality reduction
         X50 = None
         X2 = None
 
         try: 
-
-            # Dimensionality reduction
             if HAVE_SK:
                 X50 = PCA(n_components=min(50, X.shape[1]), random_state=42).fit_transform(X)
             else:
@@ -6057,16 +6293,17 @@ Please check the analysis logs for detailed error information.
                     X2 = PCA(n_components=2, random_state=42).fit_transform(X50)
                 else:
                     X2 = X50[:, :2]
+                    self.logger.warning("⚠️ UMAP not available, using PCA for 2D projection")
 
-            # Plot atlas
-            fig, ax = plt.subplots(figsize=(10, 8))
-            sc = ax.scatter(X2[:, 0], X2[:, 1], c=cols, cmap='viridis', alpha=0.6, s=14)
-            cb = plt.colorbar(sc, ax=ax); cb.set_label('Diffusion Step (sampled)')
-        
         except Exception as e:
-            self.logger.error(f"Error plotting trajectory atlas: {e}")
+            self.logger.error(f"Error during dimensionality reduction: {e}")
             traceback.print_exc()
             return
+
+        # Plot atlas
+        fig, ax = plt.subplots(figsize=(10, 8))
+        sc = ax.scatter(X2[:, 0], X2[:, 1], c=cols, cmap='viridis', alpha=0.6, s=14)
+        cb = plt.colorbar(sc, ax=ax); cb.set_label('Diffusion Step (sampled)')
 
         groups_arr = np.array(marks)
         for gi, g in enumerate(groups):
@@ -6079,10 +6316,12 @@ Please check the analysis logs for detailed error information.
         ax.set_title('Trajectory Atlas (UMAP/PCA)')
         ax.grid(True, alpha=0.3)
         plt.tight_layout()
-        plt.savefig(viz_dir / f'trajectory_atlas_umap.{self.viz_config.save_format}',
-                    dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
+
+        output_path = viz_dir / f'trajectory_atlas_umap.{self.viz_config.save_format}'
+        plt.savefig(output_path, dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
         plt.close()
 
+        self.logger.info(f"🌏 Saved trajectory atlas to {output_path}")
 
     def _plot_functional_pca_analysis(self, results: LatentTrajectoryAnalysis, viz_dir: Path):
         """Plot Functional PCA analysis showing trajectory shape decomposition."""
@@ -6673,3 +6912,173 @@ Please check the analysis logs for detailed error information.
         plt.close()
 
         self.logger.info(f"✨ Comprehensive insight board saved to: {viz_dir / f'comprehensive_insights_dashboard.{self.viz_config.save_format}'}")
+    
+    def _plot_log_volume_delta_panel(
+        self, 
+        results: LatentTrajectoryAnalysis, 
+        viz_dir: Path, 
+        title_suffix: str = ""
+    ):
+        """One clean bar panel: mean individual log-volume Δ% vs baseline group."""
+        import numpy as np
+        import matplotlib.pyplot as plt
+
+        geom = results.individual_trajectory_geometry
+        groups = sorted(geom.keys())
+        means = np.array([float(geom[g]['log_volume_stats']['mean']) if 'error' not in geom[g] else np.nan for g in groups])
+        if means.size == 0: return
+
+        base = means[0]
+        delta = 100.0 * (means - base) / (base + 1e-12)
+
+        plt.figure(figsize=(8, 4.5))
+        plt.bar(groups, delta, color=plt.get_cmap('tab10')(0))
+        plt.title(f"Per-trajectory Log BBox Volume Δ% vs baseline{(' — ' + title_suffix) if title_suffix else ''}")
+        plt.ylabel("% change"); plt.xticks(rotation=45); plt.grid(True, axis='y', alpha=0.3)
+        plt.tight_layout()
+
+        output_path = viz_dir / f"log_volume_delta_vs_baseline.{self.viz_config.save_format}"
+
+        plt.savefig(output_path,
+                    dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
+        plt.close()
+
+        self.logger.info(f"📐 Log volume delta panel saved to: {output_path}")
+
+    def _plot_trajectory_corridor_atlas(
+        self,
+        results: LatentTrajectoryAnalysis,
+        viz_dir: Path,
+        group_tensors: Optional[Dict[str, Dict[str, torch.Tensor]]] = None,
+        steps_keep: Optional[List[int]] = None,
+        max_seeds_per_group: int = 12,
+        reducer: str = "umap"  # "umap" or "pca"
+    ):
+        """
+        Visualizes the *corridor* structure:
+        • Fit reducer on a sampled set of flattened step latents (Full norm) across all groups & seeds
+        • For each group, plot the *mean path* (polyline across steps)
+        • Add translucent 1σ ellipses per step representing cross-seed spread (corridor width)
+        • Color encodes step index; legend encodes group
+        """
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from matplotlib.patches import Ellipse
+
+        try:
+            from sklearn.decomposition import PCA
+            HAVE_SK = True
+        except Exception:
+            HAVE_SK = False
+
+        HAVE_UMAP = False
+        if reducer == "umap":
+            try:
+                import umap
+                HAVE_UMAP = True
+            except Exception:
+                HAVE_UMAP = False
+
+        # ---- load tensors on demand ----
+        if group_tensors is None:
+            try:
+                prompt_groups = results.analysis_metadata.get('prompt_groups', [])
+                group_tensors = self._load_and_batch_trajectory_data(prompt_groups)
+            except Exception:
+                group_tensors = None
+        if not group_tensors:
+            return
+
+        groups = sorted(group_tensors.keys())
+        # Determine step set
+        sample = next(iter(group_tensors.values()))['trajectory_tensor']
+        T = int(sample.shape[1])
+        if steps_keep is None:
+            steps_keep = sorted(set([0, max(1, T//5), max(2, T//5), max(3, T//5), T-1]))
+
+        # ---- collect normalized flattened latents ----
+        X_blocks, labels_step, labels_group = [], [], []
+        per_group_step_arrays = {}  # for later means/ellipses
+
+        for gi, g in enumerate(groups):
+            tens = group_tensors[g]['trajectory_tensor']  # [N, T, C, F, H, W]
+            N = min(tens.shape[0], max_seeds_per_group)
+            tens = tens[:N]
+            flat = self._apply_normalization(tens, group_tensors[g])  # [N, T, D]
+
+            per_group_step_arrays[g] = {}
+            for si in steps_keep:
+                pts = flat[:, si, :].float().cpu().numpy()  # [N, D]
+                per_group_step_arrays[g][si] = pts
+                X_blocks.append(pts)
+                labels_step.extend([si] * pts.shape[0])
+                labels_group.extend([gi] * pts.shape[0])
+
+        X = np.concatenate(X_blocks, axis=0)
+        if X.shape[0] < 10: return
+
+        # ---- reduce ----
+        if HAVE_SK:
+            X50 = PCA(n_components=min(50, X.shape[1]), random_state=42).fit_transform(X)
+        else:
+            X50 = X
+
+        if reducer == "umap" and HAVE_UMAP:
+            X2 = umap.UMAP(n_components=2, n_neighbors=30, min_dist=0.1, metric='cosine', random_state=42).fit_transform(X50)
+        else:
+            if HAVE_SK and X50.shape[1] > 2:
+                X2 = PCA(n_components=2, random_state=42).fit_transform(X50)
+            else:
+                X2 = X50[:, :2]
+
+        labels_step = np.asarray(labels_step)
+        labels_group = np.asarray(labels_group)
+
+        # ---- compute per-group mean polylines and step-wise ellipses (corridor width) ----
+        cmap = plt.get_cmap('viridis')
+        group_colors = plt.get_cmap('tab10')
+        fig, ax = plt.subplots(figsize=(10, 8))
+
+        # draw step-wise global corridor ellipse (across ALL groups/seeds) lightly
+        for si in steps_keep:
+            mask = labels_step == si
+            P = X2[mask]
+            if P.shape[0] < 5: continue
+            mu = P.mean(axis=0)
+            cov = np.cov(P.T)
+            # Eigen-decomp for ellipse axes
+            w, v = np.linalg.eigh(cov + 1e-9*np.eye(2))
+            order = np.argsort(w)[::-1]; w = w[order]; v = v[:, order]
+            angle = np.degrees(np.arctan2(v[1,0], v[0,0]))
+            # 1σ ellipse
+            ell = Ellipse(xy=mu, width=2*np.sqrt(w[0]), height=2*np.sqrt(w[1]),
+                        angle=angle, facecolor=cmap(si / max(1, T-1)), alpha=0.12, edgecolor='none')
+            ax.add_artist(ell)
+
+        # overlay per-group mean polylines through steps
+        for gi, g in enumerate(groups):
+            means = []
+            for si in steps_keep:
+                mask = (labels_group == gi) & (labels_step == si)
+                pts = X2[mask]
+                if pts.shape[0] == 0:
+                    means.append([np.nan, np.nan])
+                else:
+                    means.append(pts.mean(axis=0))
+            means = np.array(means, dtype=float)
+            ax.plot(means[:,0], means[:,1], '-o', lw=2, ms=5,
+                    color=group_colors(gi % 10), label=g, alpha=0.95)
+
+        sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=min(steps_keep), vmax=max(steps_keep)))
+        cbar = plt.colorbar(sm, ax=ax); cbar.set_label("Diffusion Step (sampled)")
+        ax.legend(title='Prompt Group', fontsize=9, frameon=False)
+        ax.set_title("Trajectory Corridor Atlas (mean paths + 1σ corridor)")
+        ax.grid(True, alpha=0.3)
+        plt.tight_layout()
+
+        output_path = viz_dir / f"trajectory_corridor_atlas.{self.viz_config.save_format}"
+        plt.savefig(output_path,
+                    dpi=self.viz_config.dpi, bbox_inches=self.viz_config.bbox_inches)
+        plt.close()
+
+        self.logger.info(f"🗺️ Trajectory corridor atlas saved to: {output_path}")
