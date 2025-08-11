@@ -32,3 +32,13 @@ def analyze_corridor_metrics(
     base_centroid = flat[base].mean(dim=0)  # [T,D]
 
     for g in groups:
+        X = flat[g]                                # [N,T,D]
+        mu = X.mean(dim=0)                         # [T,D]
+        std = (X - mu.unsqueeze(0)).pow(2).mean(dim=0).sqrt()  # [T,D]
+        width = std.norm(dim=1)                    # [T]
+        branch = (mu - base_centroid).norm(dim=1)  # [T]
+        out['width_by_step'][g] = width.detach().cpu().tolist()
+        out['branch_divergence'][g] = branch.detach().cpu().tolist()
+        out['exit_distance'][g] = float(branch.sum().item())
+
+    return out

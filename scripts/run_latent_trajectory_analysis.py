@@ -28,6 +28,8 @@ from src.utils.prompt_utils import load_prompt_metadata
 from src.analysis.data_structures import LatentTrajectoryAnalysis
 
 
+VISUALIZATION_FOLDER_NAME = "latent_trajectory_analysis_visualization"
+
 def setup_logging():
     """Configure logging for analysis."""
     logging.basicConfig(
@@ -189,7 +191,7 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
             hull_time_budget_ms=args.hull_time_budget_ms if args else 3000,
         )
 
-        visualizations_dir = analyzer.output_dir / "latent_trajectory_analysis_visualization"
+        visualizations_dir = analyzer.output_dir / VISUALIZATION_FOLDER_NAME
 
         
         init_time = time.time() - start_time
@@ -241,7 +243,7 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
             results_full_norm = results['full_norm']
 
             # Create visualizations for each normalization config
-            output_dir= visualizations_dir / "snr_norm_only"
+            output_dir= analyzer.output_dir / "snr_norm_only" / VISUALIZATION_FOLDER_NAME
             print(f"1️⃣ Creating visualizations for SNR-only normalization")
             visualizer.create_comprehensive_visualizations(results_snr_only, output_dir=output_dir)
 
@@ -254,7 +256,7 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
                 )
 
             print(f"2️⃣ Creating visualizations for full normalization")
-            output_dir= visualizations_dir / "full_norm"
+            output_dir= analyzer.output_dir / "full_norm" / VISUALIZATION_FOLDER_NAME
             visualizer.create_comprehensive_visualizations(results_full_norm, output_dir=output_dir)
 
             if not args.skip_tensor_vis:

@@ -46,6 +46,8 @@ from .plotters.plot_trajectory_atlas_umap import plot_trajectory_atlas_umap
 from .plotters.plot_log_volume_delta_panel import plot_log_volume_delta_panel
 from src.visualization.batch_grid import create_batch_image_grid
 from .plotters.plot_comprehensive_analysis_insight_board import plot_comprehensive_analysis_insight_board
+from.plotters.plot_normative_strength import plot_normative_strength
+from .plotters.plot_geometry_derivatives import plot_geometry_derivatives
 
 class LatentTrajectoryVisualizer:
     def __init__(
@@ -231,6 +233,12 @@ class LatentTrajectoryVisualizer:
             # 25. Log volume delta
             output_path = plot_log_volume_delta_panel(results, visualization_dir, viz_config=self.viz_config, labels_map=labels_map)
             self.logger.info(f"Saved log volume delta panel plot to {output_path}")
+
+            output_path = plot_normative_strength(results, visualization_dir, viz_config=self.viz_config, labels_map=labels_map)
+            self.logger.info(f"Saved normative strength plot to {output_path}")
+
+            output_path = plot_geometry_derivatives(results, visualization_dir, viz_config=self.viz_config, labels_map=labels_map)
+            self.logger.info(f"Saved geometry derivatives plot to {output_path}")
 
             # # 26. Create batch image grid
             # # This function returns a string path

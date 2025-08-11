@@ -7,7 +7,8 @@ from src.analysis.data_structures import GroupTensors, NormCfg, DEFAULT_NORMALIZ
 from src.analysis.load_and_batch_trajectory_data import load_and_batch_trajectory_data
 
 from .plotters.plot_trajectory_atlas_umap import plot_trajectory_atlas_umap
-from .plotters.plot_trajectory_corridor_atlas import plot_trajectory_corridor_atlas 
+from .plotters.plot_trajectory_corridor_atlas import plot_trajectory_corridor_atlas
+from .plotters.plot_trajectory_corridor_small_multiples import plot_trajectory_corridor_small_multiples
 
 
 logging.basicConfig(level=logging.INFO)
@@ -45,11 +46,15 @@ def group_tensors_visualizer(
         return
     
     try:
-        output_path = plot_trajectory_atlas_umap(group_tensors, viz_dir=output_dir, norm_cfg=norm_cfg)
+        output_path = plot_trajectory_atlas_umap(group_tensors=group_tensors, viz_dir=output_dir, norm_cfg=norm_cfg)
         logger.info(f"🗺️  Atlas UMAP plot saved to {output_path}")
 
-        output_path = plot_trajectory_corridor_atlas(group_tensors, viz_dir=output_dir, norm_cfg=norm_cfg)
+        output_path = plot_trajectory_corridor_atlas(group_tensors=group_tensors, viz_dir=output_dir, norm_cfg=norm_cfg)
         logger.info(f"💠 Trajectory corridor plot saved to {output_path}")
+
+        output_path = plot_trajectory_corridor_small_multiples(group_tensors=group_tensors, viz_dir=output_dir, norm_cfg=norm_cfg)
+        logger.info(f"🌐 Trajectory corridor small multiples plot saved to {output_path}")
+
     except Exception as e:
         logger.error(f"Failed to plot latent tensors: {e}")
         logger.error(traceback.format_exc())

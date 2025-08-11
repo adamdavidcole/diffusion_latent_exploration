@@ -275,9 +275,9 @@ class LatentTrajectoryAnalyzer:
             self.logger.info("Attaching confidence intervals...")
             analysis_results['confidence_intervals'] = attach_confidence_intervals(analysis_results)
 
-            # # Corridor metrics
-            # self.logger.info("Running corridor metrics tests...")
-            # analysis_results['corridor_metrics'] = analyze_corridor_metrics(group_tensors, norm_cfg=self.norm_cfg)
+            # Corridor metrics
+            self.logger.info("Running corridor metrics tests...")
+            analysis_results['corridor_metrics'] = analyze_corridor_metrics(group_tensors, norm_cfg=self.norm_cfg)
 
             # # Geometry derivatives metrics
             self.logger.info("Running geometry derivatives analysis...")
@@ -287,6 +287,7 @@ class LatentTrajectoryAnalyzer:
             analysis_results['log_volume_delta_vs_baseline'] = log_volume_deltas(analysis_results)
 
             self.logger.info("Running normative strength...")
+            print(f"Pre normative strength: {analysis_results['corridor_metrics']}")
             analysis_results['normative_strength'] = compute_normative_strength(analysis_results)
 
         self._track_gpu_memory("analysis_complete")
