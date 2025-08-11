@@ -87,6 +87,7 @@ def parse_arguments():
         default=None,
         help="Path to the file where results are already saved (will skip analysis and only do visualization)."
     )
+    
 
 
     # Hull performance/accuracy controls
@@ -191,6 +192,7 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
         visualizer = LatentTrajectoryVisualizer(
             batch_dir=batch_name,
             output_dir=visualizations_dir,
+            use_prompt_variation_text_label=True
         )
 
         if args.results_file_path:

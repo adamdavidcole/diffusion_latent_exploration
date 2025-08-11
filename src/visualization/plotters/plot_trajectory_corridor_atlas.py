@@ -11,21 +11,22 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 import logging
 from typing import Optional, Dict, Any, List
-from src.analysis.data_structures import LatentTrajectoryAnalysis
+from src.analysis.data_structures import GroupTensors
 from src.visualization.visualization_config import VisualizationConfig
+
+from src.analysis.latent_trajectory_analysis.utils.apply_normalization import apply_normalization
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def plot_trajectory_corridor_atlas(
-    results: LatentTrajectoryAnalysis,
-    viz_dir: Path,
+    group_tensors: GroupTensors = None,
+    viz_dir: Path = None,
     viz_config: Optional[VisualizationConfig] = VisualizationConfig(),
-    group_tensors: Optional[Dict[str, Dict[str, Any]]] = None,
     steps_keep: Optional[List[int]] = None,
     max_seeds_per_group: int = 12,
     reducer: str = "umap",
-    **kwargs
+    norm_cfg: Optional[Dict[str, Any]] = None
 ) -> Optional[Path]:
     """
         Visualizes the *corridor* structure:
@@ -57,8 +58,12 @@ def plot_trajectory_corridor_atlas(
         logger.warning("⚠️ Group tensors not available, returning early")
         return None
 
-    logger.info("plot_trajectory_corridor_atlas not implemented yet, return early")
-    return None
+    if viz_dir is None:
+        logger.warning("⚠️ Output path not provided, returning early")
+        return None
+
+    # logger.info("plot_trajectory_corridor_atlas not implemented yet, return early")
+    # return 
 
 
     groups = sorted(group_tensors.keys())
@@ -76,7 +81,7 @@ def plot_trajectory_corridor_atlas(
         tens = group_tensors[g]['trajectory_tensor']  # [N, T, C, F, H, W]
         N = min(tens.shape[0], max_seeds_per_group)
         tens = tens[:N]
-        flat = self._apply_normalization(tens, group_tensors[g])  # [N, T, D]
+        flat = apply_normalization(tens, group_tensors[g], norm_cfg=norm_cfg)  # [N, T, D]
 
         per_group_step_arrays[g] = {}
         for si in steps_keep:
@@ -152,7 +157,5 @@ def plot_trajectory_corridor_atlas(
     plt.savefig(output_path,
                 dpi=viz_config.dpi, bbox_inches=viz_config.bbox_inches)
     plt.close()
-
-    logger.info(f"🗺️ Trajectory corridor atlas saved to: {output_path}")
 
     return output_path

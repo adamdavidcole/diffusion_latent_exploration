@@ -1,22 +1,29 @@
 from pathlib import Path
 import torch
 import numpy as np
-from typing import Dict, List
+from typing import Dict, List, Optional
 import logging
 import json
 
-
+from src.analysis.data_structures import GroupTensors
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)    
 
 def load_and_batch_trajectory_data(
     latents_dir: Path,
-    prompt_groups: List[str],
+    prompt_groups: Optional[List[str]] = None,
     device: torch.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-) -> Dict[str, Dict[str, torch.Tensor]]:
+) -> GroupTensors|None:
     """Load and batch trajectory data preserving diffusion step structure."""
     import gzip
     
+    if prompt_groups is None:
+       prompt_groups =  sorted([p.name for p in Path(latents_dir).iterdir() if p.is_dir()])
+
+    if prompt_groups is None or len(prompt_groups) == 0:
+        logger.warning(f"No prompt groups found in {latents_dir}")
+        return None
+
     group_tensors = {}
     
     for group_name in prompt_groups:

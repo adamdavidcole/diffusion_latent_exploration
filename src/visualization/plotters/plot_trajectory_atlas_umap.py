@@ -8,8 +8,12 @@ from typing import Optional, Dict, Any
 import numpy as np
 import logging
 import matplotlib.pyplot as plt
+
+from src.analysis.data_structures import GroupTensors
+
 from src.analysis.data_structures import LatentTrajectoryAnalysis
 from src.visualization.visualization_config import VisualizationConfig
+from src.analysis.latent_trajectory_analysis.utils.apply_normalization import apply_normalization
 
 # Setup logging
 logging.basicConfig(
@@ -19,12 +23,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def plot_trajectory_atlas_umap(
-    results: LatentTrajectoryAnalysis, 
+    group_tensors: GroupTensors,
     viz_dir: Path, 
     viz_config: VisualizationConfig =  VisualizationConfig(), 
-    labels_map: dict = None, 
-    group_tensors: Optional[Dict[str, Dict[str, Any]]] = None,
-    **kwargs
+    norm_cfg: Optional[Dict[str, Any]] = None
 ) -> Path:
     """2-D map (UMAP/PCA) of step embeddings, colored by step index; centroids per prompt group."""
     
@@ -46,9 +48,6 @@ def plot_trajectory_atlas_umap(
         logger.warning("⚠️ Group tensors not available, returning early")
         return
 
-    logger.warning("⚠️ Trajectory Atlas UMAP not implemented")
-    return
-
     # Sample a few canonical steps across the schedule
     sample = next(iter(group_tensors.values()))['trajectory_tensor']
     T = sample.shape[1]
@@ -59,7 +58,7 @@ def plot_trajectory_atlas_umap(
     for gi, g in enumerate(groups):
         tens = group_tensors[g]['trajectory_tensor']   # [N, T, C, F, H, W]
         # TODO: figure out what to do about _apply_normalization
-        flat = self._apply_normalization(tens, group_tensors[g])  # [N, T, D]
+        flat = apply_normalization(tens, group_tensors[g], norm_cfg=norm_cfg)  # [N, T, D]
         for si in steps_keep:
             pts = flat[:, si, :]
             Xs.append(pts.float().cpu().numpy())
