@@ -232,10 +232,11 @@ class LatentTrajectoryVisualizer:
             output_path = plot_log_volume_delta_panel(results, visualization_dir, viz_config=self.viz_config, labels_map=labels_map)
             self.logger.info(f"Saved log volume delta panel plot to {output_path}")
 
-            # 26. Create batch image grid
-            # This function returns a string path
-            batch_image_grid_path = create_batch_image_grid(batch_path=str(self.batch_dir), output_path=str(visualization_dir / "video_batch_grid.png"))
-            self.logger.info(f"Saved batch image grid to {batch_image_grid_path}")
+            # # 26. Create batch image grid
+            # # This function returns a string path
+            batch_image_grid_path = str(visualization_dir / "video_batch_grid.png")
+            output_path = create_batch_image_grid(batch_path=str(self.batch_dir), output_path=batch_image_grid_path)
+            self.logger.info(f"Saved batch image grid to {output_path}")
 
             # 27. Comprehensive Analysis Insight Board
             output_path = plot_comprehensive_analysis_insight_board(results, visualization_dir, viz_config=self.viz_config, labels_map=labels_map, video_grid_path=batch_image_grid_path)

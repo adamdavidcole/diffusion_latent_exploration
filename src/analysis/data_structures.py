@@ -26,10 +26,18 @@ class LatentTrajectoryAnalysis:
     functional_pca_analysis: Dict[str, Any]
     individual_trajectory_geometry: Dict[str, Any]
     intrinsic_dimension_analysis: Dict[str, Any]
+
+    confidence_intervals: Dict[str, Any]
+    log_volume_delta_vs_baseline: Dict[str, Any]
+    normative_strength: Dict[str, Any]
+    geometry_derivatives: Dict[str, Any]
+    corridor_metrics: Dict[str, Any]
+
     gpu_performance_stats: Dict[str, Any]
     analysis_metadata: Dict[str, Any]
     
     def to_dict(self) -> Dict[str, Any]:
+        
         """Convert to dictionary for JSON serialization."""
         return asdict(self)
 

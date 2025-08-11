@@ -6,7 +6,6 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
 def analyze_global_structure(
         group_tensors: Dict[str, Dict[str, torch.Tensor]]
 ) -> Dict[str, Any]:

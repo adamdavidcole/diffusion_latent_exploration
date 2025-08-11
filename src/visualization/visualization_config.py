@@ -35,6 +35,9 @@ class VisualizationConfig:
     diverging_cmap: str = "coolwarm"
     sequential_cmap: str = "YlOrRd"
     
+    step_cmap: str = "viridis"
+    name_cmap: str = "tab10"
+
     def get_colors(self, n_groups: int) -> list:
         """Get color palette for n groups."""
         return sns.color_palette(self.color_palette, n_groups)

@@ -165,8 +165,11 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
                 "snr_normalize": True,
             }
 
-        # load group tensors so we can pass them around
-        group_tensors = load_and_batch_trajectory_data(latents_dir=latents_dir, prompt_groups=prompt_groups, device=device)
+        # load group tensors if we are not skipping tensor visualization 
+        # so we can pass them around (if skipped and neccesary for analysis, they will load later in the pipeline)
+        group_tensors = None
+        if not args.skip_tensor_vis:
+            group_tensors = load_and_batch_trajectory_data(latents_dir=latents_dir, prompt_groups=prompt_groups, device=device)
 
         analyzer = LatentTrajectoryAnalyzer(
             latents_dir=str(latents_dir),
@@ -204,7 +207,7 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
         visualizer = LatentTrajectoryVisualizer(
             batch_dir=batch_name,
             output_dir=visualizations_dir,
-            use_prompt_variation_text_label=True
+            use_prompt_variation_text_label=False
         )
 
         if args.no_dual_run or args.results_file_path:

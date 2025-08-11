@@ -23,7 +23,7 @@ def group_tensors_visualizer(
         norm_cfg: Optional[NormCfg] = DEFAULT_NORMALIZATION_CONFIG
 ):
     # Visualize the latent tensors using your preferred method
-    logger.info(f"‼️‼️ Visualizing group tensors {norm_cfg}")
+    logger.info(f"Visualizing group tensors {norm_cfg}")
     if not group_tensors and not latents_dir:
         logger.warning("⚠️ No group tensors or latents directory provided, returning early")
         return

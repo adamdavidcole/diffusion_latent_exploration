@@ -1,57 +1,34 @@
 import torch
-import numpy as np
 from typing import Dict, Any
-import logging
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 from .utils.apply_normalization import apply_normalization
 
+@torch.no_grad()
 def analyze_corridor_metrics(
     group_tensors: Dict[str, Dict[str, torch.Tensor]],
-    norm_cfg: Dict[str, Any]
-):
+    norm_cfg: Dict[str, Any],
+) -> Dict[str, Any]:
     """
-    Corridor metrics computed on Full normalization:
-    - width_by_step[g][t]     : mean cross-seed std at step t (corridor width)
-    - centroid_path[g][t,:]   : mean embedding at step t
-    - exit_distance[g]        : L2 distance between g's centroid path and baseline centroid path (cum. over steps)
-    - branch_divergence[g][t] : distance between g's centroid and baseline's centroid at step t
+    Fast, compact corridor metrics (Full norm):
+      width_by_step[g]: [T]   — L2 of per-dim std across seeds (corridor width)
+      branch_divergence[g]:[T]— L2 centroid distance to baseline centroid
+      exit_distance[g]: float — sum_t branch_divergence[g][t]
+    NOTE: We deliberately DO NOT store centroid vectors (T×D) to avoid huge JSON.
     """
-    import numpy as np
-    metrics = {'width_by_step': {}, 'centroid_path': {}, 'branch_divergence': {}, 'exit_distance': {}}
+    device = next(iter(group_tensors.values()))['trajectory_tensor'].device
     groups = sorted(group_tensors.keys())
-    if not groups: return metrics
+    out: Dict[str, Any] = {'width_by_step': {}, 'branch_divergence': {}, 'exit_distance': {}}
+    if not groups: return out
 
-    # compute flattened Full-norm embeddings per group
-    flat_by_group = {}
+    # Full-norm & flatten once per group
+    flat: Dict[str, torch.Tensor] = {}
     for g in groups:
-        tens = group_tensors[g]['trajectory_tensor']  # [N, T, ...]
-        flat = apply_normalization(tens, group_tensors[g], norm_cfg=norm_cfg)  # [N, T, D]
-        flat_by_group[g] = flat.cpu().numpy()
+        X = apply_normalization(group_tensors[g]['trajectory_tensor'], group_tensors[g], norm_cfg)  # [N,T,D]
+        flat[g] = X.to(device, non_blocking=True)
 
-    T = flat_by_group[groups[0]].shape[1]
+    T = flat[groups[0]].shape[1]
     base = groups[0]
 
-    for g in groups:
-        X = flat_by_group[g]  # [N,T,D]
-        # width = mean std across seeds per step (norm of std vector)
-        stds = X.std(axis=0)               # [T, D]
-        width = np.linalg.norm(stds, axis=1)  # [T]
-        metrics['width_by_step'][g] = width.tolist()
-        centroid = X.mean(axis=0)          # [T, D]
-        metrics['centroid_path'][g] = centroid
-
-    # baseline centroid
-    base_centroid = metrics['centroid_path'][base]  # [T, D]
+    # baseline centroid path (T,D) kept in GPU only; never serialized
+    base_centroid = flat[base].mean(dim=0)  # [T,D]
 
     for g in groups:
-        C = metrics['centroid_path'][g]
-        branch = np.linalg.norm(C - base_centroid, axis=1)  # [T]
-        metrics['branch_divergence'][g] = branch.tolist()
-        metrics['exit_distance'][g] = float(np.sum(branch))
-
-    # convert centroids to lists for JSON
-    metrics['centroid_path'] = {g: v.tolist() for g, v in metrics['centroid_path'].items()}
-    return metrics

@@ -202,6 +202,18 @@ class LatentTrajectoryAnalyzer:
             autocast_context = torch.amp.autocast('cpu', enabled=False)  # CPU doesn't support autocast
         
         with autocast_context:
+            # Temporal trajectory analysis
+            self.logger.info("Running temporal trajectory analysis...")
+            analysis_results['temporal_analysis'] = analyze_temporal_trajectories(group_tensors, prompt_groups, device=self.device, norm_cfg=self.norm_cfg)
+
+            # Structural analysis
+            self.logger.info("Running structural analysis...")
+            analysis_results['structural_analysis'] = analyze_structural_patterns(group_tensors, prompt_groups, device=self.device)
+
+            # Individual trajectory analysis
+            self.logger.info("Running individual trajectory geometry analysis...")
+            analysis_results['individual_trajectory_geometry'] = analyze_individual_trajectory_geometry(group_tensors)
+
             # Core trajectory-aware analyses
             self.logger.info("Running spatial pattern analysis...")
             analysis_results['spatial_patterns'] = analyze_spatial_patterns(group_tensors)
@@ -240,13 +252,7 @@ class LatentTrajectoryAnalyzer:
             self.logger.info("Running group separability analysis...")
             analysis_results['group_separability'] = analyze_group_separability(group_tensors)
 
-            # Temporal trajectory analysis
-            self.logger.info("Running temporal trajectory analysis...")
-            analysis_results['temporal_analysis'] = analyze_temporal_trajectories(group_tensors, prompt_groups, device=self.device, norm_cfg=self.norm_cfg)
 
-            # Structural analysis
-            self.logger.info("Running structural analysis...")
-            analysis_results['structural_analysis'] = analyze_structural_patterns(group_tensors, prompt_groups, device=self.device)
             
             # NEW: Advanced geometric analysis
             self.logger.info("Running convex hull analysis...")
@@ -255,8 +261,7 @@ class LatentTrajectoryAnalyzer:
             self.logger.info("Running functional PCA analysis...")
             analysis_results['functional_pca_analysis'] = analyze_functional_pca(group_tensors, prompt_groups)
 
-            self.logger.info("Running individual trajectory geometry analysis...")
-            analysis_results['individual_trajectory_geometry'] = analyze_individual_trajectory_geometry(group_tensors)
+    
             
             # TODO: maybe skip -- function only stubbed
             self.logger.info("Running intrinsic dimension analysis...")
@@ -266,21 +271,20 @@ class LatentTrajectoryAnalyzer:
             self.logger.info("Running statistical significance tests...")
             analysis_results['statistical_significance'] = test_statistical_significance(group_tensors)
 
-            # Corridor metrics
-            self.logger.info("Running corridor metrics tests...")
-            analysis_results['corridor_metrics'] = analyze_corridor_metrics(group_tensors, norm_cfg=self.norm_cfg)
+       
+            self.logger.info("Attaching confidence intervals...")
+            analysis_results['confidence_intervals'] = attach_confidence_intervals(analysis_results)
+
+            # # Corridor metrics
+            # self.logger.info("Running corridor metrics tests...")
+            # analysis_results['corridor_metrics'] = analyze_corridor_metrics(group_tensors, norm_cfg=self.norm_cfg)
 
             # # Geometry derivatives metrics
             self.logger.info("Running geometry derivatives analysis...")
             analysis_results['geometry_derivatives'] = analyze_geometry_derivatives(group_tensors, norm_cfg=self.norm_cfg)
 
-            self.logger.info("Attaching confidence intervals...")
-            analysis_results['confidence_intervals'] = attach_confidence_intervals(analysis_results)
-
-
             self.logger.info("Log volume delta vs baseline...")
             analysis_results['log_volume_delta_vs_baseline'] = log_volume_deltas(analysis_results)
-
 
             self.logger.info("Running normative strength...")
             analysis_results['normative_strength'] = compute_normative_strength(analysis_results)
@@ -320,7 +324,13 @@ class LatentTrajectoryAnalyzer:
             functional_pca_analysis=analysis_results.get('functional_pca_analysis', {}),
             individual_trajectory_geometry=analysis_results.get('individual_trajectory_geometry', {}),
             intrinsic_dimension_analysis=analysis_results.get('intrinsic_dimension_analysis', {}),
-            
+
+            confidence_intervals=analysis_results.get('confidence_intervals', {}),
+            log_volume_delta_vs_baseline=analysis_results.get('log_volume_delta_vs_baseline', {}),
+            normative_strength=analysis_results.get('normative_strength', {}),
+            geometry_derivatives=analysis_results.get('geometry_derivatives', {}),
+            corridor_metrics=analysis_results.get('corridor_metrics', {}),
+
             # These were not from analysis_results, so they can remain as they are.
             gpu_performance_stats=self.performance_stats,
             analysis_metadata=analysis_metadata

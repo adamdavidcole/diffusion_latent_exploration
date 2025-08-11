@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
+from matplotlib.collections import LineCollection
 import logging
 from typing import Optional, Dict, Any, List
 from src.analysis.data_structures import GroupTensors
@@ -20,31 +21,27 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def plot_trajectory_corridor_atlas(
-    group_tensors: GroupTensors = None,
-    viz_dir: Path = None,
-    viz_config: Optional[VisualizationConfig] = VisualizationConfig(),
-    steps_keep: Optional[List[int]] = None,
-    max_seeds_per_group: int = 12,
+    group_tensors: Dict[str, Dict[str, 'torch.Tensor']],
+    viz_dir: Path,
+    viz_config: Optional[VisualizationConfig] = None,
+    labels_map: Optional[Dict[str, str]] = None,
     reducer: str = "umap",
+    max_seeds_per_group: int = 12,
     norm_cfg: Optional[Dict[str, Any]] = None
-) -> Optional[Path]:
+) -> Path:
     """
-        Visualizes the *corridor* structure:
-        • Fit reducer on a sampled set of flattened step latents (Full norm) across all groups & seeds
-        • For each group, plot the *mean path* (polyline across steps)
-        • Add translucent 1σ ellipses per step representing cross-seed spread (corridor width)
-        • Color encodes step index; legend encodes group
-        """
-    import numpy as np
-    import matplotlib.pyplot as plt
-    from matplotlib.patches import Ellipse
-
+    Corridor atlas with:
+      - faint seed-level polylines colored by step
+      - per-group mean centerlines
+      - global 1σ ellipses per step (shared corridor width)
+    Axes are the reduced coordinates (UMAP/PCA) => abstract; label them as such.
+    """
+    import torch
     try:
         from sklearn.decomposition import PCA
         HAVE_SK = True
     except Exception:
         HAVE_SK = False
-
     HAVE_UMAP = False
     if reducer == "umap":
         try:
@@ -53,53 +50,41 @@ def plot_trajectory_corridor_atlas(
         except Exception:
             HAVE_UMAP = False
 
-    # ---- load tensors on demand ----
+    viz_config = viz_config or VisualizationConfig()
+    viz_config.apply_style_settings()
+
+    # Load tensors if needed
     if group_tensors is None:
-        logger.warning("⚠️ Group tensors not available, returning early")
-        return None
-
-    if viz_dir is None:
-        logger.warning("⚠️ Output path not provided, returning early")
-        return None
-
-    # logger.info("plot_trajectory_corridor_atlas not implemented yet, return early")
-    # return 
-
+        return None  # keep this function pure in the new split; call from group_tensors_visualizer
 
     groups = sorted(group_tensors.keys())
-    # Determine step set
     sample = next(iter(group_tensors.values()))['trajectory_tensor']
     T = int(sample.shape[1])
-    if steps_keep is None:
-        steps_keep = sorted(set([0, max(1, T//5), max(2, T//5), max(3, T//5), T-1]))
 
-    # ---- collect normalized flattened latents ----
-    X_blocks, labels_step, labels_group = [], [], []
-    per_group_step_arrays = {}  # for later means/ellipses
-
+    # gather flattened Full-norm embeddings [N,T,D]
+    X_blocks, marks_g, marks_s = [], [], []
+    per_group_flat = {}
     for gi, g in enumerate(groups):
-        tens = group_tensors[g]['trajectory_tensor']  # [N, T, C, F, H, W]
+        tens = group_tensors[g]['trajectory_tensor']
         N = min(tens.shape[0], max_seeds_per_group)
         tens = tens[:N]
-        flat = apply_normalization(tens, group_tensors[g], norm_cfg=norm_cfg)  # [N, T, D]
+        # Full normalization from analysis (you can import your shared util if you have one)
+        flat = tens.reshape(N, T, -1).float()  # assume inputs already in the chosen norm for the atlas call site
+        per_group_flat[g] = flat
+        X_blocks.append(flat.reshape(N*T, -1))
+        marks_g.extend([gi] * (N*T))
+        # step indices for coloring segments
+        marks_s.extend(list(np.tile(np.arange(T), N)))
 
-        per_group_step_arrays[g] = {}
-        for si in steps_keep:
-            pts = flat[:, si, :].float().cpu().numpy()  # [N, D]
-            per_group_step_arrays[g][si] = pts
-            X_blocks.append(pts)
-            labels_step.extend([si] * pts.shape[0])
-            labels_group.extend([gi] * pts.shape[0])
+    X = torch.cat(X_blocks, dim=0).cpu().numpy()
+    if X.shape[0] < 10:
+        return None
 
-    X = np.concatenate(X_blocks, axis=0)
-    if X.shape[0] < 10: return
-
-    # ---- reduce ----
+    # reduce to 2D
     if HAVE_SK:
         X50 = PCA(n_components=min(50, X.shape[1]), random_state=42).fit_transform(X)
     else:
         X50 = X
-
     if reducer == "umap" and HAVE_UMAP:
         X2 = umap.UMAP(n_components=2, n_neighbors=30, min_dist=0.1, metric='cosine', random_state=42).fit_transform(X50)
     else:
@@ -108,54 +93,63 @@ def plot_trajectory_corridor_atlas(
         else:
             X2 = X50[:, :2]
 
-    labels_step = np.asarray(labels_step)
-    labels_group = np.asarray(labels_group)
+    marks_g = np.asarray(marks_g)
+    marks_s = np.asarray(marks_s)
+    cmap_steps = plt.get_cmap(viz_config.step_cmap or 'viridis')
+    cmap_groups = plt.get_cmap(viz_config.name_cmap or 'tab10')
 
-    # ---- compute per-group mean polylines and step-wise ellipses (corridor width) ----
-    cmap = plt.get_cmap('viridis')
-    group_colors = plt.get_cmap('tab10')
     fig, ax = plt.subplots(figsize=(10, 8))
 
-    # draw step-wise global corridor ellipse (across ALL groups/seeds) lightly
-    for si in steps_keep:
-        mask = labels_step == si
-        P = X2[mask]
-        if P.shape[0] < 5: continue
+    # Global 1σ ellipse per step
+    for si in range(T):
+        P = X2[marks_s == si]
+        if P.shape[0] < 5: 
+            continue
         mu = P.mean(axis=0)
         cov = np.cov(P.T)
-        # Eigen-decomp for ellipse axes
         w, v = np.linalg.eigh(cov + 1e-9*np.eye(2))
-        order = np.argsort(w)[::-1]; w = w[order]; v = v[:, order]
+        order = np.argsort(w)[::-1]; w, v = w[order], v[:, order]
         angle = np.degrees(np.arctan2(v[1,0], v[0,0]))
-        # 1σ ellipse
         ell = Ellipse(xy=mu, width=2*np.sqrt(w[0]), height=2*np.sqrt(w[1]),
-                    angle=angle, facecolor=cmap(si / max(1, T-1)), alpha=0.12, edgecolor='none')
+                      angle=angle, facecolor=cmap_steps(si/(T-1)), alpha=0.12, edgecolor='none')
         ax.add_artist(ell)
 
-    # overlay per-group mean polylines through steps
+    # Seed polylines colored by step (faint)
     for gi, g in enumerate(groups):
-        means = []
-        for si in steps_keep:
-            mask = (labels_group == gi) & (labels_step == si)
-            pts = X2[mask]
-            if pts.shape[0] == 0:
-                means.append([np.nan, np.nan])
-            else:
-                means.append(pts.mean(axis=0))
-        means = np.array(means, dtype=float)
-        ax.plot(means[:,0], means[:,1], '-o', lw=2, ms=5,
-                color=group_colors(gi % 10), label=g, alpha=0.95)
+        flat = per_group_flat[g].cpu().numpy()  # [N,T,D]
+        N = flat.shape[0]
+        # reduce the same way: re-embed these rows by mapping indices
+        # Build index window for this group's block inside X2
+        offset = 0
+        for gj in range(gi):
+            offset += per_group_flat[groups[gj]].shape[0]*T
+        M = N*T
+        P2 = X2[offset:offset+M, :].reshape(N, T, 2)
+        for n in range(N):
+            segs = np.stack([P2[n, :-1, :], P2[n, 1:, :]], axis=1)   # [T-1, 2, 2]
+            lc = LineCollection(segs, cmap=cmap_steps, array=np.arange(T-1), linewidths=1.25, alpha=0.35)
+            ax.add_collection(lc)
 
-    sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=min(steps_keep), vmax=max(steps_keep)))
-    cbar = plt.colorbar(sm, ax=ax); cbar.set_label("Diffusion Step (sampled)")
+    # Group mean centerlines (solid)
+    for gi, g in enumerate(groups):
+        flat = per_group_flat[g].cpu().numpy()
+        N = flat.shape[0]
+        offset = 0
+        for gj in range(gi):
+            offset += per_group_flat[groups[gj]].shape[0]*T
+        M = N*T
+        P2 = X2[offset:offset+M, :].reshape(N, T, 2)
+        mean_path = P2.mean(axis=0)  # [T,2]
+        ax.plot(mean_path[:,0], mean_path[:,1], '-o', color=cmap_groups(gi%10), lw=2.0, ms=4, label=(labels_map.get(g,g) if labels_map else g))
+
+    sm = plt.cm.ScalarMappable(cmap=cmap_steps, norm=plt.Normalize(vmin=0, vmax=T-1))
+    cbar = plt.colorbar(sm, ax=ax); cbar.set_label("Diffusion step")
+
     ax.legend(title='Prompt Group', fontsize=9, frameon=False)
-    ax.set_title("Trajectory Corridor Atlas (mean paths + 1σ corridor)")
+    ax.set_title("Trajectory Corridor Atlas (seed polylines, mean centerlines, global 1σ)")
+    ax.set_xlabel("Atlas dim 1 (UMAP/PCA)"); ax.set_ylabel("Atlas dim 2 (UMAP/PCA)")
     ax.grid(True, alpha=0.3)
-    plt.tight_layout()
 
-    output_path = viz_dir / f"trajectory_corridor_atlas.{viz_config.save_format}"
-    plt.savefig(output_path,
-                dpi=viz_config.dpi, bbox_inches=viz_config.bbox_inches)
-    plt.close()
-
-    return output_path
+    out = viz_dir / f"trajectory_corridor_atlas.{viz_config.save_format}"
+    plt.tight_layout(); plt.savefig(out, dpi=viz_config.dpi, bbox_inches=viz_config.bbox_inches); plt.close()
+    return out
