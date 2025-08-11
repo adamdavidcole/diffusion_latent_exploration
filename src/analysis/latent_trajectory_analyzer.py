@@ -13,6 +13,7 @@ Key GPU optimizations:
 5. Trajectory-aware analysis preserving diffusion step structure
 """
 
+from copy import deepcopy
 import logging
 import time
 import json
@@ -20,7 +21,7 @@ import torch
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
-from.data_structures import LatentTrajectoryAnalysis
+from.data_structures import GroupTensors, LatentTrajectoryAnalysis
 from .load_and_batch_trajectory_data import load_and_batch_trajectory_data
 
 from .latent_trajectory_analysis.analyze_individual_trajectory_geometry import analyze_individual_trajectory_geometry
@@ -55,6 +56,7 @@ class LatentTrajectoryAnalyzer:
         enable_mixed_precision: bool = True,
         batch_size: int = 32,
         output_dir: Optional[str] = None,
+        group_tensors: GroupTensors = None, # optinal: pass preloaded latent group tensors
         use_prompt_labels = False, # use variation text label as label or group name (prompt_000)
         # Distance normalization config
         norm_cfg: Optional[Dict[str, Any]] = None,
@@ -88,6 +90,10 @@ class LatentTrajectoryAnalyzer:
         self.latents_dir = Path(latents_dir)
         self.enable_mixed_precision = enable_mixed_precision
         self.batch_size = batch_size
+
+        # If group tensors are provided, use them
+        if group_tensors:
+            self.group_tensors = group_tensors
 
         # Device setup
         if device == "auto":
@@ -155,8 +161,11 @@ class LatentTrajectoryAnalyzer:
             except Exception:
                 pass
 
-    def analyze_prompt_groups(self, prompt_groups: List[str], 
-                            prompt_metadata: Optional[Dict[str, Dict[str, str]]] = None) -> LatentTrajectoryAnalysis:
+    def analyze_prompt_groups(
+        self, 
+        prompt_groups: List[str], 
+        prompt_metadata: Optional[Dict[str, Dict[str, str]]] = None,
+    ) -> LatentTrajectoryAnalysis:
         """Main analysis entry point with trajectory-aware processing."""
         self.logger.info("Starting GPU-optimized trajectory-aware analysis")
         start_time = time.time()
@@ -289,7 +298,8 @@ class LatentTrajectoryAnalyzer:
             'device_used': self.device,
             'mixed_precision': self.enable_mixed_precision,
             'batch_size': self.batch_size,
-            'analysis_timestamp': time.strftime("%Y%m%d_%H%M%S")
+            'analysis_timestamp': time.strftime("%Y%m%d_%H%M%S"),
+            'norm_cfg': deepcopy(self.norm_cfg) or {}
         }
         
         # 4. Save results
@@ -335,7 +345,7 @@ class LatentTrajectoryAnalyzer:
         base_out.mkdir(parents=True, exist_ok=True)
 
         tracks = {
-            'snr_only': {'per_step_whiten': False, 'per_channel_standardize': False, 'snr_normalize': True},
+            'snr_norm_only': {'per_step_whiten': False, 'per_channel_standardize': False, 'snr_normalize': True},
             'full_norm': {'per_step_whiten': True,  'per_channel_standardize': True,  'snr_normalize': True},
         }
 

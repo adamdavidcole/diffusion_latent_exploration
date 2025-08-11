@@ -6,7 +6,7 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
 
-from src.visualization.latent_tensors_visualizer import latent_tensors_visualizer
+from src.visualization.group_tensors_visualizer import group_tensors_visualizer
 
 def get_prompt_groups(latents_dir, user_specified=None):
     if user_specified:
@@ -29,7 +29,7 @@ def main():
 
     prompt_groups = get_prompt_groups(latents_dir, args.prompt_groups)
 
-    latent_tensors_visualizer(
+    group_tensors_visualizer(
         group_tensors=None,
         latents_dir=latents_dir,
         output_dir=output_dir,

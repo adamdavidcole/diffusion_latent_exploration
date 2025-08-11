@@ -114,8 +114,13 @@ class NormCfg(TypedDict):
     per_channel_standardize: bool
     snr_normalize: bool
 
+DEFAULT_NORMALIZATION_CONFIG: NormCfg = {
+    "per_step_whiten": False,
+    "per_channel_standardize": False,
+    "snr_normalize": True
+}
 
-# TODO: implement NormConfig as a dataclass
+# TODO: implement NormCfg as a dataclass
 # @dataclass
 # class NormConfig:
 #     """Configuration for normalization strategies."""

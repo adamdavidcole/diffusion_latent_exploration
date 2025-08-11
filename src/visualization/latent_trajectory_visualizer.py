@@ -34,7 +34,6 @@ from .plotters.plot_information_content_analysis import plot_information_content
 from .plotters.plot_complexity_measures import plot_complexity_measures
 from .plotters.plot_statistical_significance import plot_statistical_significance
 from .plotters.plot_temporal_analysis import plot_temporal_analysis
-
 from .plotters.plot_convex_hull_analysis import plot_convex_hull_analysis
 from .plotters.plot_trajectory_corridor_atlas import plot_trajectory_corridor_atlas
 from .plotters.plot_functional_pca_analysis import plot_functional_pca_analysis
@@ -55,7 +54,6 @@ class LatentTrajectoryVisualizer:
         output_dir,
         viz_config: Optional[VisualizationConfig] = None,
         use_prompt_variation_text_label: Optional[bool] = False,
-        group_tensors: Optional[Dict[str, Dict[str, Any]]] = None
     ):
         self.batch_dir = batch_dir
         
@@ -66,8 +64,6 @@ class LatentTrajectoryVisualizer:
         self.viz_config.apply_style_settings()
 
         self.use_prompt_variation_text_label = use_prompt_variation_text_label
-
-        self.group_tensors = group_tensors
 
         self.logger = self._setup_logger()
 
@@ -245,24 +241,13 @@ class LatentTrajectoryVisualizer:
             output_path = plot_comprehensive_analysis_insight_board(results, visualization_dir, viz_config=self.viz_config, labels_map=labels_map, video_grid_path=batch_image_grid_path)
             self.logger.info(f"Saved comprehensive analysis insight board plot to {output_path}")
 
-
-            # TODO: These plots require the full latents -- should maybe be a different section
-            # # 24. Atlas UMAP
-            # # If group_tensors are needed, pass them here if available, TODO: needs tensore, maybe move elsewhere
-            # output_path = plot_trajectory_atlas_umap(results, self.output_dir, viz_config=self.viz_config, labels_map=labels_map)
-            # self.logger.info(f"Saved trajectory atlas UMAP plot to {output_path}")
-
-            # # 28. Trajectory Corridor Atlas TODO: needs tensors, maybe move
-            # output_path = plot_trajectory_corridor_atlas(results, self.output_dir, viz_config=self.viz_config, group_tensors=self.group_tensors)
-            # self.logger.info(f"Saved trajectory corridor atlas plot to {output_path}")
-
             self.logger.info("👍 Visualization creation complete")
 
         except Exception as e:
             self.logger.error(f"Error occurred while creating visualizations: {e}")
             self.logger.error(traceback.format_exc())
 
-    # Some plots combine results from partial normalization and full normalization
+        # Some plots combine results from partial normalization and full normalization
     def create_dual_run_visualizations(
             self, 
             results, 

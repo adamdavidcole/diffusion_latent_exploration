@@ -20,7 +20,9 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.analysis.latent_trajectory_analyzer import LatentTrajectoryAnalyzer
+from src.analysis.load_and_batch_trajectory_data import load_and_batch_trajectory_data
 from src.visualization.latent_trajectory_visualizer import LatentTrajectoryVisualizer
+from src.visualization.group_tensors_visualizer import group_tensors_visualizer
 from src.utils.prompt_utils import load_prompt_metadata
 
 from src.analysis.data_structures import LatentTrajectoryAnalysis
@@ -80,6 +82,12 @@ def parse_arguments():
         dest='no_dual_run', # The parsed attribute will be named 'dual_run'
         help="Use this flag to run only single analysis (disables dual run)."
     )
+    parser.add_argument(
+        '--skip-tensor-vis',
+        action='store_true',
+        dest='skip_tensor_vis', # The parsed attribute will be named 'no_tensor_vis'
+        help="Use this flag to disable group tensor visualization (UMAP, PCA, etc)."
+    )
 
     parser.add_argument(
         '--results-file-path',
@@ -102,6 +110,9 @@ def parse_arguments():
     parser.add_argument("--hull-time-budget-ms", type=int, default=3000, help="Soft time budget per group for hull analysis in milliseconds.")
     return parser.parse_args()
 
+
+def get_norm_cfg_from_results(results:LatentTrajectoryAnalysis):
+    return results.analysis_metadata.get('norm_cfg', {})
 
 def get_prompt_groups(latents_dir, user_specified=None):
     if user_specified:
@@ -153,9 +164,13 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
                 "per_channel_standardize": False,
                 "snr_normalize": True,
             }
-        
+
+        # load group tensors so we can pass them around
+        group_tensors = load_and_batch_trajectory_data(latents_dir=latents_dir, prompt_groups=prompt_groups, device=device)
+
         analyzer = LatentTrajectoryAnalyzer(
             latents_dir=str(latents_dir),
+            group_tensors=group_tensors,
             device=device,
             enable_mixed_precision=enable_mixed_precision,
             batch_size=batch_size,
@@ -184,9 +199,6 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
         logger.info("📋 Loading prompt metadata...")
         prompt_metadata = load_prompt_metadata(batch_name, prompt_groups)
 
-        results = None
-        results_full = None
-        group_tensors = None
 
         # TODO: visualizer
         visualizer = LatentTrajectoryVisualizer(
@@ -195,49 +207,63 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
             use_prompt_variation_text_label=True
         )
 
-        if args.results_file_path:
-            # Load results from the specified file
-            logger.info(f"📁 Loaded existing results from: {args.results_file_path}")
-            with open(args.results_file_path, 'r') as f:
-                json_data = json.load(f)
-            results = LatentTrajectoryAnalysis.from_dict(json_data)
-            visualizer.create_comprehensive_visualizations(results)
-        else:
-            if args.no_dual_run:
-                # Run single track analysis
-                print(f"🔬 Running single analysis (no dual tracks) with {norm_cfg}")
-                results = analyzer.analyze_prompt_groups(prompt_groups, prompt_metadata)
-                visualizer.create_comprehensive_visualizations(results)
-
-            
+        if args.no_dual_run or args.results_file_path:
+            results = None 
+            if args.results_file_path:
+                # Load results from the specified file
+                logger.info(f"📁 Loaded existing results from: {args.results_file_path}")
+                with open(args.results_file_path, 'r') as f:
+                    json_data = json.load(f)
+                results = LatentTrajectoryAnalysis.from_dict(json_data)
             else:
-                # Run dual tracks analysis
-                print(f"🔬 Running dual tracks analysis with differen   t norm configs")
-                results = analyzer.run_dual_tracks(prompt_groups, prompt_metadata)
-
-                # Get results for each normalization config
-                results_snr_only = results['snr_only']
-                results_full_norm = results['full_norm']
-
-                # Create visualizations for each normalization config
-                output_dir= visualizations_dir / "snr_norm"
-                visualizer.create_comprehensive_visualizations(results_snr_only, output_dir=output_dir)
-
-                output_dir= visualizations_dir / "full_norm"
-                visualizer.create_comprehensive_visualizations(results_full_norm, output_dir=output_dir)
-
-                visualizer.create_dual_run_visualizations(results_snr_only, results_full_norm, output_dir=visualizations_dir)
-
-                # TODO: handle dual analysis run
-                # self._plot_comprehensive_analysis_dashboard(saved['snr_only'], viz_dir, results_full=saved.get('full_norm'))
-                # self._plot_research_radar_chart(saved['snr_only'], viz_dir, results_full=saved.get('full_norm'))
-                # self._plot_research_radar_chart(saved['snr_only'], viz_dir, results_full=saved.get('full_norm'))
-
-                # video_grid_path = self._get_batch_image_grid_path()
-                # self._plot_comprehensive_analysis_insight_board(saved['snr_only'], viz_dir, results_full=saved.get('full_norm'), video_grid_path=video_grid_path)
+                logger.info(f"🔬 Running single analysis (no dual tracks) with {norm_cfg}")
+                results = analyzer.analyze_prompt_groups(prompt_groups, prompt_metadata)
+            
+            visualizer.create_comprehensive_visualizations(results)
+            if not args.skip_tensor_vis:
+                group_tensors_visualizer(
+                    group_tensors=group_tensors,
+                    output_dir=visualizations_dir,
+                    prompt_groups=prompt_groups,
+                    norm_cfg=get_norm_cfg_from_results(results)
+                )
+        else:
         
-        
+            # Run dual tracks analysis
+            print(f"🔬 Running dual tracks analysis with different norm configs")
+            results = analyzer.run_dual_tracks(prompt_groups, prompt_metadata)
 
+            # Get results for each normalization config
+            results_snr_only = results['snr_norm_only']
+            results_full_norm = results['full_norm']
+
+            # Create visualizations for each normalization config
+            output_dir= visualizations_dir / "snr_norm_only"
+            print(f"1️⃣ Creating visualizations for SNR-only normalization")
+            visualizer.create_comprehensive_visualizations(results_snr_only, output_dir=output_dir)
+
+            if not args.skip_tensor_vis:
+                group_tensors_visualizer(
+                    group_tensors=group_tensors,
+                    prompt_groups=prompt_groups,
+                    output_dir=output_dir,
+                    norm_cfg=get_norm_cfg_from_results(results_snr_only)
+                )
+
+            print(f"2️⃣ Creating visualizations for full normalization")
+            output_dir= visualizations_dir / "full_norm"
+            visualizer.create_comprehensive_visualizations(results_full_norm, output_dir=output_dir)
+
+            if not args.skip_tensor_vis:
+                group_tensors_visualizer(
+                    group_tensors=group_tensors,
+                    prompt_groups=prompt_groups,
+                    output_dir=output_dir,
+                    norm_cfg=get_norm_cfg_from_results(results_full_norm)
+                )
+
+            print(f"🔵 Creating visualizations for dual run visualizations")
+            visualizer.create_dual_run_visualizations(results_snr_only, results_full_norm, output_dir=visualizations_dir)
 
         analysis_time = time.time() - analysis_start
         

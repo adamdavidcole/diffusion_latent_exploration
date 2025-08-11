@@ -8,6 +8,7 @@ from typing import Optional, Dict, Any
 import numpy as np
 import logging
 import matplotlib.pyplot as plt
+import traceback
 
 from src.analysis.data_structures import GroupTensors
 

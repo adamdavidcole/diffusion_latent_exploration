@@ -3,7 +3,7 @@ import traceback
 from typing import Optional, Dict, Any, List
 import logging
 
-from src.analysis.data_structures import GroupTensors, NormCfg
+from src.analysis.data_structures import GroupTensors, NormCfg, DEFAULT_NORMALIZATION_CONFIG
 from src.analysis.load_and_batch_trajectory_data import load_and_batch_trajectory_data
 
 from .plotters.plot_trajectory_atlas_umap import plot_trajectory_atlas_umap
@@ -13,21 +13,17 @@ from .plotters.plot_trajectory_corridor_atlas import plot_trajectory_corridor_at
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-DEFAULT_NORMALIZATION_CONFIGURATION = {
-    "per_step_whiten": False,
-    "per_channel_standardize": False,
-    "snr_normalize": False
-}
 
-def latent_tensors_visualizer(
+def group_tensors_visualizer(
+        # Pass EITHER group_tensors OR latents_dir
         group_tensors: Optional[GroupTensors],
         latents_dir: Optional[Path] = None,
         output_dir: Path = None,
         prompt_groups: Optional[List[str]] = None,
-        norm_cfg: Optional[NormCfg] = DEFAULT_NORMALIZATION_CONFIGURATION
+        norm_cfg: Optional[NormCfg] = DEFAULT_NORMALIZATION_CONFIG
 ):
     # Visualize the latent tensors using your preferred method
-
+    logger.info(f"‼️‼️ Visualizing group tensors {norm_cfg}")
     if not group_tensors and not latents_dir:
         logger.warning("⚠️ No group tensors or latents directory provided, returning early")
         return
