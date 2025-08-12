@@ -22,7 +22,7 @@ class VLMModelLoader:
     
     def __init__(
         self, 
-        model_id: str = "Qwen/Qwen2.5-VL-3B-Instruct",
+        model_id: str = "Qwen/Qwen2.5-VL-32B-Instruct",
         cache_dir: Optional[str] = None,
         torch_dtype: str = "auto",
         device_map: str = "auto"
@@ -92,7 +92,7 @@ class VLMModelLoader:
             raise RuntimeError("Model not loaded. Call load_model() first.")
             
         logger.info(f"Preparing video input: {video_path}")
-        logger.debug(f"Prompt length: {len(text_prompt)} characters")
+        logger.info(f"Prompt length: {len(text_prompt)} characters")
             
         # Use the proven working message format with explicit video parameters
         messages = [
@@ -207,6 +207,7 @@ class VLMModelLoader:
             
             logger.info(f"Generated {len(response)} characters")
             return response
+            
             
         except Exception as e:
             logger.error(f"Generation failed: {e}")
