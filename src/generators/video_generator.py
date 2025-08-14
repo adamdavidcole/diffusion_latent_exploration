@@ -13,6 +13,9 @@ from dataclasses import dataclass
 import json
 import re
 
+# import xformers
+# import xformers.ops
+
 # WAN model imports
 try:
     import torch
@@ -524,35 +527,37 @@ class WanVideoGenerator:
                 use_safetensors=True     # Use safetensors for better memory handling
             )
             self.pipe.scheduler = scheduler
+
+            print("NO XFORMERS!")
             
             # Enable memory efficient attention if available and configured
             # WAN transformer uses different attention mechanism than UNet
-            if self.memory_settings.enable_memory_efficient_attention:
-                try:
-                    # Check if XFormers is available
-                    import xformers
-                    import xformers.ops
+            # if self.memory_settings.enable_memory_efficient_attention:
+            #     try:
+                    # # Check if XFormers is available
+                    # import xformers
+                    # import xformers.ops
                     
-                    # Try to enable on the pipeline first
-                    if hasattr(self.pipe, 'enable_xformers_memory_efficient_attention'):
-                        self.pipe.enable_xformers_memory_efficient_attention()
-                        logging.info("Enabled xformers memory efficient attention on pipeline")
+                    # # Try to enable on the pipeline first
+                    # if hasattr(self.pipe, 'enable_xformers_memory_efficient_attention'):
+                    #     self.pipe.enable_xformers_memory_efficient_attention()
+                    #     logging.info("Enabled xformers memory efficient attention on pipeline")
                     
-                    # Also try to enable on individual components for WAN transformer architecture
-                    elif hasattr(self.pipe, 'transformer') and hasattr(self.pipe.transformer, 'enable_xformers_memory_efficient_attention'):
-                        self.pipe.transformer.enable_xformers_memory_efficient_attention()
-                        logging.info("Enabled xformers memory efficient attention on transformer")
+                    # # Also try to enable on individual components for WAN transformer architecture
+                    # elif hasattr(self.pipe, 'transformer') and hasattr(self.pipe.transformer, 'enable_xformers_memory_efficient_attention'):
+                    #     self.pipe.transformer.enable_xformers_memory_efficient_attention()
+                    #     logging.info("Enabled xformers memory efficient attention on transformer")
                     
-                    # For VAE if it has the method
-                    if hasattr(self.pipe, 'vae') and hasattr(self.pipe.vae, 'enable_xformers_memory_efficient_attention'):
-                        self.pipe.vae.enable_xformers_memory_efficient_attention()
-                        logging.info("Enabled xformers memory efficient attention on VAE")
+                    # # For VAE if it has the method
+                    # if hasattr(self.pipe, 'vae') and hasattr(self.pipe.vae, 'enable_xformers_memory_efficient_attention'):
+                    #     self.pipe.vae.enable_xformers_memory_efficient_attention()
+                    #     logging.info("Enabled xformers memory efficient attention on VAE")
                         
-                except ImportError:
-                    logging.warning("XFormers not available - cannot enable memory efficient attention")
-                except Exception as e:
-                    logging.warning(f"Could not enable xformers memory efficient attention: {e}")
-                    logging.info("This is normal for WAN transformer models - they may use different attention mechanisms")
+                # except ImportError:
+                #     logging.warning("XFormers not available - cannot enable memory efficient attention")
+                # except Exception as e:
+                #     logging.warning(f"Could not enable xformers memory efficient attention: {e}")
+                #     logging.info("This is normal for WAN transformer models - they may use different attention mechanisms")
             
             # Enable gradient checkpointing for large models if configured
             # WAN transformer supports gradient checkpointing

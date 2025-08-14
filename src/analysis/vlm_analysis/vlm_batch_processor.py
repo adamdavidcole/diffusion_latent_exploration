@@ -17,6 +17,11 @@ from .vlm_prompt_orchestrator import VLMPromptOrchestrator
 
 logger = logging.getLogger(__name__)
 
+
+PROCESSOR_MAX_NEW_TOKENS = 256 * 5
+PROCESSOR_FPS = 1.0
+PROCESSOR_MAX_PIXELS = 151200
+
 class VLMBatchProcessor:
     """Processes video analysis across entire batches."""
     
@@ -182,14 +187,14 @@ class VLMBatchProcessor:
                 response = self.model_loader.analyze_video(
                     video_path=str(video_path),
                     text_prompt=full_prompt,
-                    max_new_tokens=256,  # Reduced for testing
-                    temperature=0.0,     # Force greedy decoding to avoid sampling errors
-                    do_sample=False,     # Explicitly disable sampling
-                    fps=12.0,
-                    max_pixels=151200
+                    max_new_tokens=PROCESSOR_MAX_NEW_TOKENS,  # Reduced for testing
+                    # temperature=0.0,     # Force greedy decoding to avoid sampling errors
+                    # do_sample=False,     # Explicitly disable sampling
+                    fps=PROCESSOR_FPS,
+                    max_pixels=PROCESSOR_MAX_PIXELS
                 )
                 
-                logger.debug(f"VLM Response: {response[:200]}...")
+                # logger.debug(f"VLM Response: {response[:200]}...")
                 
                 # Validate response
                 validation = self.prompt_orchestrator.validate_response(response, expected_keys)

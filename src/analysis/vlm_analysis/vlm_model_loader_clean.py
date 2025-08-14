@@ -25,7 +25,7 @@ class VLMModelLoader:
         torch_dtype: str = "auto",
         device_map: str = "auto",
         max_pixels: int = DEFAULT_MAX_PIXELS,
-        use_flash_attention: bool = False  # Disabled by default due to compatibility issues
+        use_flash_attention: bool = True
     ):
         self.model_id = model_id
         self.torch_dtype = torch_dtype
@@ -43,25 +43,14 @@ class VLMModelLoader:
         try:
             # Load model following the official example
             if self.use_flash_attention:
-                try:
-                    logger.info("Loading with flash_attention_2 for better performance")
-                    self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-                        self.model_id,
-                        torch_dtype=self.torch_dtype,
-                        attn_implementation="flash_attention_2",
-                        device_map=self.device_map,
-                        trust_remote_code=True
-                    )
-                    logger.info("✅ Successfully loaded with flash_attention_2")
-                except Exception as fa_error:
-                    logger.warning(f"Flash attention failed: {fa_error}")
-                    logger.info("Falling back to default attention implementation")
-                    self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-                        self.model_id,
-                        torch_dtype=self.torch_dtype,
-                        device_map=self.device_map,
-                        trust_remote_code=True
-                    )
+                logger.info("Loading with flash_attention_2 for better performance")
+                self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+                    self.model_id,
+                    torch_dtype=self.torch_dtype,
+                    attn_implementation="flash_attention_2",
+                    device_map=self.device_map,
+                    trust_remote_code=True
+                )
             else:
                 logger.info("Loading with default attention")
                 self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
@@ -123,7 +112,7 @@ class VLMModelLoader:
             raise RuntimeError("Model not loaded. Call load_model() first.")
             
         logger.info(f"Analyzing video: {video_path}")
-        # logger.info(f"Prompt: {text_prompt}")
+        logger.info(f"Prompt: {text_prompt}")
         
         # Use provided max_pixels or default
         video_max_pixels = max_pixels or self.max_pixels
@@ -173,17 +162,16 @@ class VLMModelLoader:
             inputs = inputs.to(device)
         
         # Generation parameters
-        # gen_kwargs = {
-        #     "max_new_tokens": max_new_tokens,
-        #     **generation_kwargs
-        # }
+        gen_kwargs = {
+            "max_new_tokens": max_new_tokens,
+            **generation_kwargs
+        }
         
         logger.info(f"Starting generation with {max_new_tokens} max tokens...")
         
         # Inference (official example)
-        # with torch.no_grad():
-        generated_ids = self.model.generate(**inputs, max_new_tokens=max_new_tokens)
-
+        with torch.no_grad():
+            generated_ids = self.model.generate(**inputs, **gen_kwargs)
             
         # Decode following official example
         generated_ids_trimmed = [
@@ -197,6 +185,98 @@ class VLMModelLoader:
         )
         
         # Return first result (batch_decode returns list)
+        result = output_text[0] if output_text else ""
+        
+        logger.info(f"Generated {len(result)} characters")
+        logger.info(f"Response: {result}")
+        
+        return result
+        
+    def analyze_image(
+        self, 
+        image_path: str, 
+        text_prompt: str,
+        max_new_tokens: int = 128,
+        **generation_kwargs
+    ) -> str:
+        """
+        Analyze image with text prompt.
+        
+        Args:
+            image_path: Path to image file
+            text_prompt: Text prompt for analysis
+            max_new_tokens: Maximum tokens to generate
+            **generation_kwargs: Additional generation parameters
+            
+        Returns:
+            Generated text response
+        """
+        if not self.is_loaded():
+            raise RuntimeError("Model not loaded. Call load_model() first.")
+            
+        logger.info(f"Analyzing image: {image_path}")
+        logger.info(f"Prompt: {text_prompt}")
+        
+        # Prepare messages for image analysis
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "image": image_path,
+                        "max_pixels": self.max_pixels,
+                    },
+                    {"type": "text", "text": text_prompt},
+                ],
+            }
+        ]
+        
+        # Same processing as video but for images
+        text = self.processor.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        
+        image_inputs, video_inputs, video_kwargs = process_vision_info(
+            messages, return_video_kwargs=True
+        )
+        
+        inputs = self.processor(
+            text=[text],
+            images=image_inputs,
+            videos=video_inputs,
+            padding=True,
+            return_tensors="pt",
+            **video_kwargs,
+        )
+        
+        # Move inputs to model device
+        if hasattr(self.model, 'hf_device_map') and self.model.hf_device_map:
+            first_device = min([d for d in self.model.hf_device_map.values() if isinstance(d, int)])
+            inputs = inputs.to(f"cuda:{first_device}")
+        else:
+            device = next(self.model.parameters()).device
+            inputs = inputs.to(device)
+        
+        # Generation
+        gen_kwargs = {
+            "max_new_tokens": max_new_tokens,
+            **generation_kwargs
+        }
+        
+        with torch.no_grad():
+            generated_ids = self.model.generate(**inputs, **gen_kwargs)
+            
+        generated_ids_trimmed = [
+            out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+        ]
+        
+        output_text = self.processor.batch_decode(
+            generated_ids_trimmed, 
+            skip_special_tokens=True, 
+            clean_up_tokenization_spaces=False
+        )
+        
         result = output_text[0] if output_text else ""
         
         logger.info(f"Generated {len(result)} characters")

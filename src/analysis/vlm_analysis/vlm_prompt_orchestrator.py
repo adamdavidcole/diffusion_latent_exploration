@@ -250,9 +250,26 @@ Please try again and ensure the response matches the JSON structure exactly.
 Double-check all vocabulary tokens against the provided lists."""
 
     def validate_response(self, response: str, expected_keys: List[str]) -> Dict[str, Any]:
-        """Validate and parse a JSON response."""
+        """Validate and parse a JSON response, stripping markdown formatting if present."""
         try:
-            data = json.loads(response)
+            # Strip markdown code blocks if present
+            cleaned_response = response.strip()
+            
+            # Remove ```json at the start
+            if cleaned_response.startswith('```json'):
+                cleaned_response = cleaned_response[7:]  # Remove ```json
+            elif cleaned_response.startswith('```'):
+                cleaned_response = cleaned_response[3:]   # Remove ```
+            
+            # Remove ``` at the end
+            if cleaned_response.endswith('```'):
+                cleaned_response = cleaned_response[:-3]
+            
+            # Strip any remaining whitespace
+            cleaned_response = cleaned_response.strip()
+            
+            # Parse JSON
+            data = json.loads(cleaned_response)
             
             # Check for expected top-level keys
             missing_keys = [key for key in expected_keys if key not in data]
@@ -271,6 +288,6 @@ Double-check all vocabulary tokens against the provided lists."""
         except json.JSONDecodeError as e:
             return {
                 "valid": False,
-                "error": f"Invalid JSON: {str(e)}",
+                "error": f"Invalid JSON: {str(e)}. Cleaned response: {cleaned_response[:200]}...",
                 "data": None
             }
