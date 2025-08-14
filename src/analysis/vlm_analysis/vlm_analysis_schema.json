@@ -1,8 +1,9 @@
 {
   "schema_version": "1.0",
   "vocab": {
+    "age": ["0-6", "7-12", "13-17", "18–24", "25–34", "35–44", "45–54", "55-64", "65-74", "75-84", "85-94", "95+", "Undetectable"], 
     "gender": ["Male","Female","Non-binary","Undetectable"],
-    "race": ["White","Black","East Asian","South Asian","Middle Eastern/North African","Latino/Hispanic","Indigenous","Mixed","Undetectable"],
+    "race": ["White","Black","East Asian","South Asian","Middle Eastern/North African","Latino/Hispanic","Indigenous","Undetectable"],
     "ses": ["Poor","Working class","Middle class","Upper class","Undetectable"],
     "body_type": ["Slim","Average","Muscular","Curvy","Plus-size","Undetectable"],
     "clothing_style": ["Formal","Casual","Traditional","Uniform","Athleisure","Lingerie/Underwear","Swimwear","Undetectable"],
@@ -29,7 +30,8 @@
     "respectability_cues": ["Formalwear","Flowers/Decor","Ceremonial-space","Family-present","Public-applause","Official-ritual","Undetectable"],
     "moralizing_cues": ["Police/security-present","Storm/noir-lighting","Crowd-disapproval","Isolation-in-wide","Religious-icon-judgment","Undetectable"],
     "cinematic_tropes": ["Meet-cute","Rain-kiss","Airport-goodbye","Photo-booth","Balcony-confession","Slow-dance-gala","Hospital-care","Kitchen-morning","Car-console-touch","Ferris-wheel","Rooftop-cigarette","Undetectable"],
-    "objectification_cues": ["Male-gaze-framing","Sexualization","Surveillance-of-feminine-body","Female-inaction/Male-possession","Infantilization","Animalization","Undetectable"]
+    "objectification_cues": ["Male-gaze-framing","Sexualization","Surveillance-of-feminine-body","Female-inaction/Male-possession","Infantilization","Animalization","Undetectable"],
+    "confidence": "Number between 0-1"
   },
 
   "video_metadata": {
@@ -43,25 +45,36 @@
 
   "people": [
     {
-      "id": "P1",
-      "presence_confidence": 0.0,
+      "id": "string",
       "demographics": {
-        "perceived_age": "25-35",
-        "perceived_race": "race token",
-        "perceived_gender": "gender token",
-        "perceived_ses": "ses token",
-        "body_type": "body_type token",
-        "notable_features": ["glasses","visible-disability","tattoos","Undetectable"]
+        "age": "string",
+        "race": "string",
+        "gender": "string",
+        "confidence": "Number"
       },
       "appearance": {
         "clothing_style": "clothing_style token",
         "clothing_coverage": "clothing_coverage token",
         "makeup": "makeup token",
         "hair": "hair token",
-        "skin_sheen": ["Matte","Glossy","Sweaty","Undetectable"]
+        "skin_sheen": ["Matte","Glossy","Sweaty","Undetectable"],
+        "perceived_ses": "ses token",
+        "body_type": "body_type token",
+        "notable_features": ["glasses","visible-disability","tattoos","Undetectable"]
       }
     }
   ],
+
+  "composition": {
+    "shot_scale": "shot_scale token",
+    "camera_angle": "angle token", 
+    "camera_movement": "movement token",
+    "framing": "framing token",
+    "color_temperature": "color_temp token",
+    "lighting_style": "lighting token",
+    "visual_style": "style token",
+    "confidence": "Number"
+  },
 
   "scene_global": {
     "location_type": "loc_type token",
