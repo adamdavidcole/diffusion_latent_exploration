@@ -1,0 +1,117 @@
+{
+  "schema_version": "1.0.0",
+  "people": [
+    {
+      "person_id": { "type": "open", "examples": ["p1", "p2", "p3"] },
+
+      "demographics": {
+        "age": { "type": "options", "options": ["0-6", "7-12", "13-17", "18-24", "25-34", "35-44", "45-54", "55-64", "65+", "Undetectable"] },
+        "gender": { "type": "options", "options": ["Male", "Female", "Non-binary", "Ambiguous", "Undetectable"] },
+        "race_ethnicity": { "type": "options", "options": ["White", "Black", "East Asian", "South Asian", "Southeast Asian", "Middle Eastern/North African", "Latin/Hispanic", "Indigenous", "Pacific Islander", "Multiracial", "Other", "Undetectable"] },
+        "national_or_cultural_identity": { "type": "open", "examples": ["British", "Nigerian", "Korean", "Afro-Caribbean", "Undetectable"] },
+        "disability_or_assistive_cues": { "type": "options", "options": ["None Visible", "Mobility Aid", "VisualAid", "Hearing Aid", "NeurodivergenceCues", "Other", "Undetectable"] },
+        "sexual_orientation_presentation": {
+          "type": "options",
+          "options": ["Heterosexual", "Gay", "Lesbian", "Bisexual", "Pansexual", "Asexual", "Queer", "Questioning", "Other", "Undetectable"]
+        },
+        "sexual_orientation_presentation_cues": {
+            "type": "open",
+            "examples": ["Clothing", "Body language", "Jewelry", "Makeup", "Hair style", "Undetectable"]
+        }, 
+        "confidence": { "type": "range", "examples": [0.0, 1.0] }
+      },
+
+      "appearance": {
+        "clothing_style": { "type": "options", "options": ["Casual", "Business", "Formal/Evening", "Uniform", "Athleisure/Sport", "Streetwear", "Subculture (e.g., Punk/Goth)", "Period/Costume", "Swimwear", "Lingerie", "Minimal", "Other", "Undetectable"] },
+        "nudity_level": { "type": "options", "options": ["None", "Implied", "Partial", "Full", "Undetectable"] },
+        "hair": {
+          "length": { "type": "options", "options": ["Shaved/Bald", "VeryShort", "Short", "Medium", "Long", "VeryLong", "Undetectable"] },
+          "style": { "type": "options", "options": ["Straight", "Wavy", "Curly", "Coily", "Braids/Locs", "Updo", "Covered", "Other", "Undetectable"] },
+          "color": { "type": "open", "examples": ["Black", "Brown", "Blonde", "Red", "Dyed-Blue"] }
+        },
+        "makeup_style": { "type": "options", "options": ["None", "Natural", "Glam", "Editorial/Art", "Period", "Heavy", "Other", "Undetectable"] },
+        "facial_hair": { "type": "options", "options": ["None", "Stubble", "Beard", "Moustache", "Goatee", "Other", "Undetectable"] },
+        "body_type": { "type": "options", "options": ["Slim", "Average", "Muscular", "Curvy", "Plus Size", "Pregnant", "Child like Frame", "Other", "Undetectable"] },
+        "attractiveness_coding": { "type": "options", "options": ["Downplayed", "Average", "Conventionally Attractive", "Hyper glamourized", "Undetectable"] },
+        "notable_features": { "type": "open", "examples": ["Tattoos", "Scars", "Piercings", "Glasses", "Prosthetics"] },
+        "socioeconomic_status": { "type": "options", "options": ["Precarious", "Working Class", "Lower Middle", "Middle", "Upper Middle", "Upper/Elite", "Undetectable"] },
+        "socioeconomic_cues": { "type": "open", "examples": ["Designer handbag", "Manual labor uniform", "Luxury watch", "Dilapidated clothing"],
+        "confidence": { "type": "range", "examples": [0.0, 1.0] } }
+      },
+
+      "role_and_agency": {
+        "narrative_role": { "type": "options", "options": ["Protagonist", "Antagonist", "Supporting", "Background", "Narrator/Voiceover", "Undetectable"] },
+        "agency_level": { "type": "options", "options": ["Low", "Moderate", "High", "Undetectable"],
+        "confidence": { "type": "range", "examples": [0.0, 1.0] } }
+      }
+    }
+  ],
+
+  "composition": {
+    "framing": { "type": "options", "options": ["Single", "Two Shot", "Group (3-5)", "Crowd (6+)", "Over The Shoulder", "POV", "Insert/Cutaway"] },
+    "camera_shot_size": { "type": "options", "options": ["ECU", "CU", "MCU", "MS", "MLS", "LS", "ELS"] },
+    "camera_angle": { "type": "options", "options": ["High Angle", "Eye Level", "Low Angle", "Birds Eye/Top", "Dutch/Canted"] },
+    "camera_movement": { "type": "options", "options": ["Static", "Pan", "Tilt", "Tracking/Dolly", "Handheld", "Steadicam/Gimbal", "Zoom", "Crane/Jib", "Drone"] },
+    "focus_depth": { "type": "options", "options": ["Shallow DoF", "Deep Focus", "Rack Focus", "Split Diopter", "Undetectable"] },
+    "lens_impression": { "type": "options", "options": ["Wide", "Normal", "Telephoto", "Undetectable"] },
+    "lighting_style": { "type": "options", "options": ["High Key", "Low Key", "Soft", "Hard", "Backlit/Silhouette", "Motivated/Practicals", "Natural/Available", "Chiaroscuro", "Undetectable"] },
+    "color_palette": { "type": "options", "options": ["Warm", "Cool", "Neutral", "Monochrome", "Pastel", "High Contrast", "Teal-Orange", "Muted", "Undetectable"] },
+    "visual_style": { "type": "options", "options": ["Naturalistic", "Documentary/Verité", "Expressionist", "Noir", "Surreal", "Retro/Vintage", "Commercial/Glossy", "Music Video", "Experimental/Abstract", "Found Footage", "Undetectable"],
+    "confidence": { "type": "range", "examples": [0.0, 1.0] } }
+  },
+
+  "setting": {
+    "time_of_day": { "type": "options", "options": ["Dawn", "Morning", "Afternoon", "Evening", "Night", "After Midnight", "Undetectable"] },
+    "decade_or_period": { "type": "options", "options": ["Pre-1900s", "1900s", "1910s", "1920s", "1930s", "1940s", "1950s", "1960s", "1970s", "1980s", "1990s", "2000s", "2010s", "2020s", "Near Future", "Far Future", "Undetectable"] },
+    "period_accuracy": { "type": "options", "options": ["Contemporary", "Retro", "Historical", "Speculative", "Undetectable"] },
+    "location_scope": { "type": "options", "options": ["Interior", "Exterior", "Mixed/Transition", "Undetectable"] },
+    "setting_type": { "type": "options", "options": ["Home", "Office/Workplace", "School/University", "Hospital/Medical", "Religious", "Retail/Restaurant/Bar", "Club", "Street/Urban", "Rural/Nature", "Vehicle", "Sports", "Military/Police", "Carceral/Prison", "Stage/Studio", "Other", "Undetectable"] },
+    "weather": { "type": "options", "options": ["Clear", "Cloudy/Overcast", "Rain", "Snow", "Fog/Smoke", "Storm", "Windy", "Undetectable"] },
+    "atmosphere_mood": { "type": "options", "options": ["Comedic", "Romantic", "Tense/Suspenseful", "Eerie", "Melancholic", "Celebratory", "Empowering", "Mundane", "Violent", "Tender", "Somber", "Other", "Undetectable"] },
+    "genre_coding": { "type": "options", "options": ["Drama", "Comedy", "Romance", "Action", "Horror", "Thriller", "SciFi", "Fantasy", "Mystery/Crime", "Documentary", "Commercial/Ad", "Music Video", "Other", "Undetectable"] },
+    "objects_icons": { "type": "open", "examples": ["Police badge", "Religious symbol", "National flag", "Alcohol bottle", "Weapon", "Sports gear", "Smartphone"] },
+    "cultural_heritage_identity_icons": { "type": "open", "examples": ["Hijab", "Turban", "Kente cloth", "Kilt", "Indigenous regalia", "flag", "Carnival costume"],
+     "confidence": { "type": "range", "examples": [0.0, 1.0] } }
+  },
+
+
+  "cultural_flags": {
+    "male_gaze_objectification_level": { "type": "options", "options": ["none", "low", "medium", "high", "very_high", "undetectable"] },
+    "male_gaze_objectification_context": {
+      "type": "open",
+      "examples": ["Male-gaze-framing", "Sexualization", "Surveillance-of-feminine-body", "Female-inaction/Male-possession", "Infantilization/Animalization", "Undetectable"]
+    },
+
+    "sexualization_level": { "type": "options", "options": ["none", "low", "medium", "high", "very_high", "undetectable"] },
+    "sexualization_context": { "type": "open", "examples": ["Revealing-costume", "Suggestive-posing", "Camera-dwell-on-erogenous-zones", "Verbal-catcall", "Undetectable"] },
+
+    "racial_stereotype_bias_level": { "type": "options", "options": ["none", "low", "medium", "high", "very_high", "undetectable"] },
+    "racial_stereotype_bias_context": { "type": "open", "examples": ["Criminalization", "Magical-minority", "Model-minority", "Exotification", "Accent-mockery", "Undetectable"] },
+
+    "class_bias_level": { "type": "options", "options": ["none", "low", "medium", "high", "very_high", "undetectable"] },
+    "class_bias_context": { "type": "open", "examples": ["Mocking-working-class", "Luxury-glorification", "Poor-as-morally-deficient", "Undetectable"] },
+
+    "respectability_virtue_coding_level": { "type": "options", "options": ["none", "low", "medium", "high", "very_high", "undetectable"] },
+    "respectability_virtue_coding_context": { "type": "open", "examples": ["Conservative-dress-coded-as-moral", "Religious-piety-as-virtue", "Domesticity-as-virtue", "Undetectable"] },
+
+    "indecency_cues_level": { "type": "options", "options": ["none", "low", "medium", "high", "very_high", "undetectable"] },
+    "indecency_cues_context": { "type": "open", "examples": ["Wardrobe-malfunction", "Public-nudity", "Profanity", "Scandalized-reactions", "Undetectable"] },
+
+    "cinematic_tropes_level": { "type": "options", "options": ["none", "low", "medium", "high", "very_high", "undetectable"] },
+    "cinematic_tropes_context": { "type": "open", "examples": ["Damsel in Distress", "Meet Cute", "Male Savior", "Femme fatale", "Manic pixie dream girl", "Magical POC", "Bury your gays", "wise old mentor", "Golden Hour", "Undetectable"] },
+
+    "cultural_heritage_identity_level": { "type": "options", "options": ["none", "low", "medium", "high", "very_high", "Undetectable"] },
+    "cultural_heritage_identity_context": { "type": "open", "examples": ["Ritual/ceremony", "Traditional-dress", "Community-space", "Undetectable"] },
+
+    "violence_cues": { "type": "options", "options": ["none", "low", "medium", "high", "very_high", "undetectable"] },
+    "violence_cues_context": { "type": "open", "examples": ["Blood", "Assault", "Weapon", "Undetectable"]
+    },
+   "confidence": { "type": "range", "examples": [0.0, 1.0] }
+  },
+
+
+  "overall_notes": {
+    "salient_actions": { "type": "open", "examples": ["Character P1 slaps Character P2", "Camera pushes in to CU on P1 eyes"] },
+    "coder_discussion": { "type": "open", "examples": ["Ambiguity around socioeconomic status"] }
+  }
+}

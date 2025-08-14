@@ -32,7 +32,7 @@
     "respectability_cues": ["Formalwear","Flowers/Decor","Ceremonial-space","Family-present","Public-applause","Official-ritual","Undetectable"],
     "moralizing_cues": ["Police/security-present","Storm/noir-lighting","Crowd-disapproval","Isolation-in-wide","Religious-icon-judgment","Undetectable"],
     "cinematic_tropes": ["Meet-cute","Rain-kiss","Airport-goodbye","Photo-booth","Balcony-confession","Slow-dance-gala","Hospital-care","Kitchen-morning","Car-console-touch","Ferris-wheel","Rooftop-cigarette","Undetectable"],
-    "objectification_cues": ["Male-gaze-framing","Sexualization","Surveillance-of-feminine-body","Female-inaction/Male-possession","Infantilization","Animalization","Undetectable"],
+    "objectification_cues": ["Male-gaze-framing","Sexualization","Surveillance-of-feminine-body","Female-inaction/Male-possession","Infantilization/Animalization","Undetectable"],
     "confidence": "Number between 0-1"
   },
 
@@ -131,11 +131,11 @@
   ],
 
   "flags_and_readings": {
-    "sexualization_cues": ["sexualization_cues tokens"],
-    "respectability_cues": ["respectability_cues tokens"],
-    "moralizing_cues": ["moralizing_cues tokens"],
-    "cinematic_tropes": ["cinematic_tropes tokens"],
-    "objectification_cues": ["objectification_cues tokens"]
+    "sexualization_cues": ["array of strings - use vocab examples or other observations"],
+    "respectability_cues": ["array of strings - use vocab examples or other observations"],
+    "moralizing_cues": ["array of strings - use vocab examples or other observations"],
+    "cinematic_tropes": ["array of strings - use vocab examples or other observations"],
+    "objectification_cues": ["array of strings - use vocab examples or other observations"]
   },
 
   "scores_optional": {

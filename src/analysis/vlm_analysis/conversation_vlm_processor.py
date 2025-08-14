@@ -18,6 +18,10 @@ from .vlm_prompts import getVLMPrompts, get_retry_prompt
 logger = logging.getLogger(__name__)
 
 
+CONVERSATION_MAX_NEW_TOKENS = 1024
+CONVERSATION_FPS = 1.0
+CONVERSATION_MAX_PIXELS = 151200
+
 class ConversationVLMProcessor:
     """Processes video analysis through conversation-based prompting."""
     
@@ -277,9 +281,9 @@ class ConversationVLMProcessor:
         return self.model_loader.analyze_video(
             video_path=video_path,
             text_prompt=combined_prompt,
-            max_new_tokens=512,
-            fps=1.0,
-            max_pixels=151200
+            max_new_tokens=CONVERSATION_MAX_NEW_TOKENS,
+            fps=CONVERSATION_FPS,
+            max_pixels=CONVERSATION_MAX_PIXELS
         )
         
     def _build_combined_prompt_from_conversation(self, messages: List[Dict[str, Any]]) -> str:
@@ -345,13 +349,13 @@ class ConversationVLMProcessor:
         return self.model_loader.analyze_video(
             video_path=video_path,
             text_prompt=combined_prompt,
-            max_new_tokens=512,  # Conservative for JSON responses
-            fps=1.0,
-            max_pixels=151200
+            max_new_tokens=CONVERSATION_MAX_NEW_TOKENS,  # Conservative for JSON responses
+            fps=CONVERSATION_FPS,
+            max_pixels=CONVERSATION_MAX_PIXELS
         )
         
     def _validate_json_response(self, response: str, expected_keys: List[str]) -> Dict[str, Any]:
-        """Validate and parse JSON response."""
+        """Validate and parse JSON response for new flexible schema."""
         try:
             # Strip markdown formatting
             cleaned_response = response.strip()
@@ -378,25 +382,14 @@ class ConversationVLMProcessor:
                     "data": data
                 }
                 
-            # Additional validation for demographics
-            if "people" in data:
-                for person in data["people"]:
-                    demographics = person.get("demographics", {})
-                    for field, vocab_key in [
-                        ("perceived_race", "race"),
-                        ("perceived_gender", "gender"),
-                        ("perceived_ses", "ses"),
-                        ("body_type", "body_type")
-                    ]:
-                        if field in demographics:
-                            value = demographics[field]
-                            valid_values = self.schema["vocab"].get(vocab_key, [])
-                            if value not in valid_values:
-                                return {
-                                    "valid": False,
-                                    "error": f"Invalid {field} value '{value}'. Must be one of: {valid_values}",
-                                    "data": data
-                                }
+            # Validate against new schema structure
+            validation_errors = self._validate_data_against_schema(data)
+            if validation_errors:
+                return {
+                    "valid": False,
+                    "error": f"Schema validation errors: {'; '.join(validation_errors)}",
+                    "data": data
+                }
                 
             return {
                 "valid": True,
@@ -409,6 +402,130 @@ class ConversationVLMProcessor:
                 "error": f"Invalid JSON: {str(e)}",
                 "data": None
             }
+            
+    def _validate_data_against_schema(self, data: Dict[str, Any]) -> List[str]:
+        """Validate data against the new flexible schema structure."""
+        errors = []
+        
+        # Validate people array
+        if "people" in data:
+            people_template = self.schema.get("people", [{}])[0] if self.schema.get("people") else {}
+            for i, person in enumerate(data["people"]):
+                person_errors = self._validate_person_data(person, people_template, f"people[{i}]")
+                errors.extend(person_errors)
+        
+        # Validate composition
+        if "composition" in data:
+            comp_errors = self._validate_object_data(
+                data["composition"], 
+                self.schema.get("composition", {}), 
+                "composition"
+            )
+            errors.extend(comp_errors)
+            
+        # Validate setting
+        if "setting" in data:
+            setting_errors = self._validate_object_data(
+                data["setting"], 
+                self.schema.get("setting", {}), 
+                "setting"
+            )
+            errors.extend(setting_errors)
+            
+        # Validate cultural_flags
+        if "cultural_flags" in data:
+            flags_errors = self._validate_object_data(
+                data["cultural_flags"], 
+                self.schema.get("cultural_flags", {}), 
+                "cultural_flags"
+            )
+            errors.extend(flags_errors)
+            
+        # Validate overall_notes
+        if "overall_notes" in data:
+            notes_errors = self._validate_object_data(
+                data["overall_notes"], 
+                self.schema.get("overall_notes", {}), 
+                "overall_notes"
+            )
+            errors.extend(notes_errors)
+            
+        return errors
+        
+    def _validate_person_data(self, person: Dict[str, Any], template: Dict[str, Any], context: str) -> List[str]:
+        """Validate a person object against the template."""
+        errors = []
+        
+        # Validate demographics
+        if "demographics" in person and "demographics" in template:
+            demo_errors = self._validate_object_data(
+                person["demographics"], 
+                template["demographics"], 
+                f"{context}.demographics"
+            )
+            errors.extend(demo_errors)
+            
+        # Validate appearance
+        if "appearance" in person and "appearance" in template:
+            app_errors = self._validate_object_data(
+                person["appearance"], 
+                template["appearance"], 
+                f"{context}.appearance"
+            )
+            errors.extend(app_errors)
+            
+        # Validate role_and_agency
+        if "role_and_agency" in person and "role_and_agency" in template:
+            role_errors = self._validate_object_data(
+                person["role_and_agency"], 
+                template["role_and_agency"], 
+                f"{context}.role_and_agency"
+            )
+            errors.extend(role_errors)
+            
+        return errors
+        
+    def _validate_object_data(self, obj: Dict[str, Any], schema_obj: Dict[str, Any], context: str) -> List[str]:
+        """Validate an object against its schema definition."""
+        errors = []
+        
+        for field_name, field_def in schema_obj.items():
+            if not isinstance(field_def, dict) or "type" not in field_def:
+                # Skip non-field definitions (like nested objects)
+                if isinstance(field_def, dict) and field_name in obj:
+                    nested_errors = self._validate_object_data(
+                        obj[field_name], 
+                        field_def, 
+                        f"{context}.{field_name}"
+                    )
+                    errors.extend(nested_errors)
+                continue
+                
+            field_type = field_def["type"]
+            value = obj.get(field_name)
+            
+            if value is None:
+                continue  # Optional field
+                
+            # Validate based on field type
+            if field_type == "options":
+                valid_options = field_def.get("options", [])
+                if value not in valid_options:
+                    errors.append(f"{context}.{field_name}: '{value}' not in valid options {valid_options}")
+                    
+            elif field_type == "range":
+                examples = field_def.get("examples", [0.0, 1.0])
+                if not isinstance(value, (int, float)):
+                    errors.append(f"{context}.{field_name}: must be numeric, got {type(value)}")
+                elif len(examples) >= 2 and not (examples[0] <= value <= examples[1]):
+                    errors.append(f"{context}.{field_name}: {value} not in range [{examples[0]}, {examples[1]}]")
+                    
+            elif field_type == "open":
+                # Open fields are flexible - just check they're strings or reasonable types
+                if not isinstance(value, (str, list)):
+                    errors.append(f"{context}.{field_name}: expected string or list, got {type(value)}")
+                    
+        return errors
             
     def _save_conversation_log(self, conversation: List[Dict[str, Any]], log_path: Path):
         """Save conversation history for debugging."""
