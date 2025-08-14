@@ -88,6 +88,34 @@ RULES:
             "expected_keys": ["composition"],
             "enabled": True,
             "retry_guidance": "Ensure you select exactly ONE vocabulary token for each composition field."
+        },
+        {
+            "stage": "scene_context",
+            "text": f"""Now analyze the scene context and setting of this video. Focus on location, time, atmosphere and environmental details.
+
+OUTPUT ONLY THIS JSON STRUCTURE:
+{{
+    "scene_context": {{
+        "location_type": "choose ONE from: {', '.join(vocab.get('loc_type', []))}",
+        "location_category": "choose ONE from: {', '.join(vocab.get('location_cat', []))}",
+        "time_of_day": "choose ONE from: {', '.join(vocab.get('time_of_day', []))}",
+        "weather": "choose ONE from: {', '.join(vocab.get('weather', []))}",
+        "public_private": "choose ONE from: {', '.join(vocab.get('public_private', []))}",
+        "atmosphere": "choose ONE from: {', '.join(vocab.get('atmosphere', []))}",
+        "era_setting": "choose ONE from: Past, Contemporary, Future, Undetectable",
+        "era_look": "choose ONE from: {', '.join(vocab.get('era_look', []))}",
+        "confidence": 0.8
+    }}
+}}
+
+RULES:
+- Choose exactly ONE token from each vocabulary list
+- Consider visual cues for weather even if unclear (lighting, shadows, clothing)
+- Assess atmosphere from visual mood and emotional tone
+- Use confidence scores between 0.7-1.0 for clear observations, 0.4-0.6 for uncertain""",
+            "expected_keys": ["scene_context"],
+            "enabled": True,
+            "retry_guidance": "Ensure you select exactly ONE vocabulary token for each scene context field."
         }
     ]
     

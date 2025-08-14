@@ -22,6 +22,8 @@
     "loc_type": ["Indoor","Outdoor","Mixed","Undetectable"],
     "time_of_day": ["Morning","Afternoon","Evening","Night","Undetectable"],
     "public_private": ["Public","Semi-public","Private","Undetectable"],
+    "weather": ["Sunny","Overcast","Rain","Snow","Fog","Undetectable"],
+    "atmosphere": ["Romantic","Tense","Peaceful","Energetic","Melancholic","Playful","Intimate","Dramatic","Undetectable"],
     "eye_contact": ["Mutual","One-way","Averted","Undetectable"],
     "touch": ["None","Hand-holding","Hug","Kiss","Hand-on-face","Arm-around-shoulder","Waist-hold","Forehead-touch","Undetectable"],
     "facial_expr": ["Neutral","Smiling","Laughing","Crying","Seductive","Fearful","Angry","Undetectable"],
@@ -76,15 +78,16 @@
     "confidence": "Number"
   },
 
-  "scene_global": {
+  "scene_context": {
     "location_type": "loc_type token",
     "location_category": "location_cat token",
+    "time_of_day": "time_of_day token",
+    "weather": "weather token",
+    "public_private": "public_private token",
+    "atmosphere": "atmosphere token",
     "era_setting": ["Past","Contemporary","Future","Undetectable"],
     "era_look": "era_look token",
-    "time_of_day": "time_of_day token",
-    "public_private": "public_private token",
-    "weather": ["Sunny","Overcast","Rain","Snow","Fog","Undetectable"],
-    "scene_tokens": ["comma,separated,keywords"]
+    "confidence": "Number"
   },
 
   "temporal_segments": [
