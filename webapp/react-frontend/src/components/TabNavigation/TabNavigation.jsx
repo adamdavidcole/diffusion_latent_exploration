@@ -32,18 +32,17 @@ const TabNavigation = ({ experimentPath }) => {
         >
           📹 Videos
         </button>
-        
+
         <button
-          className={`tab-button ${activeTab === 'analysis' ? 'active' : ''} ${
-            !currentExperiment?.has_vlm_analysis ? 'disabled' : ''
-          }`}
+          className={`tab-button ${activeTab === 'analysis' ? 'active' : ''} ${!currentExperiment?.has_vlm_analysis ? 'disabled' : ''
+            }`}
           role="tab"
           aria-selected={activeTab === 'analysis'}
           onClick={() => currentExperiment?.has_vlm_analysis && handleTabChange('analysis')}
           disabled={!currentExperiment?.has_vlm_analysis}
           title={
-            !currentExperiment?.has_vlm_analysis 
-              ? 'VLM analysis not available for this experiment' 
+            !currentExperiment?.has_vlm_analysis
+              ? 'VLM analysis not available for this experiment'
               : 'View VLM analysis results'
           }
         >

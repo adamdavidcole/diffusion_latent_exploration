@@ -6,11 +6,11 @@ import './AnalysisDashboard.css';
 
 const AnalysisDashboard = ({ experimentPath }) => {
   const { state, actions } = useApp();
-  const { 
-    currentAnalysis, 
-    analysisLoading, 
-    analysisError, 
-    currentExperiment, 
+  const {
+    currentAnalysis,
+    analysisLoading,
+    analysisError,
+    currentExperiment,
     analysisSchema
   } = state;
 
@@ -24,7 +24,7 @@ const AnalysisDashboard = ({ experimentPath }) => {
       try {
         actions.setAnalysisLoading(true);
         actions.clearAnalysisError();
-        
+
         const analysisData = await api.getExperimentAnalysis(experimentPath);
         actions.setCurrentAnalysis(analysisData);
       } catch (error) {
@@ -67,8 +67,8 @@ const AnalysisDashboard = ({ experimentPath }) => {
         <div className="analysis-error">
           <h3>Error Loading Analysis</h3>
           <p>{analysisError}</p>
-          <button 
-            onClick={() => window.location.reload()} 
+          <button
+            onClick={() => window.location.reload()}
             className="retry-button"
           >
             Retry

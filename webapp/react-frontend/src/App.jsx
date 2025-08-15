@@ -21,8 +21,8 @@ const ExperimentRoute = () => {
 
   // Determine if this is an analysis route
   const isAnalysisRoute = experimentPath && experimentPath.endsWith('/analysis');
-  const cleanExperimentPath = isAnalysisRoute 
-    ? experimentPath.replace('/analysis', '') 
+  const cleanExperimentPath = isAnalysisRoute
+    ? experimentPath.replace('/analysis', '')
     : experimentPath;
 
   // Load specific experiment when experimentPath changes
@@ -322,7 +322,7 @@ const AppContent = ({ experimentPath, isAnalysisRoute }) => {
             <>
               <ExperimentHeader />
               <TabNavigation experimentPath={experimentPath} />
-              
+
               {isAnalysisRoute ? (
                 <AnalysisDashboard experimentPath={experimentPath} />
               ) : (

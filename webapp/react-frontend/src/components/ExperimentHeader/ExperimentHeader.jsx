@@ -23,7 +23,7 @@ const ExperimentHeader = () => {
       <div className="experiment-title-row">
         <h2 id="experiment-title">{currentExperiment.name}</h2>
       </div>
-      
+
       <div className="experiment-stats">
         {currentExperiment.model_id && (
           <span className="stat-item">
@@ -43,7 +43,7 @@ const ExperimentHeader = () => {
           <span className="stat-item analysis-indicator">🎯 Trajectory Analysis</span>
         )}
       </div>
-      
+
       <p
         id="base-prompt"
         className="base-prompt"

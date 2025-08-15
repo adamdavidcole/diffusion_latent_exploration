@@ -19,7 +19,7 @@ const ChartRenderer = ({
     );
   }
 
-    // Helper function to extend options data with missing options set to 0
+  // Helper function to extend options data with missing options set to 0
   const extendOptionsData = (data, schemaField) => {
     if (schemaField.type !== 'options' || !schemaField.options || !data.counts) {
       return data;

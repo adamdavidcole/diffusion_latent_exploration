@@ -5,7 +5,7 @@ import { ChartJS } from '../../utils/chartSetup';
 
 const WordCloud = ({ data, title, size = 250 }) => {
   const chartRef = useRef(null);
-  
+
   console.log('WordCloud received data:', data, 'title:', title);
 
   useEffect(() => {
@@ -24,7 +24,7 @@ const WordCloud = ({ data, title, size = 250 }) => {
   const getWordCloudData = () => {
     // Handle nested data structure from VLM analysis
     let wordData = null;
-    
+
     if (data?.data?.top_words) {
       wordData = data.data.top_words;
     } else if (data?.data?.word_frequency) {
@@ -34,7 +34,7 @@ const WordCloud = ({ data, title, size = 250 }) => {
     } else if (data?.word_frequency) {
       wordData = data.word_frequency;
     }
-    
+
     if (!wordData || typeof wordData !== 'object') {
       console.warn('No valid word data found:', data);
       return { labels: [], data: [] };
@@ -44,7 +44,7 @@ const WordCloud = ({ data, title, size = 250 }) => {
     const entries = Object.entries(wordData);
     const labels = entries.map(([text, value]) => text);
     const values = entries.map(([text, value]) => typeof value === 'number' ? value : 1);
-    
+
     return { labels, data: values };
   };
 
@@ -73,7 +73,7 @@ const WordCloud = ({ data, title, size = 250 }) => {
       },
     ],
   };
-  
+
   console.log('WordCloud chartData:', chartData);
 
   const options = {
