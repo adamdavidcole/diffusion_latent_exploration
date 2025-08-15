@@ -31,10 +31,14 @@ const AnalysisGrid = () => {
   const visibleSections = analysisVisibleSections || localVisibleSections;
   const chartSize = analysisChartSize || 250;
 
+  const sortedSectionNames = ['people', 'composition', 'setting', 'cultural_flags']
+
   // Available sections based on schema
-  const availableSections = Object.keys(analysisSchema || {}).filter(key =>
-    ['people', 'composition', 'setting', 'cultural_flags'].includes(key)
-  );
+  // const availableSections = Object.keys(analysisSchema || {}).filter(key =>
+  //   sortedSectionNames.includes(key)
+  // );
+
+  const availableSections = sortedSectionNames
 
   if (!currentAnalysis?.vlm_analysis || !analysisSchema) {
     return (
