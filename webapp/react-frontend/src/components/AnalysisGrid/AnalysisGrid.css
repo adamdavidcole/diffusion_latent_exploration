@@ -137,6 +137,20 @@
   font-weight: 600;
   color: var(--text-primary);
   font-size: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.section-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.metric-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
 }
 
 .prompt-group-header {
@@ -151,6 +165,31 @@
 
 .prompt-group-header:first-of-type {
   border-left: none;
+}
+
+.prompt-group-label {
+  min-width: 200px;
+  display: flex;
+  align-items: center;
+  padding: 1rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  text-transform: capitalize;
+  background: var(--bg-tertiary);
+  border-right: 1px solid var(--border);
+}
+
+.view-header {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.prompt-view {
+  margin-bottom: 2rem;
 }
 
 /* Metric Rows */
@@ -231,4 +270,52 @@
   .prompt-group-header {
     font-size: 0.75rem;
   }
+}
+
+/* Prompt View Specific Styles */
+.prompt-group-label {
+  writing-mode: horizontal-tb;
+  text-orientation: mixed;
+  padding: 0.5rem;
+  font-weight: 600;
+  min-width: 120px;
+  background: rgba(100, 116, 139, 0.3);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.section-label {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.metric-label-header .section-label {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.metric-label-header .metric-label {
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.prompt-view .metrics-grid {
+  display: grid;
+  gap: 1px;
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.view-header {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+  text-transform: capitalize;
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 0.5rem;
 }
