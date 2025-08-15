@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useReducer, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
+import { api } from '../services/api';
 
 // Helper function to extract available tokens from attention videos
 const getAvailableTokensFromAttentionVideos = (attentionVideos) => {
@@ -28,18 +29,22 @@ const initialState = {
     videoSize: 200,
     showLabels: true,
     sidebarCollapsed: true,
-    videoDuration: 0,
-    isScrubbingActive: false,
-    isLoading: true, // Start with loading true for initial skeleton
+    loading: false,
     error: null,
+    videoDuration: 4.0,
+    scrubbingActive: false,
     // Attention video state
     attentionMode: false,
     selectedToken: null,
     availableTokens: [],
-    // Analysis data state
+    // Analysis state
     currentAnalysis: null,
     analysisLoading: false,
-    analysisError: null
+    analysisError: null,
+    // Analysis schema
+    analysisSchema: null,
+    schemaLoading: false,
+    schemaError: null
 };
 
 // Action types
@@ -63,7 +68,11 @@ const ActionTypes = {
     SET_CURRENT_ANALYSIS: 'SET_CURRENT_ANALYSIS',
     SET_ANALYSIS_LOADING: 'SET_ANALYSIS_LOADING',
     SET_ANALYSIS_ERROR: 'SET_ANALYSIS_ERROR',
-    CLEAR_ANALYSIS_ERROR: 'CLEAR_ANALYSIS_ERROR'
+    CLEAR_ANALYSIS_ERROR: 'CLEAR_ANALYSIS_ERROR',
+    // Schema actions
+    SET_ANALYSIS_SCHEMA: 'SET_ANALYSIS_SCHEMA',
+    SET_SCHEMA_LOADING: 'SET_SCHEMA_LOADING',
+    SET_SCHEMA_ERROR: 'SET_SCHEMA_ERROR'
 };
 
 // Reducer
@@ -131,6 +140,15 @@ const appReducer = (state, action) => {
 
         case ActionTypes.CLEAR_ANALYSIS_ERROR:
             return { ...state, analysisError: null };
+
+        case ActionTypes.SET_ANALYSIS_SCHEMA:
+            return { ...state, analysisSchema: action.payload, schemaError: null };
+
+        case ActionTypes.SET_SCHEMA_LOADING:
+            return { ...state, schemaLoading: action.payload };
+
+        case ActionTypes.SET_SCHEMA_ERROR:
+            return { ...state, schemaError: action.payload, schemaLoading: false };
 
         default:
             return state;
@@ -200,8 +218,36 @@ export const AppProvider = ({ children }) => {
             dispatch({ type: ActionTypes.SET_ANALYSIS_ERROR, payload: error }), []),
 
         clearAnalysisError: useCallback(() =>
-            dispatch({ type: ActionTypes.CLEAR_ANALYSIS_ERROR }), [])
+            dispatch({ type: ActionTypes.CLEAR_ANALYSIS_ERROR }), []),
+
+        // Schema actions
+        setAnalysisSchema: useCallback((schema) =>
+            dispatch({ type: ActionTypes.SET_ANALYSIS_SCHEMA, payload: schema }), []),
+
+        setSchemaLoading: useCallback((loading) =>
+            dispatch({ type: ActionTypes.SET_SCHEMA_LOADING, payload: loading }), []),
+
+        setSchemaError: useCallback((error) =>
+            dispatch({ type: ActionTypes.SET_SCHEMA_ERROR, payload: error }), [])
     };
+
+    // Load analysis schema on app initialization
+    useEffect(() => {
+        const loadAnalysisSchema = async () => {
+            try {
+                dispatch({ type: ActionTypes.SET_SCHEMA_LOADING, payload: true });
+                const schemaData = await api.getAnalysisSchema();
+                dispatch({ type: ActionTypes.SET_ANALYSIS_SCHEMA, payload: schemaData.vlm_analysis_schema });
+            } catch (error) {
+                console.error('Failed to load analysis schema:', error);
+                dispatch({ type: ActionTypes.SET_SCHEMA_ERROR, payload: error.message });
+            } finally {
+                dispatch({ type: ActionTypes.SET_SCHEMA_LOADING, payload: false });
+            }
+        };
+
+        loadAnalysisSchema();
+    }, []); // Empty dependency array - only run once on mount
 
     return (
         <AppContext.Provider value={{ state, actions }}>

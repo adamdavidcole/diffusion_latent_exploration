@@ -542,6 +542,25 @@ def create_app():
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
+    @app.route('/api/analysis-schema')
+    def get_analysis_schema():
+        """Get the VLM analysis schema for the frontend"""
+        try:
+            # Path to the schema file
+            schema_path = Path(__file__).parent.parent.parent / 'src' / 'analysis' / 'vlm_analysis' / 'vlm_analysis_schema_new.json'
+            
+            if not schema_path.exists():
+                return jsonify({'error': 'Analysis schema file not found'}), 404
+            
+            with open(schema_path, 'r') as f:
+                schema_data = json.load(f)
+            
+            return jsonify({
+                'vlm_analysis_schema': schema_data
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
     @app.route('/api/video/<path:video_path>')
     def serve_video(video_path):
         """Serve video files from the outputs directory"""

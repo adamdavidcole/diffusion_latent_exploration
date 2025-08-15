@@ -16,7 +16,7 @@ memory_settings:
   clear_cache_between_videos: true    # Aggressively clear GPU cache between videos
   reload_model_for_large_models: true # Reload model between videos to prevent memory accumulation
   use_gradient_checkpointing: true    # Enable gradient checkpointing (saves ~30% memory)
-  enable_memory_efficient_attention: true  # Enable memory efficient attention if available
+  enable_memory_efficient_attention: false  # Enable memory efficient attention if available
 
 # Video generation parameters (conservative settings for memory)
 video_settings:

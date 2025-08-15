@@ -6,6 +6,7 @@ Simple debug script to test VLM model loading and basic inference.
 import sys
 import logging
 from pathlib import Path
+import traceback
 
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -61,6 +62,7 @@ def test_simple_inference(model_loader, video_path):
         
     except Exception as e:
         logger.error(f"Inference failed: {e}")
+        logger.error(traceback.format_exc())
         raise
 
 def main():

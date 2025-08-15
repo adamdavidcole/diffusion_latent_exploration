@@ -79,6 +79,19 @@ export const api = {
     return analysisData;
   },
 
+  async getAnalysisSchema() {
+    console.log('API: Fetching analysis schema');
+    const response = await fetch(`${API_BASE}/api/analysis-schema`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch analysis schema: ${response.status}`);
+    }
+    const schemaData = await response.json();
+    if (schemaData.error) {
+      throw new Error(schemaData.error);
+    }
+    return schemaData;
+  },
+
   // Helper function to flatten tree into list for search/filtering
   flattenExperimentTree(tree) {
     const experiments = [];
