@@ -8,7 +8,7 @@ const getAvailableTokensFromAttentionVideos = (attentionVideos) => {
     }
 
     const tokenSet = new Set();
-    
+
     // Iterate through all prompts and videos to collect unique tokens
     Object.values(attentionVideos.prompts).forEach(promptData => {
         Object.values(promptData.videos).forEach(videoData => {
@@ -17,7 +17,7 @@ const getAvailableTokensFromAttentionVideos = (attentionVideos) => {
             });
         });
     });
-    
+
     return Array.from(tokenSet).sort();
 };
 
@@ -47,7 +47,106 @@ const initialState = {
     schemaError: null,
     // Analysis view preferences
     analysisViewBy: 'metric', // 'metric' or 'prompt'
-    analysisChartSize: 250
+    analysisChartSize: 300,
+    // Analysis chart configuration
+    analysisChartConfig: [
+        {
+            "people": [
+                {
+                    "demographics": [
+                        { "age": true },
+                        { "gender": true },
+                        { "race_ethnicity": true },
+                        { "national_or_cultural_identity": true },
+                        { "sexual_orientation_presentation": true },
+                        { "sexual_orientation_presentation_cues": true },
+                        { "disability_or_assistive_cues": false },
+                        { "confidence": false }
+                    ]
+                },
+                {
+                    "appearance": [
+                        { "clothing_style": true },
+                        { "nudity_level": true },
+                        {
+                            "hair": [
+                                { "length": true },
+                                { "style": true },
+                                { "color": true }
+                            ]
+                        },
+                        { "makeup_style": true },
+                        { "facial_hair": true },
+                        { "body_type": true },
+                        { "attractiveness_coding": false },
+                        { "notable_features": true },
+                        { "socioeconomic_status": true },
+                        { "socioeconomic_cues": true },
+                        { "confidence": false }
+                    ]
+                },
+                {
+                    "role_and_agency": [
+                        { "narrative_role": true },
+                        { "agency_level": true },
+                        { "confidence": false }
+                    ]
+                }
+            ]
+        },
+        {
+            "composition": [
+                { "framing": true },
+                { "camera_shot_size": true },
+                { "camera_angle": true },
+                { "camera_movement": false },
+                { "focus_depth": false },
+                { "lens_impression": false },
+                { "lighting_style": true },
+                { "color_palette": true },
+                { "visual_style": true },
+                { "confidence": false }
+            ]
+        },
+        {
+            "setting": [
+                { "time_of_day": true },
+                { "decade_or_period": true },
+                { "period_accuracy": false },
+                { "location_scope": false },
+                { "setting_type": true },
+                { "weather": false },
+                { "atmosphere_mood": true },
+                { "genre_coding": true },
+                { "objects_icons": true },
+                { "cultural_heritage_identity_icons": true },
+                { "confidence": false }
+            ]
+        },
+        {
+            "cultural_flags": [
+                { "male_gaze_objectification_level": true },
+                { "male_gaze_objectification_context": true },
+                { "sexualization_level": true },
+                { "sexualization_context": true },
+                { "racial_stereotype_bias_level": true },
+                { "racial_stereotype_bias_context": true },
+                { "class_bias_level": false },
+                { "class_bias_context": false },
+                { "respectability_virtue_coding_level": false },
+                { "respectability_virtue_coding_context": false },
+                { "indecency_cues_level": false },
+                { "indecency_cues_context": false },
+                { "cinematic_tropes_level": false },
+                { "cinematic_tropes_context": false },
+                { "cultural_heritage_identity_level": false },
+                { "cultural_heritage_identity_context": false },
+                { "violence_cues": false },
+                { "violence_cues_context": false },
+                { "confidence": false }
+            ]
+        }
+    ]
 };
 
 // Action types
@@ -78,7 +177,8 @@ const ActionTypes = {
     SET_SCHEMA_ERROR: 'SET_SCHEMA_ERROR',
     // Analysis view actions
     SET_ANALYSIS_VIEW_BY: 'SET_ANALYSIS_VIEW_BY',
-    SET_ANALYSIS_CHART_SIZE: 'SET_ANALYSIS_CHART_SIZE'
+    SET_ANALYSIS_CHART_SIZE: 'SET_ANALYSIS_CHART_SIZE',
+    SET_ANALYSIS_CHART_CONFIG: 'SET_ANALYSIS_CHART_CONFIG'
 };
 
 // Reducer
@@ -98,7 +198,7 @@ const appReducer = (state, action) => {
                 error: null,
                 // Reset attention mode state when switching experiments
                 selectedToken: null,
-                availableTokens: action.payload?.attention_videos?.available ? 
+                availableTokens: action.payload?.attention_videos?.available ?
                     getAvailableTokensFromAttentionVideos(action.payload.attention_videos) : []
             };
 
@@ -161,6 +261,9 @@ const appReducer = (state, action) => {
 
         case ActionTypes.SET_ANALYSIS_CHART_SIZE:
             return { ...state, analysisChartSize: action.payload };
+
+        case ActionTypes.SET_ANALYSIS_CHART_CONFIG:
+            return { ...state, analysisChartConfig: action.payload };
 
         default:
             return state;
@@ -248,14 +351,17 @@ export const AppProvider = ({ children }) => {
             dispatch({ type: ActionTypes.SET_ANALYSIS_VIEW_BY, payload: viewBy }), []),
 
         setAnalysisChartSize: useCallback((size) =>
-            dispatch({ type: ActionTypes.SET_ANALYSIS_CHART_SIZE, payload: size }), [])
+            dispatch({ type: ActionTypes.SET_ANALYSIS_CHART_SIZE, payload: size }), []),
+
+        setAnalysisChartConfig: useCallback((config) =>
+            dispatch({ type: ActionTypes.SET_ANALYSIS_CHART_CONFIG, payload: config }), [])
     };
 
-        // Load analysis schema on app initialization
+    // Load analysis schema on app initialization
     useEffect(() => {
         const loadAnalysisSchema = async () => {
             if (schemaLoadedRef.current) return;
-            
+
             try {
                 schemaLoadedRef.current = true;
                 dispatch({ type: ActionTypes.SET_SCHEMA_LOADING, payload: true });
