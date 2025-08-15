@@ -4,11 +4,11 @@ import BarChart from './BarChart';
 import WordCloud from './WordCloud';
 import './ChartRenderer.css';
 
-const ChartRenderer = ({ 
-  schemaField, 
-  data, 
-  title, 
-  size = 250 
+const ChartRenderer = ({
+  schemaField,
+  data,
+  title,
+  size = 250
 }) => {
   if (!data || !schemaField) {
     return (
@@ -25,15 +25,15 @@ const ChartRenderer = ({
       case 'options':
         // Use pie chart for categorical data
         return <PieChart data={data} title={title} size={size} />;
-      
+
       case 'range':
         // Use bar chart for numerical ranges
         return <BarChart data={data} title={title} size={size} />;
-      
+
       case 'open':
         // Use word cloud for open text responses
         return <WordCloud data={data} title={title} size={size} />;
-      
+
       default:
         return (
           <div className="chart-container" style={{ width: size, height: size }}>

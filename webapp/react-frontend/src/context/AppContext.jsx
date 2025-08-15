@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
 import { api } from '../services/api';
 
 // Helper function to extract available tokens from attention videos
@@ -44,7 +44,9 @@ const initialState = {
     // Analysis schema
     analysisSchema: null,
     schemaLoading: false,
-    schemaError: null
+    schemaError: null,
+    // Analysis view preferences
+    analysisViewBy: 'metric' // 'metric' or 'prompt'
 };
 
 // Action types
@@ -72,7 +74,9 @@ const ActionTypes = {
     // Schema actions
     SET_ANALYSIS_SCHEMA: 'SET_ANALYSIS_SCHEMA',
     SET_SCHEMA_LOADING: 'SET_SCHEMA_LOADING',
-    SET_SCHEMA_ERROR: 'SET_SCHEMA_ERROR'
+    SET_SCHEMA_ERROR: 'SET_SCHEMA_ERROR',
+    // Analysis view actions
+    SET_ANALYSIS_VIEW_BY: 'SET_ANALYSIS_VIEW_BY'
 };
 
 // Reducer
@@ -150,6 +154,9 @@ const appReducer = (state, action) => {
         case ActionTypes.SET_SCHEMA_ERROR:
             return { ...state, schemaError: action.payload, schemaLoading: false };
 
+        case ActionTypes.SET_ANALYSIS_VIEW_BY:
+            return { ...state, analysisViewBy: action.payload };
+
         default:
             return state;
     }
@@ -161,6 +168,7 @@ const AppContext = createContext();
 // Provider component
 export const AppProvider = ({ children }) => {
     const [state, dispatch] = useReducer(appReducer, initialState);
+    const schemaLoadedRef = useRef(false);
 
     // Action creators
     const actions = {
@@ -228,26 +236,34 @@ export const AppProvider = ({ children }) => {
             dispatch({ type: ActionTypes.SET_SCHEMA_LOADING, payload: loading }), []),
 
         setSchemaError: useCallback((error) =>
-            dispatch({ type: ActionTypes.SET_SCHEMA_ERROR, payload: error }), [])
+            dispatch({ type: ActionTypes.SET_SCHEMA_ERROR, payload: error }), []),
+
+        // Analysis view actions
+        setAnalysisViewBy: useCallback((viewBy) =>
+            dispatch({ type: ActionTypes.SET_ANALYSIS_VIEW_BY, payload: viewBy }), [])
     };
 
-    // Load analysis schema on app initialization
+        // Load analysis schema on app initialization
     useEffect(() => {
         const loadAnalysisSchema = async () => {
+            if (schemaLoadedRef.current) return;
+            
             try {
+                schemaLoadedRef.current = true;
                 dispatch({ type: ActionTypes.SET_SCHEMA_LOADING, payload: true });
                 const schemaData = await api.getAnalysisSchema();
                 dispatch({ type: ActionTypes.SET_ANALYSIS_SCHEMA, payload: schemaData.vlm_analysis_schema });
             } catch (error) {
                 console.error('Failed to load analysis schema:', error);
                 dispatch({ type: ActionTypes.SET_SCHEMA_ERROR, payload: error.message });
+                schemaLoadedRef.current = false; // Reset on error so it can retry
             } finally {
                 dispatch({ type: ActionTypes.SET_SCHEMA_LOADING, payload: false });
             }
         };
 
         loadAnalysisSchema();
-    }, []); // Empty dependency array - only run once on mount
+    }, []); // Empty dependency array
 
     return (
         <AppContext.Provider value={{ state, actions }}>

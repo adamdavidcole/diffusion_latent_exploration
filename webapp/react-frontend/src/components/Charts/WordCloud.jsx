@@ -25,7 +25,7 @@ const WordCloud = ({ data, title, size = 250 }) => {
     }
 
     const words = data.top_words || data.word_frequency || {};
-    
+
     return Object.entries(words).map(([text, value]) => ({
       text,
       value: typeof value === 'number' ? value : 1,

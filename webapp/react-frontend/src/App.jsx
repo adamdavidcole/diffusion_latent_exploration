@@ -7,6 +7,7 @@ import Sidebar from './components/Sidebar/Sidebar';
 import VideoGrid from './components/VideoGrid/VideoGrid';
 import SyncControls from './components/Controls/SyncControls';
 import AttentionControls from './components/Controls/AttentionControls';
+import AnalysisControls from './components/AnalysisControls/AnalysisControls';
 import ExperimentHeader from './components/ExperimentHeader/ExperimentHeader';
 import TabNavigation from './components/TabNavigation/TabNavigation';
 import AnalysisDashboard from './components/AnalysisDashboard/AnalysisDashboard';
@@ -339,7 +340,8 @@ const AppContent = ({ experimentPath, isAnalysisRoute }) => {
         </div>
 
         <div className="main-controls">
-          <AttentionControls />
+          {!isAnalysisRoute && <AttentionControls />}
+          {isAnalysisRoute && <AnalysisControls />}
           <SyncControls />
         </div>
       </div>
