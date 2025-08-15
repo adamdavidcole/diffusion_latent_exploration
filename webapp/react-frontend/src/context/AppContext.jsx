@@ -57,7 +57,7 @@ const initialState = {
                         { "age": true },
                         { "gender": true },
                         { "race_ethnicity": true },
-                        { "national_or_cultural_identity": true },
+                        { "national_or_cultural_identity": false },
                         { "sexual_orientation_presentation": true },
                         { "sexual_orientation_presentation_cues": true },
                         { "disability_or_assistive_cues": false },
@@ -70,15 +70,15 @@ const initialState = {
                         { "nudity_level": true },
                         {
                             "hair": [
-                                { "length": true },
-                                { "style": true },
-                                { "color": true }
+                                { "length": false },
+                                { "style": false },
+                                { "color": false }
                             ]
                         },
-                        { "makeup_style": true },
+                        { "makeup_style": false },
                         { "facial_hair": true },
                         { "body_type": true },
-                        { "attractiveness_coding": false },
+                        { "attractiveness_coding": true },
                         { "notable_features": true },
                         { "socioeconomic_status": true },
                         { "socioeconomic_cues": true },
@@ -88,7 +88,7 @@ const initialState = {
                 {
                     "role_and_agency": [
                         { "narrative_role": true },
-                        { "agency_level": true },
+                        { "agency_level": false },
                         { "confidence": false }
                     ]
                 }

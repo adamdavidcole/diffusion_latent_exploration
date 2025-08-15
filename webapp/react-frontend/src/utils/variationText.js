@@ -2,7 +2,7 @@
 // This helps debug and ensure consistent variation text mapping
 
 export const getVariationTextFromPromptKey = (promptKey, currentExperiment) => {
-  console.log('Getting variation text for:', promptKey);
+  console.log('Getting variation text for:', promptKey, "from ", currentExperiment);
   console.log('Current experiment video_grid:', currentExperiment?.video_grid);
   
   if (promptKey === 'combined') {

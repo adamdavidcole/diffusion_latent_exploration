@@ -6,19 +6,19 @@ import './AnalysisGrid.css';
 
 const AnalysisGrid = () => {
   const { state } = useApp();
-  const { 
-    currentAnalysis, 
-    analysisSchema, 
+  const {
+    currentAnalysis,
+    analysisSchema,
     analysisViewBy,
     analysisChartSize,
     analysisVisibleSections,
     analysisChartConfig,
     currentExperiment
   } = state;
-  
+
   // Section tab state
   const [activeSection, setActiveSection] = useState('people');
-  
+
   // Dashboard controls state (fallback to defaults if not in global state)
   const [localVisibleSections, setLocalVisibleSections] = useState({
     people: true,
@@ -32,7 +32,7 @@ const AnalysisGrid = () => {
   const chartSize = analysisChartSize || 250;
 
   // Available sections based on schema
-  const availableSections = Object.keys(analysisSchema || {}).filter(key => 
+  const availableSections = Object.keys(analysisSchema || {}).filter(key =>
     ['people', 'composition', 'setting', 'cultural_flags'].includes(key)
   );
 
@@ -47,16 +47,16 @@ const AnalysisGrid = () => {
   }
 
   const { prompt_groups, overall } = currentAnalysis.vlm_analysis;
-  
+
   // Create combined prompt groups including overall as "Combined"
   const allPromptGroups = { ...prompt_groups };
   if (overall) {
     allPromptGroups['combined'] = overall;
   }
-  
+
   // Get prompt group keys with 'combined' first if it exists
   const promptGroupKeys = Object.keys(allPromptGroups);
-  const orderedPromptGroupKeys = overall 
+  const orderedPromptGroupKeys = overall
     ? ['combined', ...promptGroupKeys.filter(key => key !== 'combined')]
     : promptGroupKeys;
 
@@ -106,7 +106,7 @@ const AnalysisGrid = () => {
       console.warn('analysisChartConfig is not an array:', analysisChartConfig);
       return null;
     }
-    
+
     // Find the config object that contains this section
     for (const configObj of analysisChartConfig) {
       if (configObj[sectionName]) {
@@ -121,18 +121,18 @@ const AnalysisGrid = () => {
   // Get all metrics to display based on active section and configuration
   const getMetricsToDisplay = () => {
     const metrics = [];
-    
+
     // Only process the active section
     if (!analysisSchema[activeSection]) return metrics;
-    
+
     const section = analysisSchema[activeSection];
     const sectionConfig = getSectionConfig(activeSection);
-    
+
     if (!sectionConfig) {
       console.warn(`No config found for section: ${activeSection}`);
       return metrics;
     }
-    
+
     if (Array.isArray(section)) {
       // Handle array sections like 'people'
       // Process in the order defined in the config
@@ -142,16 +142,16 @@ const AnalysisGrid = () => {
             // Find the corresponding subsection in the schema
             const sampleItem = section[0];
             const subsection = sampleItem[subsectionKey];
-            
+
             if (typeof subsection === 'object' && subsection !== null && Array.isArray(subsectionConfigArray)) {
               // Process fields in the order they appear in the config
               subsectionConfigArray.forEach(fieldConfigObj => {
                 Object.entries(fieldConfigObj).forEach(([fieldKey, fieldEnabled]) => {
                   console.log(`Field ${fieldKey} in ${subsectionKey}: ${fieldEnabled}`);
-                  
+
                   const fieldSchema = subsection[fieldKey];
                   if (!fieldSchema) return; // Skip if field doesn't exist in schema
-                  
+
                   if (fieldSchema.type && fieldEnabled) {
                     console.log(`Adding metric: ${subsectionKey}.${fieldKey} (enabled: ${fieldEnabled})`);
                     metrics.push({
@@ -167,7 +167,7 @@ const AnalysisGrid = () => {
                     Object.entries(fieldSchema).forEach(([nestedKey, nestedSchema]) => {
                       // For nested objects, check if there's a nested config
                       let nestedEnabled = false;
-                      
+
                       if (Array.isArray(fieldEnabled)) {
                         for (const nestedConfigObj of fieldEnabled) {
                           if (nestedConfigObj.hasOwnProperty(nestedKey)) {
@@ -176,7 +176,7 @@ const AnalysisGrid = () => {
                           }
                         }
                       }
-                      
+
                       if (nestedSchema.type && nestedEnabled) {
                         metrics.push({
                           section: activeSection,
@@ -205,7 +205,7 @@ const AnalysisGrid = () => {
           Object.entries(fieldConfigObj).forEach(([fieldKey, fieldEnabled]) => {
             const fieldSchema = section[fieldKey];
             if (!fieldSchema) return; // Skip if field doesn't exist in schema
-            
+
             if (fieldSchema.type && fieldEnabled) {
               metrics.push({
                 section: activeSection,
@@ -220,7 +220,7 @@ const AnalysisGrid = () => {
         });
       }
     }
-    
+
     return metrics;
   };
 
@@ -233,7 +233,7 @@ const AnalysisGrid = () => {
     metrics.forEach(metric => {
       const sectionKey = metric.section;
       const subsectionKey = metric.subsection || 'main';
-      
+
       if (!grouped[sectionKey]) {
         grouped[sectionKey] = {};
       }
@@ -283,7 +283,7 @@ const AnalysisGrid = () => {
       {/* Analysis Grid */}
       <div className="analysis-content">
         <h3 className="section-header">{activeSection.replace(/_/g, ' ')} Analysis</h3>
-        
+
         {analysisViewBy === 'prompt' ? (
           // View by Prompt: rows = prompt groups, columns = metrics
           <div className="prompt-view">
@@ -291,25 +291,25 @@ const AnalysisGrid = () => {
               <div className="grid-header">
                 <div className="prompt-group-header">Prompt Group</div>
                 {metrics.map(metric => (
-                  <div key={metric.path} className="metric-label-header" style={{width: `${chartSize}px`}}>
+                  <div key={metric.path} className="metric-label-header" style={{ width: `${chartSize}px` }}>
                     <span className="section-label">{metric.subsection || activeSection}</span>
                     <span className="metric-label">{metric.field.replace(/_/g, ' ')}</span>
                   </div>
                 ))}
               </div>
-              
+
               {/* Data rows for each prompt group */}
               {orderedPromptGroupKeys.map(promptKey => (
                 <div key={promptKey} className="metric-row">
                   <div className="prompt-group-label">
-                    {getVariationTextFromPromptKey(promptKey, currentAnalysis?.video_grid)}
+                    {getVariationTextFromPromptKey(promptKey, currentExperiment)}
                   </div>
                   {metrics.map(metric => {
                     const promptData = allPromptGroups[promptKey];
                     const fieldData = getFieldData(metric.path, promptData);
-                    
+
                     return (
-                      <div key={`${promptKey}-${metric.path}`} className="chart-cell" style={{width: `${chartSize}px`}}>
+                      <div key={`${promptKey}-${metric.path}`} className="chart-cell" style={{ width: `${chartSize}px` }}>
                         <ChartRenderer
                           schemaField={metric.schema}
                           data={fieldData}
@@ -333,18 +333,18 @@ const AnalysisGrid = () => {
                     {subsectionKey !== 'main' && (
                       <h4 className="subsection-header">{subsectionKey.replace(/_/g, ' ')}</h4>
                     )}
-                    
+
                     <div className="metrics-grid">
                       {/* Header row with prompt group names */}
                       <div className="grid-header">
                         <div className="metric-label-header">Metric</div>
                         {orderedPromptGroupKeys.map(promptKey => (
-                          <div key={promptKey} className="prompt-group-header" style={{width: `${chartSize}px`}}>
-                            {getVariationTextFromPromptKey(promptKey, currentAnalysis?.video_grid)}
+                          <div key={promptKey} className="prompt-group-header" style={{ minWidth: `${chartSize}px` }}>
+                            {getVariationTextFromPromptKey(promptKey, currentExperiment)}
                           </div>
                         ))}
                       </div>
-                      
+
                       {/* Data rows */}
                       {sectionMetrics.map(metric => (
                         <div key={metric.path} className="metric-row">
@@ -354,9 +354,9 @@ const AnalysisGrid = () => {
                           {orderedPromptGroupKeys.map(promptKey => {
                             const promptData = allPromptGroups[promptKey];
                             const fieldData = getFieldData(metric.path, promptData);
-                            
+
                             return (
-                              <div key={`${metric.path}-${promptKey}`} className="chart-cell" style={{width: `${chartSize}px`}}>
+                              <div key={`${metric.path}-${promptKey}`} className="chart-cell" style={{ width: `${chartSize}px` }}>
                                 <ChartRenderer
                                   schemaField={metric.schema}
                                   data={fieldData}

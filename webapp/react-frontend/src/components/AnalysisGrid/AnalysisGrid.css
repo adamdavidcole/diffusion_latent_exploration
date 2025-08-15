@@ -126,6 +126,7 @@
   border-radius: 6px;
   padding: 0.75rem;
   margin-bottom: 0.5rem;
+  width: max-content;
 }
 
 .metric-label-header {
