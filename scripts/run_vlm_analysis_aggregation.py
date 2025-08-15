@@ -285,20 +285,116 @@ class VLMAnalysisAggregator:
             raise
 
 
+def process_batch_aggregation(batch_path: Path, schema_path: Path, verbose: bool = False) -> int:
+    """Process batch aggregation: individual prompt groups + overall aggregation."""
+    vlm_analysis_path = batch_path / "vlm_analysis"
+    
+    if not vlm_analysis_path.exists():
+        logger.error(f"VLM analysis directory not found: {vlm_analysis_path}")
+        return 1
+    
+    try:
+        aggregator = VLMAnalysisAggregator(str(schema_path))
+        
+        # Find all prompt groups
+        prompt_groups = [
+            d.name for d in vlm_analysis_path.iterdir() 
+            if d.is_dir() and d.name.startswith('prompt_')
+        ]
+        
+        if not prompt_groups:
+            logger.error("No prompt groups found in vlm_analysis directory")
+            return 1
+            
+        prompt_groups.sort()
+        
+        logger.info(f"🎯 Batch Processing Mode")
+        logger.info(f"  Batch path: {batch_path}")
+        logger.info(f"  VLM analysis path: {vlm_analysis_path}")
+        logger.info(f"  Found {len(prompt_groups)} prompt groups: {', '.join(prompt_groups)}")
+        
+        # Process individual prompt groups
+        logger.info(f"📊 Processing individual prompt groups...")
+        for prompt_group in prompt_groups:
+            logger.info(f"  🔄 Processing {prompt_group}...")
+            
+            analysis_files = aggregator.find_analysis_files(vlm_analysis_path, prompt_group)
+            if not analysis_files:
+                logger.warning(f"    No analysis files found for {prompt_group}")
+                continue
+                
+            logger.info(f"    Found {len(analysis_files)} analysis files")
+            
+            # Aggregate for this prompt group
+            aggregated_results = aggregator.aggregate_analysis_files(analysis_files)
+            
+            # Save individual prompt group results within the prompt folder
+            prompt_folder = vlm_analysis_path / prompt_group
+            output_path = prompt_folder / "aggregated_results.json"
+            aggregator.save_aggregated_results(aggregated_results, output_path)
+            
+            # Log summary for this prompt group
+            metadata = aggregated_results.get("metadata", {})
+            people_count = aggregated_results.get("aggregated_data", {}).get("people", {}).get("total_people", 0)
+            logger.info(f"    ✅ {prompt_group}: {metadata.get('successfully_loaded', 0)} files, {people_count} people")
+        
+        # Process overall aggregation across all prompt groups
+        logger.info(f"🌐 Processing overall aggregation across all prompt groups...")
+        all_analysis_files = aggregator.find_analysis_files(vlm_analysis_path)
+        
+        if not all_analysis_files:
+            logger.error("No analysis files found for overall aggregation")
+            return 1
+            
+        logger.info(f"  Found {len(all_analysis_files)} total analysis files")
+        
+        # Aggregate across all prompt groups
+        overall_results = aggregator.aggregate_analysis_files(all_analysis_files)
+        
+        # Save overall results
+        overall_output_path = vlm_analysis_path / "aggregated_results.json"
+        aggregator.save_aggregated_results(overall_results, overall_output_path)
+        
+        # Log overall summary
+        overall_metadata = overall_results.get("metadata", {})
+        overall_people_count = overall_results.get("aggregated_data", {}).get("people", {}).get("total_people", 0)
+        logger.info(f"  ✅ Overall: {overall_metadata.get('successfully_loaded', 0)} files, {overall_people_count} people")
+        
+        logger.info(f"🎉 Batch aggregation completed successfully!")
+        logger.info(f"📄 Individual results: prompt_*/aggregated_results.json")
+        logger.info(f"📄 Overall results: {overall_output_path}")
+        
+        return 0
+        
+    except Exception as e:
+        logger.error(f"Batch aggregation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return 1
+
+
 def main():
     parser = argparse.ArgumentParser(description="Aggregate VLM analysis results for statistical analysis")
     
-    parser.add_argument(
+    # Create mutually exclusive group for batch vs individual processing
+    path_group = parser.add_mutually_exclusive_group(required=True)
+    
+    path_group.add_argument(
         '--vlm-analysis-path',
         type=str,
-        required=True,
-        help='Path to vlm_analysis directory'
+        help='Path to vlm_analysis directory for individual processing'
+    )
+    
+    path_group.add_argument(
+        '--batch-path',
+        type=str,
+        help='Path to batch directory containing vlm_analysis subdirectory. Processes all prompt groups individually AND creates overall aggregation.'
     )
     
     parser.add_argument(
         '--prompt-group',
         type=str,
-        help='Specific prompt group to analyze (e.g., prompt_001). If not specified, analyzes all groups.'
+        help='Specific prompt group to analyze (e.g., prompt_001). Only used with --vlm-analysis-path. If not specified, analyzes all groups.'
     )
     
     parser.add_argument(
@@ -311,7 +407,7 @@ def main():
     parser.add_argument(
         '--output-path',
         type=str,
-        help='Output path for aggregated results (defaults to vlm_analysis_path/aggregated_results.json)'
+        help='Output path for aggregated results (defaults to vlm_analysis_path/aggregated_results.json). Only used with --vlm-analysis-path.'
     )
     
     parser.add_argument(
@@ -325,78 +421,94 @@ def main():
     # Configure logging
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
-        
-    # Validate arguments
-    vlm_analysis_path = Path(args.vlm_analysis_path)
-    schema_path = Path(args.schema_path)
     
-    if not vlm_analysis_path.exists():
-        logger.error(f"VLM analysis directory not found: {vlm_analysis_path}")
-        return 1
+    # Handle batch processing mode
+    if args.batch_path:
+        batch_path = Path(args.batch_path)
+        schema_path = Path(args.schema_path)
         
-    if not schema_path.exists():
-        logger.error(f"Schema file not found: {schema_path}")
-        return 1
-        
-    # Set output path
-    if args.output_path:
-        output_path = Path(args.output_path)
-    else:
-        if args.prompt_group:
-            output_path = vlm_analysis_path / f"aggregated_results_{args.prompt_group}.json"
-        else:
-            output_path = vlm_analysis_path / "aggregated_results_all.json"
-    
-    try:
-        # Initialize aggregator
-        logger.info(f"🔄 Initializing VLM Analysis Aggregator")
-        logger.info(f"  Analysis directory: {vlm_analysis_path}")
-        logger.info(f"  Schema: {schema_path}")
-        logger.info(f"  Prompt group: {args.prompt_group or 'ALL'}")
-        
-        aggregator = VLMAnalysisAggregator(str(schema_path))
-        
-        # Find analysis files
-        analysis_files = aggregator.find_analysis_files(vlm_analysis_path, args.prompt_group)
-        
-        if not analysis_files:
-            logger.error("No analysis files found")
+        if not batch_path.exists():
+            logger.error(f"Batch directory not found: {batch_path}")
             return 1
             
-        logger.info(f"📊 Found {len(analysis_files)} analysis files")
-        
-        # Aggregate results
-        logger.info(f"🚀 Starting aggregation...")
-        aggregated_results = aggregator.aggregate_analysis_files(analysis_files)
-        
-        # Save results
-        aggregator.save_aggregated_results(aggregated_results, output_path)
-        
-        # Print summary
-        logger.info(f"📈 Aggregation Summary:")
-        metadata = aggregated_results.get("metadata", {})
-        logger.info(f"  Files processed: {metadata.get('successfully_loaded', 0)}/{metadata.get('total_files', 0)}")
-        
-        aggregated_data = aggregated_results.get("aggregated_data", {})
-        
-        if "people" in aggregated_data:
-            people_stats = aggregated_data["people"]
-            logger.info(f"  Total people analyzed: {people_stats.get('total_people', 0)}")
+        if not schema_path.exists():
+            logger.error(f"Schema file not found: {schema_path}")
+            return 1
             
-        for category in ["composition", "setting", "cultural_flags"]:
-            if category in aggregated_data:
-                logger.info(f"  {category.capitalize()}: ✓")
+        return process_batch_aggregation(batch_path, schema_path, args.verbose)
+    
+    # Handle individual processing mode
+    if args.vlm_analysis_path:
+        vlm_analysis_path = Path(args.vlm_analysis_path)
+        schema_path = Path(args.schema_path)
+        
+        if not vlm_analysis_path.exists():
+            logger.error(f"VLM analysis directory not found: {vlm_analysis_path}")
+            return 1
+            
+        if not schema_path.exists():
+            logger.error(f"Schema file not found: {schema_path}")
+            return 1
+            
+        # Set output path
+        if args.output_path:
+            output_path = Path(args.output_path)
+        else:
+            if args.prompt_group:
+                output_path = vlm_analysis_path / f"aggregated_results_{args.prompt_group}.json"
+            else:
+                output_path = vlm_analysis_path / "aggregated_results.json"
+        
+        try:
+            # Initialize aggregator
+            logger.info(f"🔄 Initializing VLM Analysis Aggregator")
+            logger.info(f"  Analysis directory: {vlm_analysis_path}")
+            logger.info(f"  Schema: {schema_path}")
+            logger.info(f"  Prompt group: {args.prompt_group or 'ALL'}")
+            
+            aggregator = VLMAnalysisAggregator(str(schema_path))
+            
+            # Find analysis files
+            analysis_files = aggregator.find_analysis_files(vlm_analysis_path, args.prompt_group)
+            
+            if not analysis_files:
+                logger.error("No analysis files found")
+                return 1
                 
-        logger.info(f"✅ Aggregation completed successfully")
-        logger.info(f"📄 Results saved to: {output_path}")
-        
-        return 0
-        
-    except Exception as e:
-        logger.error(f"Aggregation failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return 1
+            logger.info(f"📊 Found {len(analysis_files)} analysis files")
+            
+            # Aggregate results
+            logger.info(f"🚀 Starting aggregation...")
+            aggregated_results = aggregator.aggregate_analysis_files(analysis_files)
+            
+            # Save results
+            aggregator.save_aggregated_results(aggregated_results, output_path)
+            
+            # Print summary
+            logger.info(f"📈 Aggregation Summary:")
+            metadata = aggregated_results.get("metadata", {})
+            logger.info(f"  Files processed: {metadata.get('successfully_loaded', 0)}/{metadata.get('total_files', 0)}")
+            
+            aggregated_data = aggregated_results.get("aggregated_data", {})
+            
+            if "people" in aggregated_data:
+                people_stats = aggregated_data["people"]
+                logger.info(f"  Total people analyzed: {people_stats.get('total_people', 0)}")
+                
+            for category in ["composition", "setting", "cultural_flags"]:
+                if category in aggregated_data:
+                    logger.info(f"  {category.capitalize()}: ✓")
+                    
+            logger.info(f"✅ Aggregation completed successfully")
+            logger.info(f"📄 Results saved to: {output_path}")
+            
+            return 0
+            
+        except Exception as e:
+            logger.error(f"Aggregation failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return 1
 
 
 if __name__ == "__main__":
