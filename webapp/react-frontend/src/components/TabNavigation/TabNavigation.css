@@ -1,0 +1,78 @@
+/* TabNavigation.css */
+.tab-navigation {
+  border-bottom: 2px solid #e5e5e5;
+  margin-bottom: 2rem;
+}
+
+.tab-list {
+  display: flex;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.tab-button {
+  background: none;
+  border: none;
+  padding: 1rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #666;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
+}
+
+.tab-button:hover:not(.disabled) {
+  color: #2563eb;
+  background: #f8fafc;
+}
+
+.tab-button.active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+  background: #f8fafc;
+}
+
+.tab-button.disabled {
+  color: #999;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.tab-button.disabled:hover {
+  color: #999;
+  background: none;
+}
+
+.disabled-indicator {
+  font-size: 0.85rem;
+  font-style: italic;
+  font-weight: 400;
+}
+
+/* Focus styles for accessibility */
+.tab-button:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .tab-navigation {
+    margin-bottom: 1rem;
+  }
+
+  .tab-button {
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+  }
+
+  .disabled-indicator {
+    display: none; /* Hide the text on mobile to save space */
+  }
+}

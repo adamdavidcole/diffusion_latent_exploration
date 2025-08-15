@@ -212,6 +212,14 @@ class VideoAnalyzer:
             # Scan for attention videos
             attention_videos = self._scan_attention_videos(exp_dir)
             
+            # Check for VLM analysis
+            vlm_analysis_dir = exp_dir / 'vlm_analysis'
+            has_vlm_analysis = vlm_analysis_dir.exists() and any(vlm_analysis_dir.glob('prompt_*/aggregated_results.json'))
+            
+            # Check for trajectory analysis
+            trajectory_analysis_dir = exp_dir / 'latent_trajectory_analysis_results'
+            has_trajectory_analysis = trajectory_analysis_dir.exists()
+            
             return {
                 'name': exp_dir.name,
                 'base_prompt': base_prompt,
@@ -227,7 +235,9 @@ class VideoAnalyzer:
                 'path': str(exp_dir),
                 'created_at': creation_datetime.isoformat(),
                 'created_timestamp': creation_time,
-                'attention_videos': attention_videos
+                'attention_videos': attention_videos,
+                'has_vlm_analysis': has_vlm_analysis,
+                'has_trajectory_analysis': has_trajectory_analysis
             }
             
         except Exception as e:
@@ -369,6 +379,55 @@ class VideoAnalyzer:
             }
         
         return attention_data
+    
+    def _load_vlm_analysis(self, exp_dir):
+        """Load VLM analysis data for an experiment"""
+        vlm_analysis_dir = exp_dir / 'vlm_analysis'
+        
+        if not vlm_analysis_dir.exists():
+            return {
+                'has_vlm_analysis': False,
+                'has_trajectory_analysis': False,
+                'vlm_analysis': None
+            }
+        
+        try:
+            # Check for trajectory analysis
+            trajectory_analysis_dir = exp_dir / 'latent_trajectory_analysis_results'
+            has_trajectory_analysis = trajectory_analysis_dir.exists()
+            
+            # Load individual prompt group results
+            prompt_groups = {}
+            for prompt_dir in vlm_analysis_dir.iterdir():
+                if prompt_dir.is_dir() and prompt_dir.name.startswith('prompt_'):
+                    aggregated_file = prompt_dir / 'aggregated_results.json'
+                    if aggregated_file.exists():
+                        with open(aggregated_file, 'r') as f:
+                            prompt_groups[prompt_dir.name] = json.load(f)
+            
+            # Load overall results
+            overall_file = vlm_analysis_dir / 'aggregated_results.json'
+            overall_data = None
+            if overall_file.exists():
+                with open(overall_file, 'r') as f:
+                    overall_data = json.load(f)
+            
+            return {
+                'has_vlm_analysis': bool(prompt_groups),
+                'has_trajectory_analysis': has_trajectory_analysis,
+                'vlm_analysis': {
+                    'prompt_groups': prompt_groups,
+                    'overall': overall_data
+                } if prompt_groups else None
+            }
+            
+        except Exception as e:
+            print(f"Error loading VLM analysis for {exp_dir.name}: {e}")
+            return {
+                'has_vlm_analysis': False,
+                'has_trajectory_analysis': False,
+                'vlm_analysis': None
+            }
 
 
 def create_app():
@@ -450,6 +509,24 @@ def create_app():
                 return jsonify({'error': 'Experiment not found'}), 404
             
             return jsonify(experiment_data)
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/experiment/<path:experiment_path>/analysis')
+    def get_experiment_analysis(experiment_path):
+        """Get VLM and trajectory analysis data for a specific experiment"""
+        try:
+            # Find the experiment directory
+            full_experiment_path = Path(app.config['VIDEO_OUTPUTS_DIR']) / experiment_path
+            
+            if not full_experiment_path.exists():
+                return jsonify({'error': 'Experiment not found'}), 404
+            
+            # Load analysis data
+            analysis_data = analyzer._load_vlm_analysis(full_experiment_path)
+            
+            return jsonify(analysis_data)
             
         except Exception as e:
             return jsonify({'error': str(e)}), 500

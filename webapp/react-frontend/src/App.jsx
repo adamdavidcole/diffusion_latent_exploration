@@ -7,6 +7,9 @@ import Sidebar from './components/Sidebar/Sidebar';
 import VideoGrid from './components/VideoGrid/VideoGrid';
 import SyncControls from './components/Controls/SyncControls';
 import AttentionControls from './components/Controls/AttentionControls';
+import ExperimentHeader from './components/ExperimentHeader/ExperimentHeader';
+import TabNavigation from './components/TabNavigation/TabNavigation';
+import AnalysisDashboard from './components/AnalysisDashboard/AnalysisDashboard';
 import './styles.css';
 
 // Experiment Route Handler
@@ -15,10 +18,16 @@ const ExperimentRoute = () => {
   const navigate = useNavigate();
   const { state, actions } = useApp();
 
+  // Determine if this is an analysis route
+  const isAnalysisRoute = experimentPath && experimentPath.endsWith('/analysis');
+  const cleanExperimentPath = isAnalysisRoute 
+    ? experimentPath.replace('/analysis', '') 
+    : experimentPath;
+
   // Load specific experiment when experimentPath changes
   useEffect(() => {
     const loadExperiment = async () => {
-      if (!experimentPath) return;
+      if (!cleanExperimentPath) return;
 
       try {
         actions.setLoading(true);
@@ -34,21 +43,21 @@ const ExperimentRoute = () => {
           actions.setExperiments(flatExperiments);
 
           // Try to find experiment in the tree structure
-          const experiment = findExperimentInTree(experimentsData, experimentPath);
+          const experiment = findExperimentInTree(experimentsData, cleanExperimentPath);
           if (!experiment) {
-            console.warn(`Experiment "${experimentPath}" not found, redirecting to home`);
+            console.warn(`Experiment "${cleanExperimentPath}" not found, redirecting to home`);
             navigate('/', { replace: true });
             return;
           }
 
           // Load experiment details
-          const experimentData = await api.getExperiment(experimentPath);
+          const experimentData = await api.getExperiment(cleanExperimentPath);
           actions.setCurrentExperiment(experimentData);
         } else {
           // Try to find experiment in already loaded tree
-          const experiment = findExperimentInTree(state.experimentsTree, experimentPath);
+          const experiment = findExperimentInTree(state.experimentsTree, cleanExperimentPath);
           if (!experiment) {
-            console.warn(`Experiment "${experimentPath}" not found, redirecting to home`);
+            console.warn(`Experiment "${cleanExperimentPath}" not found, redirecting to home`);
             navigate('/', { replace: true });
             return;
           }
@@ -56,22 +65,22 @@ const ExperimentRoute = () => {
           // Only load experiment details if it's not the current one
           if (!state.currentExperiment ||
             state.currentExperiment.name !== experiment.experiment_data.name) {
-            const experimentData = await api.getExperiment(experimentPath);
+            const experimentData = await api.getExperiment(cleanExperimentPath);
             actions.setCurrentExperiment(experimentData);
           }
         }
       } catch (error) {
         console.error('Error loading experiment:', error);
-        actions.setError(`Failed to load experiment: ${experimentPath}`);
+        actions.setError(`Failed to load experiment: ${cleanExperimentPath}`);
       } finally {
         actions.setLoading(false);
       }
     };
 
     loadExperiment();
-  }, [experimentPath, navigate]); // Removed state dependencies to prevent loops
+  }, [cleanExperimentPath, navigate]); // Removed state and actions dependencies to prevent loops
 
-  return <AppContent />;
+  return <AppContent experimentPath={cleanExperimentPath} isAnalysisRoute={isAnalysisRoute} />;
 };
 
 // Helper function to find experiment in tree by path
@@ -231,11 +240,11 @@ const HomeRoute = () => {
     loadExperiments();
   }, [navigate]); // Removed state dependencies
 
-  return <AppContent />;
+  return <AppContent experimentPath={null} isAnalysisRoute={false} />;
 };
 
 // Main App Content Component
-const AppContent = () => {
+const AppContent = ({ experimentPath, isAnalysisRoute }) => {
   const { state } = useApp();
   const { clearCache } = useVideoCache();
 
@@ -308,8 +317,24 @@ const AppContent = () => {
             </div>
           )}
 
-          {!state.isLoading && !state.error && (
-            <VideoGrid />
+          {!state.isLoading && !state.error && state.currentExperiment && (
+            <>
+              <ExperimentHeader />
+              <TabNavigation experimentPath={experimentPath} />
+              
+              {isAnalysisRoute ? (
+                <AnalysisDashboard experimentPath={experimentPath} />
+              ) : (
+                <VideoGrid />
+              )}
+            </>
+          )}
+
+          {!state.isLoading && !state.error && !state.currentExperiment && (
+            <div className="empty-state">
+              <h3>No experiment selected</h3>
+              <p>Select an experiment from the sidebar to view videos.</p>
+            </div>
           )}
         </div>
 

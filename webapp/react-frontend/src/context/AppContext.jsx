@@ -35,7 +35,11 @@ const initialState = {
     // Attention video state
     attentionMode: false,
     selectedToken: null,
-    availableTokens: []
+    availableTokens: [],
+    // Analysis data state
+    currentAnalysis: null,
+    analysisLoading: false,
+    analysisError: null
 };
 
 // Action types
@@ -54,7 +58,12 @@ const ActionTypes = {
     // Attention video actions
     TOGGLE_ATTENTION_MODE: 'TOGGLE_ATTENTION_MODE',
     SET_SELECTED_TOKEN: 'SET_SELECTED_TOKEN',
-    SET_AVAILABLE_TOKENS: 'SET_AVAILABLE_TOKENS'
+    SET_AVAILABLE_TOKENS: 'SET_AVAILABLE_TOKENS',
+    // Analysis actions
+    SET_CURRENT_ANALYSIS: 'SET_CURRENT_ANALYSIS',
+    SET_ANALYSIS_LOADING: 'SET_ANALYSIS_LOADING',
+    SET_ANALYSIS_ERROR: 'SET_ANALYSIS_ERROR',
+    CLEAR_ANALYSIS_ERROR: 'CLEAR_ANALYSIS_ERROR'
 };
 
 // Reducer
@@ -111,6 +120,18 @@ const appReducer = (state, action) => {
         case ActionTypes.SET_AVAILABLE_TOKENS:
             return { ...state, availableTokens: action.payload };
 
+        case ActionTypes.SET_CURRENT_ANALYSIS:
+            return { ...state, currentAnalysis: action.payload, analysisError: null };
+
+        case ActionTypes.SET_ANALYSIS_LOADING:
+            return { ...state, analysisLoading: action.payload };
+
+        case ActionTypes.SET_ANALYSIS_ERROR:
+            return { ...state, analysisError: action.payload, analysisLoading: false };
+
+        case ActionTypes.CLEAR_ANALYSIS_ERROR:
+            return { ...state, analysisError: null };
+
         default:
             return state;
     }
@@ -166,7 +187,20 @@ export const AppProvider = ({ children }) => {
             dispatch({ type: ActionTypes.SET_SELECTED_TOKEN, payload: token }), []),
 
         setAvailableTokens: useCallback((tokens) =>
-            dispatch({ type: ActionTypes.SET_AVAILABLE_TOKENS, payload: tokens }), [])
+            dispatch({ type: ActionTypes.SET_AVAILABLE_TOKENS, payload: tokens }), []),
+
+        // Analysis actions
+        setCurrentAnalysis: useCallback((analysis) =>
+            dispatch({ type: ActionTypes.SET_CURRENT_ANALYSIS, payload: analysis }), []),
+
+        setAnalysisLoading: useCallback((loading) =>
+            dispatch({ type: ActionTypes.SET_ANALYSIS_LOADING, payload: loading }), []),
+
+        setAnalysisError: useCallback((error) =>
+            dispatch({ type: ActionTypes.SET_ANALYSIS_ERROR, payload: error }), []),
+
+        clearAnalysisError: useCallback(() =>
+            dispatch({ type: ActionTypes.CLEAR_ANALYSIS_ERROR }), [])
     };
 
     return (

@@ -4,7 +4,6 @@ import { useIntersectionObserver } from '../../hooks/useIntersectionObserver';
 import { useVideoCache } from '../../hooks/useVideoCache';
 import VideoCell from './VideoCell';
 import VideoLightbox from './VideoLightbox';
-import { formatDuration } from '../../utils/formatters';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
 import { extractClosestEdge, attachClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
@@ -410,39 +409,18 @@ const VideoGrid = () => {
 
     return (
         <>
-            {/* Header */}
-            <div className="experiment-header">
-                <div className="experiment-title-row">
-                    <h2 id="experiment-title">{currentExperiment.name}</h2>
-                    {reorderedVideoGrid && (
-                        <button
-                            className="reset-order-btn"
-                            onClick={resetRowOrder}
-                            title="Reset row order to original"
-                        >
-                            Reset Order
-                        </button>
-                    )}
+            {/* Reset Order Button (if needed) */}
+            {reorderedVideoGrid && (
+                <div className="grid-controls">
+                    <button
+                        className="reset-order-btn"
+                        onClick={resetRowOrder}
+                        title="Reset row order to original"
+                    >
+                        Reset Order
+                    </button>
                 </div>
-                <div className="experiment-stats">
-                    {currentExperiment.model_id && (
-                        <span className="stat-item">{currentExperiment.model_id.split('/').pop().replace('-Diffusers', '').replace('Wan2.1-T2V-', '')}</span>
-                    )}
-                    <span className="stat-item">{currentExperiment.videos_count} videos</span>
-                    <span className="stat-item">{currentExperiment.variations_count} variations</span>
-                    <span className="stat-item">{currentExperiment.seeds_count} seeds</span>
-                    {currentExperiment.duration_seconds && (
-                        <span className="stat-item">{formatDuration(currentExperiment.duration_seconds)} duration</span>
-                    )}
-                </div>
-                <p
-                    id="base-prompt"
-                    className="base-prompt"
-                    title={currentExperiment.base_prompt}
-                >
-                    {currentExperiment.base_prompt}
-                </p>
-            </div>
+            )}
 
             {/* Seeds Header */}
             <div

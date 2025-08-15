@@ -66,6 +66,19 @@ export const api = {
     return experiment;
   },
 
+  async getExperimentAnalysis(experimentPath) {
+    console.log('API: Fetching experiment analysis:', experimentPath);
+    const response = await fetch(`${API_BASE}/api/experiment/${experimentPath}/analysis`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch experiment analysis: ${response.status}`);
+    }
+    const analysisData = await response.json();
+    if (analysisData.error) {
+      throw new Error(analysisData.error);
+    }
+    return analysisData;
+  },
+
   // Helper function to flatten tree into list for search/filtering
   flattenExperimentTree(tree) {
     const experiments = [];
