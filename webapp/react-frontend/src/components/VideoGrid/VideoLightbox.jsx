@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { getVideoUrl } from '../../services/api';
 import { useApp } from '../../context/AppContext';
+import VideoLightboxAnalysis from './VideoLightboxAnalysis';
 
 const VideoLightbox = ({ video, isOpen, onClose, onNavigate, getPreviewInfo }) => {
     const videoRef = useRef(null);
@@ -153,7 +154,7 @@ const VideoLightbox = ({ video, isOpen, onClose, onNavigate, getPreviewInfo }) =
 
                 {/* Navigation buttons */}
                 {onNavigate && (
-                    <>
+                    <div className="lightbox-nav-container">
                         <button
                             className="lightbox-nav lightbox-nav-left"
                             onClick={() => onNavigate('left')}
@@ -202,82 +203,87 @@ const VideoLightbox = ({ video, isOpen, onClose, onNavigate, getPreviewInfo }) =
                                 </div>
                             )}
                         </button>
-                    </>
+                    </div>
                 )}
 
-                <div className="lightbox-video-container">
-                    {(lightboxAttentionMode || state.attentionMode) && (lightboxSelectedToken || state.selectedToken) && (
-                        <div className="attention-video-indicator">
-                            🎯 Attention: {lightboxSelectedToken || state.selectedToken}
+                <div className="lightbox-video-and-details-container">
+                    <div className="lightbox-video-container">
+                        {(lightboxAttentionMode || state.attentionMode) && (lightboxSelectedToken || state.selectedToken) && (
+                            <div className="attention-video-indicator">
+                                🎯 Attention: {lightboxSelectedToken || state.selectedToken}
+                            </div>
+                        )}
+                        <video
+                            ref={videoRef}
+                            className="lightbox-video"
+                            controls
+                            muted
+                            loop
+                            preload="metadata"
+                        />
+                    </div>
+
+                    {/* Attention Controls for Lightbox */}
+                    {state.currentExperiment?.attention_videos?.available && state.availableTokens?.length > 0 && (
+                        <div className="lightbox-attention-controls">
+                            <div className="attention-toggle">
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        checked={lightboxAttentionMode}
+                                        onChange={(e) => {
+                                            setLightboxAttentionMode(e.target.checked);
+                                            if (e.target.checked && !lightboxSelectedToken && state.availableTokens?.length > 0) {
+                                                setLightboxSelectedToken(state.availableTokens[0]);
+                                            }
+                                        }}
+                                    />
+                                    🎯 Attention Mode
+                                </label>
+                            </div>
+
+                            {lightboxAttentionMode && (
+                                <div className="token-selector">
+                                    <label>Focus Token:</label>
+                                    <div className="token-buttons">
+                                        {state.availableTokens.map(token => (
+                                            <button
+                                                key={token}
+                                                className={`token-button ${lightboxSelectedToken === token ? 'selected' : ''}`}
+                                                onClick={() => setLightboxSelectedToken(token)}
+                                                title={`Show attention for "${token}"`}
+                                            >
+                                                {token}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
-                    <video
-                        ref={videoRef}
-                        className="lightbox-video"
-                        controls
-                        muted
-                        loop
-                        preload="metadata"
-                    />
-                </div>
 
-                {/* Attention Controls for Lightbox */}
-                {state.currentExperiment?.attention_videos?.available && state.availableTokens?.length > 0 && (
-                    <div className="lightbox-attention-controls">
-                        <div className="attention-toggle">
-                            <label>
-                                <input
-                                    type="checkbox"
-                                    checked={lightboxAttentionMode}
-                                    onChange={(e) => {
-                                        setLightboxAttentionMode(e.target.checked);
-                                        if (e.target.checked && !lightboxSelectedToken && state.availableTokens?.length > 0) {
-                                            setLightboxSelectedToken(state.availableTokens[0]);
-                                        }
-                                    }}
-                                />
-                                🎯 Attention Mode
-                            </label>
+                    <div className="lightbox-info">
+                        <div className="video-details">
+                            <span><strong>Variation:</strong> {video.variation || 'Unknown'}</span>
+                            <span><strong>Seed:</strong> {video.seed}</span>
+                            <span><strong>Resolution:</strong> {video.width}×{video.height}</span>
+                            <span><strong>Frames:</strong> {video.num_frames}</span>
+                            <span><strong>Steps:</strong> {video.steps}</span>
+                            <span><strong>CFG Scale:</strong> {video.cfg_scale}</span>
+                            {(lightboxAttentionMode || state.attentionMode) && (lightboxSelectedToken || state.selectedToken) && (
+                                <span><strong>Attention Token:</strong> {lightboxSelectedToken || state.selectedToken}</span>
+                            )}
                         </div>
-
-                        {lightboxAttentionMode && (
-                            <div className="token-selector">
-                                <label>Focus Token:</label>
-                                <div className="token-buttons">
-                                    {state.availableTokens.map(token => (
-                                        <button
-                                            key={token}
-                                            className={`token-button ${lightboxSelectedToken === token ? 'selected' : ''}`}
-                                            onClick={() => setLightboxSelectedToken(token)}
-                                            title={`Show attention for "${token}"`}
-                                        >
-                                            {token}
-                                        </button>
-                                    ))}
-                                </div>
+                        {onNavigate && (
+                            <div className="lightbox-controls-hint">
+                                <span>Use arrow keys or buttons to navigate: ← → (videos) ↑ ↓ (variations) | ESC to close</span>
                             </div>
                         )}
                     </div>
-                )}
-
-                <div className="lightbox-info">
-                    <div className="video-details">
-                        <span><strong>Variation:</strong> {video.variation || 'Unknown'}</span>
-                        <span><strong>Seed:</strong> {video.seed}</span>
-                        <span><strong>Resolution:</strong> {video.width}×{video.height}</span>
-                        <span><strong>Frames:</strong> {video.num_frames}</span>
-                        <span><strong>Steps:</strong> {video.steps}</span>
-                        <span><strong>CFG Scale:</strong> {video.cfg_scale}</span>
-                        {(lightboxAttentionMode || state.attentionMode) && (lightboxSelectedToken || state.selectedToken) && (
-                            <span><strong>Attention Token:</strong> {lightboxSelectedToken || state.selectedToken}</span>
-                        )}
-                    </div>
-                    {onNavigate && (
-                        <div className="lightbox-controls-hint">
-                            <span>Use arrow keys or buttons to navigate: ← → (videos) ↑ ↓ (variations) | ESC to close</span>
-                        </div>
-                    )}
                 </div>
+
+                {/* VLM Analysis Section */}
+                <VideoLightboxAnalysis video={video} />
             </div>
         </div>
     );

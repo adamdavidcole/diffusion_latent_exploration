@@ -1,0 +1,140 @@
+/* Lightbox Analysis Styles */
+.lightbox-analysis {
+    width: 100%;
+    padding: 0 20px 20px 20px;
+    /* max-height: 50vh; */
+    /* overflow-y: auto; */
+    background: rgba(16, 16, 16, 0.95);
+    border-radius: 8px;
+}
+
+.lightbox-analysis h3 {
+    color: #ffffff;
+    margin: 0 0 15px 0;
+    font-size: 16px;
+    font-weight: 600;
+    border-bottom: 1px solid #333;
+    padding-bottom: 8px;
+}
+
+.analysis-charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.analysis-section {
+    margin-bottom: 30px;
+}
+
+.analysis-section:last-child {
+    margin-bottom: 0;
+}
+
+.analysis-section h4 {
+    color: #4A90E2;
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Cultural Flags Styles */
+.cultural-flags {
+    margin-top: 25px;
+}
+
+.cultural-flag-section {
+    margin-bottom: 20px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 6px;
+    border-left: 3px solid #4A90E2;
+}
+
+.cultural-flag-section h5 {
+    color: #7ED321;
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.cultural-flag-field {
+    margin-bottom: 8px;
+}
+
+.cultural-flag-field:last-child {
+    margin-bottom: 0;
+}
+
+.cultural-flag-label {
+    color: #9B9B9B;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+}
+
+.cultural-flag-value {
+    color: #ffffff;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+/* Loading and error states */
+.analysis-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: #9B9B9B;
+    font-size: 14px;
+}
+
+.analysis-error {
+    padding: 15px;
+    background: rgba(208, 2, 27, 0.1);
+    border: 1px solid rgba(208, 2, 27, 0.3);
+    border-radius: 6px;
+    color: #ff6b6b;
+    font-size: 13px;
+    margin-bottom: 15px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .lightbox-analysis {
+        padding: 0 15px 15px 15px;
+    }
+
+    .analysis-charts-grid {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 10px;
+    }
+
+    .cultural-flag-section {
+        padding: 10px;
+    }
+}
+
+/* Custom scrollbar */
+.lightbox-analysis::-webkit-scrollbar {
+    width: 6px;
+}
+
+.lightbox-analysis::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+.lightbox-analysis::-webkit-scrollbar-thumb {
+    background: #4A90E2;
+    border-radius: 3px;
+}
+
+.lightbox-analysis::-webkit-scrollbar-thumb:hover {
+    background: #5ba0f2;
+}
