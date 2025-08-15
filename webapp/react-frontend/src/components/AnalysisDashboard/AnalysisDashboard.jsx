@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
+import AnalysisGrid from '../AnalysisGrid/AnalysisGrid';
 import './AnalysisDashboard.css';
 
 const AnalysisDashboard = ({ experimentPath }) => {
@@ -114,87 +115,42 @@ const AnalysisDashboard = ({ experimentPath }) => {
   return (
     <div className="analysis-dashboard">
       <div className="analysis-content">
-        <h3>VLM Analysis Results</h3>
-        
-        {/* Overall Statistics */}
-        {overall && (
-          <div className="analysis-section">
-            <h4>Overall Experiment Statistics</h4>
-            <div className="overall-stats">
-              <div className="stat-card">
-                <span className="stat-label">Total Videos</span>
-                <span className="stat-value">{overall.metadata?.successfully_loaded || 0}</span>
-              </div>
-              <div className="stat-card">
-                <span className="stat-label">Total People</span>
-                <span className="stat-value">{overall.aggregated_data?.people?.total_people || 0}</span>
-              </div>
-              <div className="stat-card">
-                <span className="stat-label">Female Count</span>
-                <span className="stat-value">
-                  {getGenderCounts(overall)?.Female || 0}
-                </span>
-              </div>
-              <div className="stat-card">
-                <span className="stat-label">Male Count</span>
-                <span className="stat-value">
-                  {getGenderCounts(overall)?.Male || 0}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Prompt Group Analysis */}
-        <div className="analysis-section">
-          <h4>Analysis by Prompt Group</h4>
+        {/* Summary Stats */}
+        <div className="analysis-summary">
+          <h3>VLM Analysis Results</h3>
           
-          {Object.keys(prompt_groups).length === 0 ? (
-            <p>No prompt group data available.</p>
-          ) : (
-            <div className="prompt-groups">
-              {Object.entries(prompt_groups).map(([promptKey, promptData]) => {
-                const genderCounts = getGenderCounts(promptData);
-                const variationName = getVariationName(promptKey, promptData);
-                
-                return (
-                  <div key={promptKey} className="prompt-group-card">
-                    <h5 className="prompt-group-title">{variationName}</h5>
-                    
-                    <div className="prompt-stats">
-                      <div className="stat-item">
-                        <span className="stat-label">Videos:</span>
-                        <span className="stat-value">{promptData.metadata?.successfully_loaded || 0}</span>
-                      </div>
-                      
-                      <div className="stat-item">
-                        <span className="stat-label">People:</span>
-                        <span className="stat-value">{promptData.aggregated_data?.people?.total_people || 0}</span>
-                      </div>
-                      
-                      <div className="stat-item">
-                        <span className="stat-label">Female:</span>
-                        <span className="stat-value">{genderCounts.Female || 0}</span>
-                      </div>
-                      
-                      <div className="stat-item">
-                        <span className="stat-label">Male:</span>
-                        <span className="stat-value">{genderCounts.Male || 0}</span>
-                      </div>
-                      
-                      {genderCounts.Ambiguous && (
-                        <div className="stat-item">
-                          <span className="stat-label">Ambiguous:</span>
-                          <span className="stat-value">{genderCounts.Ambiguous}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+          {/* Overall Statistics */}
+          {overall && (
+            <div className="analysis-section">
+              <h4>Overall Experiment Statistics</h4>
+              <div className="overall-stats">
+                <div className="stat-card">
+                  <span className="stat-label">Total Videos</span>
+                  <span className="stat-value">{overall.metadata?.successfully_loaded || 0}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Total People</span>
+                  <span className="stat-value">{overall.aggregated_data?.people?.total_people || 0}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Female Count</span>
+                  <span className="stat-value">
+                    {getGenderCounts(overall)?.Female || 0}
+                  </span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Male Count</span>
+                  <span className="stat-value">
+                    {getGenderCounts(overall)?.Male || 0}
+                  </span>
+                </div>
+              </div>
             </div>
           )}
         </div>
+
+        {/* Dynamic Analysis Grid */}
+        <AnalysisGrid />
       </div>
     </div>
   );

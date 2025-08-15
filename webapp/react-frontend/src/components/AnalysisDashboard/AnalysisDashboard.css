@@ -10,10 +10,24 @@
 
 .analysis-content {
     flex: 1;
-    overflow-y: auto;
-    padding: 1rem;
-    scrollbar-width: thin;
-    scrollbar-color: var(--accent) var(--bg-secondary);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Analysis Summary Section */
+.analysis-summary {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    padding: 1.5rem 2rem;
+    flex-shrink: 0;
+}
+
+.analysis-summary h3 {
+    margin: 0 0 1rem 0;
+    color: var(--text-primary);
+    font-size: 1.4rem;
+    font-weight: 600;
 }
 
 .analysis-content::-webkit-scrollbar {
