@@ -148,6 +148,7 @@ class ConversationVLMProcessor:
             
         except Exception as e:
             logger.error(f"Analysis failed: {e}")
+            logger.error(traceback.format_exc())
             results["ok"] = False
             results["errors"].append(f"Analysis exception: {str(e)}")
             

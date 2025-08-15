@@ -278,7 +278,7 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
 
     except Exception as e:
         logger.exception(f"❌ Analysis failed: {e}")
-        traceback.print_exc()
+        logger.error(traceback.format_exc())
         raise
 
 
