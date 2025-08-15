@@ -46,7 +46,8 @@ const initialState = {
     schemaLoading: false,
     schemaError: null,
     // Analysis view preferences
-    analysisViewBy: 'metric' // 'metric' or 'prompt'
+    analysisViewBy: 'metric', // 'metric' or 'prompt'
+    analysisChartSize: 250
 };
 
 // Action types
@@ -76,7 +77,8 @@ const ActionTypes = {
     SET_SCHEMA_LOADING: 'SET_SCHEMA_LOADING',
     SET_SCHEMA_ERROR: 'SET_SCHEMA_ERROR',
     // Analysis view actions
-    SET_ANALYSIS_VIEW_BY: 'SET_ANALYSIS_VIEW_BY'
+    SET_ANALYSIS_VIEW_BY: 'SET_ANALYSIS_VIEW_BY',
+    SET_ANALYSIS_CHART_SIZE: 'SET_ANALYSIS_CHART_SIZE'
 };
 
 // Reducer
@@ -156,6 +158,9 @@ const appReducer = (state, action) => {
 
         case ActionTypes.SET_ANALYSIS_VIEW_BY:
             return { ...state, analysisViewBy: action.payload };
+
+        case ActionTypes.SET_ANALYSIS_CHART_SIZE:
+            return { ...state, analysisChartSize: action.payload };
 
         default:
             return state;
@@ -240,7 +245,10 @@ export const AppProvider = ({ children }) => {
 
         // Analysis view actions
         setAnalysisViewBy: useCallback((viewBy) =>
-            dispatch({ type: ActionTypes.SET_ANALYSIS_VIEW_BY, payload: viewBy }), [])
+            dispatch({ type: ActionTypes.SET_ANALYSIS_VIEW_BY, payload: viewBy }), []),
+
+        setAnalysisChartSize: useCallback((size) =>
+            dispatch({ type: ActionTypes.SET_ANALYSIS_CHART_SIZE, payload: size }), [])
     };
 
         // Load analysis schema on app initialization

@@ -13,6 +13,9 @@ const AnalysisGrid = () => {
     analysisVisibleSections 
   } = state;
   
+  // Section tab state
+  const [activeSection, setActiveSection] = useState('people');
+  
   // Dashboard controls state (fallback to defaults if not in global state)
   const [localVisibleSections, setLocalVisibleSections] = useState({
     people: true,
@@ -20,12 +23,15 @@ const AnalysisGrid = () => {
     setting: true,
     cultural_flags: true,
   });
-  
-  const [localChartSize, setLocalChartSize] = useState(250);
 
   // Use global state if available, otherwise use local state
   const visibleSections = analysisVisibleSections || localVisibleSections;
-  const chartSize = analysisChartSize || localChartSize;
+  const chartSize = analysisChartSize || 250;
+
+  // Available sections based on schema
+  const availableSections = Object.keys(analysisSchema || {}).filter(key => 
+    ['people', 'composition', 'setting', 'cultural_flags'].includes(key)
+  );
 
   if (!currentAnalysis?.vlm_analysis || !analysisSchema) {
     return (
@@ -78,64 +84,63 @@ const AnalysisGrid = () => {
     return current?.data;
   };
 
-  // Get all metrics to display based on schema and visible sections
+  // Get all metrics to display based on active section only
   const getMetricsToDisplay = () => {
     const metrics = [];
     
-    Object.entries(visibleSections).forEach(([sectionKey, isVisible]) => {
-      if (!isVisible || !analysisSchema[sectionKey]) return;
-      
-      const section = analysisSchema[sectionKey];
-      
-      if (Array.isArray(section)) {
-        // Handle array sections like 'people'
-        const sampleItem = section[0];
-        Object.entries(sampleItem).forEach(([subsectionKey, subsection]) => {
-          if (typeof subsection === 'object' && subsection !== null) {
-            Object.entries(subsection).forEach(([fieldKey, fieldSchema]) => {
-              if (fieldSchema.type) {
-                metrics.push({
-                  section: sectionKey,
-                  subsection: subsectionKey,
-                  field: fieldKey,
-                  schema: fieldSchema,
-                  path: `${sectionKey}.sections.${subsectionKey}.${fieldKey}`,
-                  title: `${subsectionKey} - ${fieldKey}`.replace(/_/g, ' '),
-                });
-              } else if (fieldKey === 'hair' && typeof fieldSchema === 'object') {
-                // Handle nested objects like hair
-                Object.entries(fieldSchema).forEach(([nestedKey, nestedSchema]) => {
-                  if (nestedSchema.type) {
-                    metrics.push({
-                      section: sectionKey,
-                      subsection: subsectionKey,
-                      field: `${fieldKey}.${nestedKey}`,
-                      schema: nestedSchema,
-                      path: `${sectionKey}.sections.${subsectionKey}.${fieldKey}.${nestedKey}`,
-                      title: `${subsectionKey} - ${fieldKey} ${nestedKey}`.replace(/_/g, ' '),
-                    });
-                  }
-                });
-              }
-            });
-          }
-        });
-      } else {
-        // Handle object sections like 'composition', 'setting', 'cultural_flags'
-        Object.entries(section).forEach(([fieldKey, fieldSchema]) => {
-          if (fieldSchema.type) {
-            metrics.push({
-              section: sectionKey,
-              subsection: null,
-              field: fieldKey,
-              schema: fieldSchema,
-              path: `${sectionKey}.${fieldKey}`,
-              title: `${sectionKey} - ${fieldKey}`.replace(/_/g, ' '),
-            });
-          }
-        });
-      }
-    });
+    // Only process the active section
+    if (!analysisSchema[activeSection]) return metrics;
+    
+    const section = analysisSchema[activeSection];
+    
+    if (Array.isArray(section)) {
+      // Handle array sections like 'people'
+      const sampleItem = section[0];
+      Object.entries(sampleItem).forEach(([subsectionKey, subsection]) => {
+        if (typeof subsection === 'object' && subsection !== null) {
+          Object.entries(subsection).forEach(([fieldKey, fieldSchema]) => {
+            if (fieldSchema.type) {
+              metrics.push({
+                section: activeSection,
+                subsection: subsectionKey,
+                field: fieldKey,
+                schema: fieldSchema,
+                path: `${activeSection}.sections.${subsectionKey}.${fieldKey}`,
+                title: `${subsectionKey} - ${fieldKey}`.replace(/_/g, ' '),
+              });
+            } else if (fieldKey === 'hair' && typeof fieldSchema === 'object') {
+              // Handle nested objects like hair
+              Object.entries(fieldSchema).forEach(([nestedKey, nestedSchema]) => {
+                if (nestedSchema.type) {
+                  metrics.push({
+                    section: activeSection,
+                    subsection: subsectionKey,
+                    field: `${fieldKey}.${nestedKey}`,
+                    schema: nestedSchema,
+                    path: `${activeSection}.sections.${subsectionKey}.${fieldKey}.${nestedKey}`,
+                    title: `${subsectionKey} - ${fieldKey} ${nestedKey}`.replace(/_/g, ' '),
+                  });
+                }
+              });
+            }
+          });
+        }
+      });
+    } else {
+      // Handle object sections like 'composition', 'setting', 'cultural_flags'
+      Object.entries(section).forEach(([fieldKey, fieldSchema]) => {
+        if (fieldSchema.type) {
+          metrics.push({
+            section: activeSection,
+            subsection: null,
+            field: fieldKey,
+            schema: fieldSchema,
+            path: `${activeSection}.${fieldKey}`,
+            title: `${activeSection} - ${fieldKey}`.replace(/_/g, ' '),
+          });
+        }
+      });
+    }
     
     return metrics;
   };
@@ -182,56 +187,35 @@ const AnalysisGrid = () => {
     <div className="analysis-grid">
       {/* Dashboard Controls */}
       <div className="analysis-controls">
-        <div className="section-toggles">
-          <h4>Visible Sections:</h4>
-          {Object.entries(visibleSections).map(([sectionKey, isVisible]) => (
-            <label key={sectionKey} className="section-toggle">
-              <input
-                type="checkbox"
-                checked={isVisible}
-                onChange={() => toggleSection(sectionKey)}
-              />
-              <span>{sectionKey.replace(/_/g, ' ')}</span>
-            </label>
+        <div className="section-tabs">
+          {availableSections.map(sectionKey => (
+            <button
+              key={sectionKey}
+              className={`section-tab ${activeSection === sectionKey ? 'active' : ''}`}
+              onClick={() => setActiveSection(sectionKey)}
+            >
+              {sectionKey.replace(/_/g, ' ')}
+            </button>
           ))}
-        </div>
-        
-        <div className="size-control">
-          <label>
-            Chart Size: {chartSize}px
-            <input
-              type="range"
-              min="150"
-              max="400"
-              value={chartSize}
-              onChange={(e) => analysisChartSize ? setLocalChartSize(Number(e.target.value)) : setLocalChartSize(Number(e.target.value))}
-              className="size-slider"
-            />
-          </label>
         </div>
       </div>
 
       {/* Analysis Grid */}
       <div className="analysis-content">
+        <h3 className="section-header">{activeSection.replace(/_/g, ' ')} Analysis</h3>
+        
         {analysisViewBy === 'prompt' ? (
           // View by Prompt: rows = prompt groups, columns = metrics
           <div className="prompt-view">
-            <h3 className="view-header">Analysis by Prompt Group</h3>
-            
-            {/* Header row with metrics grouped by section */}
             <div className="metrics-grid">
               <div className="grid-header">
                 <div className="prompt-group-header">Prompt Group</div>
-                {Object.entries(groupedMetrics).map(([sectionKey, subsections]) => 
-                  Object.entries(subsections).map(([subsectionKey, sectionMetrics]) => 
-                    sectionMetrics.map(metric => (
-                      <div key={metric.path} className="metric-label-header">
-                        <span className="section-label">{sectionKey}</span>
-                        <span className="metric-label">{metric.field.replace(/_/g, ' ')}</span>
-                      </div>
-                    ))
-                  )
-                )}
+                {metrics.map(metric => (
+                  <div key={metric.path} className="metric-label-header" style={{width: `${chartSize}px`}}>
+                    <span className="section-label">{metric.subsection || activeSection}</span>
+                    <span className="metric-label">{metric.field.replace(/_/g, ' ')}</span>
+                  </div>
+                ))}
               </div>
               
               {/* Data rows for each prompt group */}
@@ -240,80 +224,76 @@ const AnalysisGrid = () => {
                   <div className="prompt-group-label">
                     {promptKey.replace('prompt_', 'Prompt ')}
                   </div>
-                  {Object.entries(groupedMetrics).map(([sectionKey, subsections]) => 
-                    Object.entries(subsections).map(([subsectionKey, sectionMetrics]) => 
-                      sectionMetrics.map(metric => {
-                        const promptData = prompt_groups[promptKey];
-                        const fieldData = getFieldData(metric.path, promptData);
-                        
-                        return (
-                          <div key={`${promptKey}-${metric.path}`} className="chart-cell">
-                            <ChartRenderer
-                              schemaField={metric.schema}
-                              data={fieldData}
-                              title={metric.field.replace(/_/g, ' ')}
-                              size={chartSize}
-                            />
-                          </div>
-                        );
-                      })
-                    )
-                  )}
+                  {metrics.map(metric => {
+                    const promptData = prompt_groups[promptKey];
+                    const fieldData = getFieldData(metric.path, promptData);
+                    
+                    return (
+                      <div key={`${promptKey}-${metric.path}`} className="chart-cell" style={{width: `${chartSize}px`}}>
+                        <ChartRenderer
+                          schemaField={metric.schema}
+                          data={fieldData}
+                          title={metric.field.replace(/_/g, ' ')}
+                          size={chartSize}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               ))}
             </div>
           </div>
         ) : (
-          // View by Metric: rows = metrics, columns = prompt groups (original layout)
-          Object.entries(groupedMetrics).map(([sectionKey, subsections]) => (
-            <div key={sectionKey} className="analysis-section">
-              <h3 className="section-header">{sectionKey.replace(/_/g, ' ')}</h3>
-              
-              {Object.entries(subsections).map(([subsectionKey, sectionMetrics]) => (
-                <div key={`${sectionKey}-${subsectionKey}`} className="analysis-subsection">
-                  {subsectionKey !== 'main' && (
-                    <h4 className="subsection-header">{subsectionKey.replace(/_/g, ' ')}</h4>
-                  )}
-                  
-                  <div className="metrics-grid">
-                    {/* Header row with prompt group names */}
-                    <div className="grid-header">
-                      <div className="metric-label-header">Metric</div>
-                      {promptGroupKeys.map(promptKey => (
-                        <div key={promptKey} className="prompt-group-header">
-                          {promptKey.replace('prompt_', 'Prompt ')}
+          // View by Metric: rows = metrics, columns = prompt groups
+          <div className="metric-view">
+            {Object.entries(groupedMetrics).map(([sectionKey, subsections]) => (
+              <div key={sectionKey}>
+                {Object.entries(subsections).map(([subsectionKey, sectionMetrics]) => (
+                  <div key={`${sectionKey}-${subsectionKey}`} className="analysis-subsection">
+                    {subsectionKey !== 'main' && (
+                      <h4 className="subsection-header">{subsectionKey.replace(/_/g, ' ')}</h4>
+                    )}
+                    
+                    <div className="metrics-grid">
+                      {/* Header row with prompt group names */}
+                      <div className="grid-header">
+                        <div className="metric-label-header">Metric</div>
+                        {promptGroupKeys.map(promptKey => (
+                          <div key={promptKey} className="prompt-group-header" style={{width: `${chartSize}px`}}>
+                            {promptKey.replace('prompt_', 'Prompt ')}
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {/* Data rows */}
+                      {sectionMetrics.map(metric => (
+                        <div key={metric.path} className="metric-row">
+                          <div className="metric-label">
+                            {metric.field.replace(/_/g, ' ')}
+                          </div>
+                          {promptGroupKeys.map(promptKey => {
+                            const promptData = prompt_groups[promptKey];
+                            const fieldData = getFieldData(metric.path, promptData);
+                            
+                            return (
+                              <div key={`${metric.path}-${promptKey}`} className="chart-cell" style={{width: `${chartSize}px`}}>
+                                <ChartRenderer
+                                  schemaField={metric.schema}
+                                  data={fieldData}
+                                  title={metric.field.replace(/_/g, ' ')}
+                                  size={chartSize}
+                                />
+                              </div>
+                            );
+                          })}
                         </div>
                       ))}
                     </div>
-                    
-                    {/* Data rows */}
-                    {sectionMetrics.map(metric => (
-                      <div key={metric.path} className="metric-row">
-                        <div className="metric-label">
-                          {metric.field.replace(/_/g, ' ')}
-                        </div>
-                        {promptGroupKeys.map(promptKey => {
-                          const promptData = prompt_groups[promptKey];
-                          const fieldData = getFieldData(metric.path, promptData);
-                          
-                          return (
-                            <div key={`${metric.path}-${promptKey}`} className="chart-cell">
-                              <ChartRenderer
-                                schemaField={metric.schema}
-                                data={fieldData}
-                                title={metric.field.replace(/_/g, ' ')}
-                                size={chartSize}
-                              />
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))}
                   </div>
-                </div>
-              ))}
-            </div>
-          ))
+                ))}
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

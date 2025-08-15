@@ -134,7 +134,6 @@
     border-radius: 8px;
     overflow: hidden;
     background: var(--bg-secondary);
-    margin-top: 1rem;
 }
 
 .grid-header {
@@ -219,7 +218,7 @@
     .analysis-grid {
         overflow-x: auto;
     }
-    
+
     .grid-header,
     .grid-row {
         min-width: max-content;
@@ -344,11 +343,11 @@
     .chart-cell {
         height: 250px;
     }
-    
+
     .charts-row {
         flex-wrap: wrap;
     }
-    
+
     .chart-row-label {
         min-width: 100%;
         margin-bottom: 0.5rem;
@@ -359,15 +358,15 @@
     .charts-header {
         flex-direction: column;
     }
-    
+
     .chart-header-cell {
         width: 100%;
     }
-    
+
     .charts-row {
         flex-direction: column;
     }
-    
+
     .chart-cell {
         height: 200px;
         width: 100%;

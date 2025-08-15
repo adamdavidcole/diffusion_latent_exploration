@@ -342,7 +342,7 @@ const AppContent = ({ experimentPath, isAnalysisRoute }) => {
         <div className="main-controls">
           {!isAnalysisRoute && <AttentionControls />}
           {isAnalysisRoute && <AnalysisControls />}
-          <SyncControls />
+          {!isAnalysisRoute && <SyncControls />}
         </div>
       </div>
     </div>

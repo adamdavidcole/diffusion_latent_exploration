@@ -4,11 +4,19 @@ import './AnalysisControls.css';
 
 const AnalysisControls = () => {
   const { state, actions } = useApp();
-  const { analysisViewBy } = state;
+  const { analysisViewBy, analysisChartSize } = state;
 
   const handleViewByChange = (viewBy) => {
     actions.setAnalysisViewBy(viewBy);
   };
+
+  const handleChartSizeChange = (size) => {
+    if (actions.setAnalysisChartSize) {
+      actions.setAnalysisChartSize(size);
+    }
+  };
+
+  const chartSize = analysisChartSize || 250;
 
   return (
     <div className="analysis-controls">
@@ -28,6 +36,20 @@ const AnalysisControls = () => {
             Prompt
           </button>
         </div>
+      </div>
+      
+      <div className="chart-size-control">
+        <label>
+          Chart Size: {chartSize}px
+          <input
+            type="range"
+            min="150"
+            max="400"
+            value={chartSize}
+            onChange={(e) => handleChartSizeChange(Number(e.target.value))}
+            className="size-slider"
+          />
+        </label>
       </div>
     </div>
   );
