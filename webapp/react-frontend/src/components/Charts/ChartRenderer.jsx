@@ -19,12 +19,42 @@ const ChartRenderer = ({
     );
   }
 
+    // Helper function to extend options data with missing options set to 0
+  const extendOptionsData = (data, schemaField) => {
+    if (schemaField.type !== 'options' || !schemaField.options || !data.counts) {
+      return data;
+    }
+
+    // Create new objects in the order defined by the schema
+    const orderedCounts = {};
+    const orderedPercentages = {};
+
+    // Process options in schema order, adding existing values or 0 for missing ones
+    schemaField.options.forEach(option => {
+      orderedCounts[option] = data.counts[option] || 0;
+      orderedPercentages[option] = data.percentages?.[option] || 0;
+    });
+
+    console.log(`Extended options data for ${title}:`, {
+      original: data.counts,
+      ordered: orderedCounts,
+      schemaOptions: schemaField.options
+    });
+
+    return {
+      ...data,
+      counts: orderedCounts,
+      percentages: orderedPercentages
+    };
+  };
+
   // Determine chart type based on schema field type
   const getChartComponent = () => {
     switch (schemaField.type) {
       case 'options':
-        // Use pie chart for categorical data
-        return <PieChart data={data} title={title} size={size} />;
+        // Extend data with missing options set to 0 for consistency
+        const extendedData = extendOptionsData(data, schemaField);
+        return <PieChart data={extendedData} title={title} size={size} />;
 
       case 'range':
         // Use bar chart for numerical ranges
