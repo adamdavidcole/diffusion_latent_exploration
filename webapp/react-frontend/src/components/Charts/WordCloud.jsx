@@ -1,10 +1,12 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { Chart } from 'react-chartjs-2';
 import { WordCloudController, WordElement } from 'chartjs-chart-wordcloud';
 import { ChartJS } from '../../utils/chartSetup';
+import WordCloudModal from './WordCloudModal';
 
 const WordCloud = ({ data, title, size = 250 }) => {
   const chartRef = useRef(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
   console.log('WordCloud received data:', data, 'title:', title);
 
@@ -53,10 +55,19 @@ const WordCloud = ({ data, title, size = 250 }) => {
 
   if (wordCloudData.labels.length === 0) {
     return (
-      <div className="chart-container" style={{ width: size, height: size }}>
-        <div className="chart-title">{title}</div>
-        <div className="no-data">No word data available</div>
-      </div>
+      <>
+        <div className="chart-container" style={{ width: size, height: size }}>
+          <div className="chart-title">{title}</div>
+          <div className="no-data">No word data available</div>
+        </div>
+        
+        <WordCloudModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          data={data}
+          title={title}
+        />
+      </>
     );
   }
 
@@ -79,6 +90,11 @@ const WordCloud = ({ data, title, size = 250 }) => {
   const options = {
     responsive: true,
     maintainAspectRatio: false,
+    onClick: (event, elements) => {
+      console.log('WordCloud clicked:', event, elements);
+      // Open modal when any part of the word cloud is clicked
+      setModalOpen(true);
+    },
     plugins: {
       legend: {
         display: false,
@@ -112,19 +128,49 @@ const WordCloud = ({ data, title, size = 250 }) => {
   };
 
   return (
-    <div className="chart-container" style={{ width: size, height: size, padding: '5px', boxSizing: 'border-box' }}>
-      <div className="chart-title">{title}</div>
-      <div style={{ width: '100%', height: size - 50, overflow: 'hidden' }}>
-        <Chart
-          ref={chartRef}
-          type="wordCloud"
-          data={chartData}
-          options={options}
-          width={size - 20}
-          height={size - 60} // Account for title and padding
-        />
+    <>
+      <div 
+        className="chart-container wordcloud-container" 
+        style={{ 
+          width: size, 
+          height: size, 
+          padding: '5px', 
+          boxSizing: 'border-box',
+          cursor: 'pointer',
+          transition: 'transform 0.2s, box-shadow 0.2s'
+        }}
+        onClick={() => setModalOpen(true)}
+        title="Click to view word details"
+      >
+        <div className="chart-title">
+          {title}
+          <span className="chart-click-hint" style={{ 
+            fontSize: '10px', 
+            color: '#9B9B9B',
+            marginLeft: '8px'
+          }}>
+            📊 Click for details
+          </span>
+        </div>
+        <div style={{ width: '100%', height: size - 50, overflow: 'hidden' }}>
+          <Chart
+            ref={chartRef}
+            type="wordCloud"
+            data={chartData}
+            options={options}
+            width={size - 20}
+            height={size - 60} // Account for title and padding
+          />
+        </div>
       </div>
-    </div>
+
+      <WordCloudModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        data={data}
+        title={title}
+      />
+    </>
   );
 };
 
