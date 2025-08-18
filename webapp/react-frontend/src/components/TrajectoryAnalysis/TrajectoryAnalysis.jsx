@@ -68,6 +68,19 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
         loadTrajectoryAnalysis();
     }, [experimentPath, currentExperiment]);
 
+    // Create global label mappings for legend
+    const createGlobalLabelMappings = (promptGroups) => {
+        const mappings = {};
+        promptGroups.forEach(key => {
+            const abbreviatedLabel = key.replace('prompt_', 'P');
+            const variationText = currentExperiment ?
+                getVariationTextFromPromptKey(key, currentExperiment) :
+                abbreviatedLabel;
+            mappings[abbreviatedLabel] = variationText;
+        });
+        return mappings;
+    };
+
     // Get current analysis data based on selected normalization
     const getCurrentAnalysisData = () => {
         if (!trajectoryData?.trajectory_analysis?.[activeNormalization]?.data) {
@@ -97,19 +110,6 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
             }
         }
         return [];
-    };
-
-    // Create global label mappings for legend
-    const createGlobalLabelMappings = (promptGroups) => {
-        const mappings = {};
-        promptGroups.forEach(key => {
-            const abbreviatedLabel = key.replace('prompt_', 'P');
-            const variationText = currentExperiment ? 
-                getVariationTextFromPromptKey(key, currentExperiment) : 
-                abbreviatedLabel;
-            mappings[abbreviatedLabel] = variationText;
-        });
-        return mappings;
     };
 
     // Render data for each section
@@ -221,9 +221,6 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             title="Mean Length"
                             size={chartSize}
                             yLabel="Length Units"
-                            currentExperiment={currentExperiment}
-                            beginAtZero={beginAtZero}
-                            showFullVariationText={showFullVariationText}
                         />
                     </div>
 
@@ -234,9 +231,6 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             title="Overall Mean Velocity"
                             size={chartSize}
                             yLabel="Velocity"
-                            currentExperiment={currentExperiment}
-                            beginAtZero={beginAtZero}
-                            showFullVariationText={showFullVariationText}
                         />
                     </div>
 
@@ -378,9 +372,9 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                     zIndex: 50,
                     boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
                 }}>
-                    <div style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
                         alignItems: 'center',
                         marginBottom: '8px',
                         borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
@@ -409,7 +403,7 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                     ))}
                 </div>
             )}
-            
+
             {/* Legend toggle when hidden */}
             {!showGlobalLegend && currentExperiment && !showFullVariationText && promptGroups.length > 0 && (
                 <button

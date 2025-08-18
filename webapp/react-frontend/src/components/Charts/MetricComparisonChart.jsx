@@ -59,8 +59,7 @@ const MetricComparisonChart = ({
 
     const options = {
         responsive: true,
-        width: size,
-        maintainAspectRatio: true,
+        maintainAspectRatio: false, // Allow chart to fill container
         plugins: {
             legend: {
                 display: false,
@@ -124,10 +123,32 @@ const MetricComparisonChart = ({
         },
     };
 
-    return (
-        <div style={{ position: 'relative' }}>
-            {/* Main Chart */}
-            <Bar data={chartData} options={options} />
+    // Calculate responsive height based on data and labels
+    const calculateHeight = () => {
+        const baseHeight = 350; // Increased minimum height
+        const labelHeight = showFullVariationText ? 100 : 40; // More space for rotated labels
+        const dataPoints = promptGroups.length;
+        const dataBasedHeight = Math.max(baseHeight, dataPoints * 30 + labelHeight);
+
+        // Scale with size but don't make it too extreme
+        const sizeFactor = size / 500; // Normalize to default size
+        return Math.min(dataBasedHeight * sizeFactor, size * 1.2); // Increased cap to 120% of width
+    }; return (
+        <div style={{
+            width: size,
+            height: calculateHeight(),
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column'
+        }}>
+            {/* Main Chart Container */}
+            <div style={{
+                flex: 1,
+                position: 'relative',
+                minHeight: '300px' // Increased minimum readable height
+            }}>
+                <Bar data={chartData} options={options} />
+            </div>
         </div>
     );
 };
