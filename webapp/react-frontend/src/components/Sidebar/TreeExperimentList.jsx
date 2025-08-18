@@ -7,7 +7,7 @@ import ExperimentItem from './ExperimentItem';
 // Configuration constants
 const INITIAL_MIN_VIDEO_COUNT = 20;
 
-const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, modelFilter, minVideoCount, minDuration, sortOrder, vlmAnalysisFilter, trajectoryAnalysisFilter }) => {
+const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, modelFilter, minVideoCount, minDuration, sortOrder, vlmAnalysisFilter, trajectoryAnalysisFilter, attentionVideosFilter }) => {
     const [isExpanded, setIsExpanded] = useState(level < 2); // Auto-expand first two levels
     const navigate = useNavigate();
 
@@ -30,8 +30,8 @@ const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, mo
     if (node.type === 'folder') {
         const hasVisibleChildren = node.children?.some(child =>
             child.type === 'experiment' ?
-                isExperimentVisible(child.experiment_data, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter) :
-                hasVisibleExperiments(child, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter)
+                isExperimentVisible(child.experiment_data, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter, attentionVideosFilter) :
+                hasVisibleExperiments(child, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter, attentionVideosFilter)
         );
 
         if (!hasVisibleChildren) return null;
@@ -67,6 +67,7 @@ const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, mo
                                     sortOrder={sortOrder}
                                     vlmAnalysisFilter={vlmAnalysisFilter}
                                     trajectoryAnalysisFilter={trajectoryAnalysisFilter}
+                                    attentionVideosFilter={attentionVideosFilter}
                                 />
                             ))}
                     </div>
@@ -77,7 +78,7 @@ const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, mo
 
     // For experiment nodes
     if (node.type === 'experiment') {
-        if (!isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter)) {
+        if (!isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter, attentionVideosFilter)) {
             return null;
         }
 
@@ -98,7 +99,7 @@ const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, mo
 };
 
 // Helper function to check if experiment matches filters
-const isExperimentVisible = (experiment, searchTerm, modelFilter, minVideoCount = 1, minDuration = 0, currentExperiment = null, vlmAnalysisFilter = false, trajectoryAnalysisFilter = false) => {
+const isExperimentVisible = (experiment, searchTerm, modelFilter, minVideoCount = 1, minDuration = 0, currentExperiment = null, vlmAnalysisFilter = false, trajectoryAnalysisFilter = false, attentionVideosFilter = false) => {
     // Always show the currently selected experiment, regardless of filters
     if (currentExperiment && experiment.name === currentExperiment.name) {
         return true;
@@ -137,6 +138,11 @@ const isExperimentVisible = (experiment, searchTerm, modelFilter, minVideoCount 
         return false;
     }
 
+    // Attention Videos filter
+    if (attentionVideosFilter && !experiment.attention_videos?.available) {
+        return false;
+    }
+
     // Search filter
     if (searchTerm.trim()) {
         const term = searchTerm.toLowerCase();
@@ -151,12 +157,12 @@ const isExperimentVisible = (experiment, searchTerm, modelFilter, minVideoCount 
 };
 
 // Helper function to check if folder has visible experiments
-const hasVisibleExperiments = (node, searchTerm, modelFilter, minVideoCount = 1, minDuration = 0, currentExperiment = null, vlmAnalysisFilter = false, trajectoryAnalysisFilter = false) => {
+const hasVisibleExperiments = (node, searchTerm, modelFilter, minVideoCount = 1, minDuration = 0, currentExperiment = null, vlmAnalysisFilter = false, trajectoryAnalysisFilter = false, attentionVideosFilter = false) => {
     if (node.type === 'experiment') {
-        return isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter);
+        return isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter, attentionVideosFilter);
     }
     if (node.type === 'folder' && node.children) {
-        return node.children.some(child => hasVisibleExperiments(child, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter));
+        return node.children.some(child => hasVisibleExperiments(child, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter, attentionVideosFilter));
     }
     return false;
 };
@@ -225,9 +231,9 @@ const sortChildren = (children, sortOrder) => {
 };
 
 // Helper function to find the first experiment in alphabetical order (with filters applied)
-const findFirstExperiment = (node, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment = null, vlmAnalysisFilter = false, trajectoryAnalysisFilter = false) => {
+const findFirstExperiment = (node, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment = null, vlmAnalysisFilter = false, trajectoryAnalysisFilter = false, attentionVideosFilter = false) => {
     if (node.type === 'experiment') {
-        if (isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter)) {
+        if (isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter, attentionVideosFilter)) {
             return node.path;
         }
         return null;
@@ -238,7 +244,7 @@ const findFirstExperiment = (node, searchTerm, modelFilter, minVideoCount, minDu
         const sortedChildren = [...node.children].sort((a, b) => a.name.localeCompare(b.name));
         
         for (const child of sortedChildren) {
-            const result = findFirstExperiment(child, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter);
+            const result = findFirstExperiment(child, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter, attentionVideosFilter);
             if (result) return result;
         }
     }
@@ -257,6 +263,7 @@ const TreeExperimentList = ({ onRescan }) => {
     const [sortOrder, setSortOrder] = useState('alphabetical'); // 'alphabetical', 'recent'
     const [vlmAnalysisFilter, setVlmAnalysisFilter] = useState(false); // VLM analysis filter
     const [trajectoryAnalysisFilter, setTrajectoryAnalysisFilter] = useState(false); // Trajectory analysis filter
+    const [attentionVideosFilter, setAttentionVideosFilter] = useState(false); // Attention videos filter
 
     const handleRescan = useCallback(async () => {
         try {
@@ -303,9 +310,9 @@ const TreeExperimentList = ({ onRescan }) => {
     }, [experimentsTree]);
 
     const visibleExperiments = useMemo(() => {
-        if (!experimentsTree || (!searchTerm && modelFilter === 'all' && minVideoCount === INITIAL_MIN_VIDEO_COUNT && minDuration === 0 && !vlmAnalysisFilter && !trajectoryAnalysisFilter)) return totalExperiments;
-        return countVisibleExperiments(experimentsTree, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter);
-    }, [experimentsTree, searchTerm, modelFilter, minVideoCount, minDuration, totalExperiments, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter]);
+        if (!experimentsTree || (!searchTerm && modelFilter === 'all' && minVideoCount === INITIAL_MIN_VIDEO_COUNT && minDuration === 0 && !vlmAnalysisFilter && !trajectoryAnalysisFilter && !attentionVideosFilter)) return totalExperiments;
+        return countVisibleExperiments(experimentsTree, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter, attentionVideosFilter);
+    }, [experimentsTree, searchTerm, modelFilter, minVideoCount, minDuration, totalExperiments, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter, attentionVideosFilter]);
 
     const handleSearchChange = useCallback((e) => {
         setSearchTerm(e.target.value);
@@ -327,18 +334,22 @@ const TreeExperimentList = ({ onRescan }) => {
         setTrajectoryAnalysisFilter(prev => !prev);
     }, []);
 
+    const handleAttentionVideosFilterChange = useCallback(() => {
+        setAttentionVideosFilter(prev => !prev);
+    }, []);
+
     const handleSortOrderChange = useCallback((order) => {
         setSortOrder(order);
         
         // When switching to alphabetical, navigate to the first experiment
         if (order === 'alphabetical' && experimentsTree) {
-            const firstExperiment = findFirstExperiment(experimentsTree, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter);
+            const firstExperiment = findFirstExperiment(experimentsTree, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter, attentionVideosFilter);
             if (firstExperiment) {
                 const experimentPath = firstExperiment.path.replace(/^outputs\//, '');
                 navigate(`/experiment/${experimentPath}`);
             }
         }
-    }, [experimentsTree, navigate, searchTerm, modelFilter, minVideoCount, minDuration, vlmAnalysisFilter, trajectoryAnalysisFilter]);
+    }, [experimentsTree, navigate, searchTerm, modelFilter, minVideoCount, minDuration, vlmAnalysisFilter, trajectoryAnalysisFilter, attentionVideosFilter]);
 
     if (error && !experimentsTree) {
         return (
@@ -439,6 +450,13 @@ const TreeExperimentList = ({ onRescan }) => {
                         title="Filter experiments with trajectory analysis"
                     >
                         Trajectory
+                    </button>
+                    <button
+                        className={`analysis-filter-btn ${attentionVideosFilter ? 'active' : ''}`}
+                        onClick={handleAttentionVideosFilterChange}
+                        title="Filter experiments with attention videos"
+                    >
+                        Attn
                     </button>
                 </div>
 
@@ -555,6 +573,14 @@ const TreeExperimentList = ({ onRescan }) => {
                                 Clear trajectory filter
                             </button>
                         )}
+                        {attentionVideosFilter && (
+                            <button
+                                onClick={handleAttentionVideosFilterChange}
+                                className="clear-search-btn-large"
+                            >
+                                Clear attention videos filter
+                            </button>
+                        )}
                     </div>
                 </div>
             ) : (
@@ -577,6 +603,7 @@ const TreeExperimentList = ({ onRescan }) => {
                                             sortOrder={sortOrder}
                                             vlmAnalysisFilter={vlmAnalysisFilter}
                                             trajectoryAnalysisFilter={trajectoryAnalysisFilter}
+                                            attentionVideosFilter={attentionVideosFilter}
                                         />
                                     ))
                             ) : (
@@ -592,6 +619,7 @@ const TreeExperimentList = ({ onRescan }) => {
                                     sortOrder={sortOrder}
                                     vlmAnalysisFilter={vlmAnalysisFilter}
                                     trajectoryAnalysisFilter={trajectoryAnalysisFilter}
+                                    attentionVideosFilter={attentionVideosFilter}
                                 />
                             )}
                         </div>
@@ -603,13 +631,13 @@ const TreeExperimentList = ({ onRescan }) => {
 };
 
 // Helper function to count visible experiments in tree
-const countVisibleExperiments = (node, searchTerm, modelFilter, minVideoCount = 1, minDuration = 0, currentExperiment = null, vlmAnalysisFilter = false, trajectoryAnalysisFilter = false) => {
+const countVisibleExperiments = (node, searchTerm, modelFilter, minVideoCount = 1, minDuration = 0, currentExperiment = null, vlmAnalysisFilter = false, trajectoryAnalysisFilter = false, attentionVideosFilter = false) => {
     if (node.type === 'experiment') {
-        return isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter) ? 1 : 0;
+        return isExperimentVisible(node.experiment_data, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter, attentionVideosFilter) ? 1 : 0;
     }
     if (node.type === 'folder' && node.children) {
         return node.children.reduce((count, child) =>
-            count + countVisibleExperiments(child, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter), 0
+            count + countVisibleExperiments(child, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter, attentionVideosFilter), 0
         );
     }
     return 0;
