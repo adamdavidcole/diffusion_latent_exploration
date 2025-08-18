@@ -3,6 +3,8 @@ import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
 import TrajectoryAnalysisControls from './TrajectoryAnalysisControls';
 import MetricComparisonChart from '../Charts/MetricComparisonChart';
+import ScatterChart from '../Charts/ScatterChart';
+import TrajectoryChartModal from '../Charts/TrajectoryChartModal';
 import LineChart from '../Charts/LineChart';
 import { getVariationTextFromPromptKey } from '../../utils/variationText';
 import { TrajectoryAnalysisDescriptions } from './TrajectoryAnalysisDescriptions';
@@ -25,6 +27,14 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
     const [beginAtZero, setBeginAtZero] = useState(false);
     const [showFullVariationText, setShowFullVariationText] = useState(false);
     const [showGlobalLegend, setShowGlobalLegend] = useState(true);
+
+    // Modal state
+    const [modalState, setModalState] = useState({
+        isOpen: false,
+        chartData: null,
+        metricKey: null,
+        title: null
+    });
 
     // Available sections
     const sections = [
@@ -112,6 +122,25 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
             }
         }
         return [];
+    };
+
+    // Modal functions
+    const openChartModal = (chartData, metricKey, title) => {
+        setModalState({
+            isOpen: true,
+            chartData,
+            metricKey,
+            title
+        });
+    };
+
+    const closeChartModal = () => {
+        setModalState({
+            isOpen: false,
+            chartData: null,
+            metricKey: null,
+            title: null
+        });
     };
 
     // Render data for each section
@@ -206,15 +235,22 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Trajectory Length
                             <TrajectoryInfoTooltip metricKey="trajectory_length" title="Trajectory Length" />
                         </h5>
-                        <MetricComparisonChart
-                            data={trajectoryLengthData}
-                            title="Mean Length"
-                            size={chartSize}
-                            yLabel="Length Units"
-                            currentExperiment={currentExperiment}
-                            beginAtZero={beginAtZero}
-                            showFullVariationText={showFullVariationText}
-                        />
+                        <div 
+                            className="clickable-chart"
+                            onClick={() => openChartModal(trajectoryLengthData, 'trajectory_length', 'Trajectory Length')}
+                            style={{ cursor: 'pointer' }}
+                            title="Click for detailed view"
+                        >
+                            <MetricComparisonChart
+                                data={trajectoryLengthData}
+                                title="Mean Length"
+                                size={chartSize}
+                                yLabel="Length Units"
+                                currentExperiment={currentExperiment}
+                                beginAtZero={beginAtZero}
+                                showFullVariationText={showFullVariationText}
+                            />
+                        </div>
                     </div>
 
                     <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
@@ -222,15 +258,22 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Velocity Analysis
                             <TrajectoryInfoTooltip metricKey="velocity_analysis" title="Velocity Analysis" />
                         </h5>
-                        <MetricComparisonChart
-                            data={velocityData}
-                            title="Overall Mean Velocity"
-                            size={chartSize}
-                            yLabel="Velocity"
-                            currentExperiment={currentExperiment}
-                            beginAtZero={beginAtZero}
-                            showFullVariationText={showFullVariationText}
-                        />
+                        <div 
+                            className="clickable-chart"
+                            onClick={() => openChartModal(velocityData, 'velocity_analysis', 'Velocity Analysis')}
+                            style={{ cursor: 'pointer' }}
+                            title="Click for detailed view"
+                        >
+                            <MetricComparisonChart
+                                data={velocityData}
+                                title="Overall Mean Velocity"
+                                size={chartSize}
+                                yLabel="Velocity"
+                                currentExperiment={currentExperiment}
+                                beginAtZero={beginAtZero}
+                                showFullVariationText={showFullVariationText}
+                            />
+                        </div>
                     </div>
 
                     <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
@@ -238,15 +281,22 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Acceleration Analysis
                             <TrajectoryInfoTooltip metricKey="acceleration_analysis" title="Acceleration Analysis" />
                         </h5>
-                        <MetricComparisonChart
-                            data={accelerationData}
-                            title="Overall Mean Acceleration"
-                            size={chartSize}
-                            yLabel="Acceleration"
-                            currentExperiment={currentExperiment}
-                            beginAtZero={beginAtZero}
-                            showFullVariationText={showFullVariationText}
-                        />
+                        <div 
+                            className="clickable-chart"
+                            onClick={() => openChartModal(accelerationData, 'acceleration_analysis', 'Acceleration Analysis')}
+                            style={{ cursor: 'pointer' }}
+                            title="Click for detailed view"
+                        >
+                            <MetricComparisonChart
+                                data={accelerationData}
+                                title="Overall Mean Acceleration"
+                                size={chartSize}
+                                yLabel="Acceleration"
+                                currentExperiment={currentExperiment}
+                                beginAtZero={beginAtZero}
+                                showFullVariationText={showFullVariationText}
+                            />
+                        </div>
                     </div>
 
                     <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
@@ -254,15 +304,22 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Tortuosity
                             <TrajectoryInfoTooltip metricKey="tortuosity" title="Tortuosity" />
                         </h5>
-                        <MetricComparisonChart
-                            data={tortuosityData}
-                            title="Mean Tortuosity"
-                            size={chartSize}
-                            yLabel="Tortuosity"
-                            currentExperiment={currentExperiment}
-                            beginAtZero={beginAtZero}
-                            showFullVariationText={showFullVariationText}
-                        />
+                        <div 
+                            className="clickable-chart"
+                            onClick={() => openChartModal(tortuosityData, 'tortuosity', 'Tortuosity')}
+                            style={{ cursor: 'pointer' }}
+                            title="Click for detailed view"
+                        >
+                            <MetricComparisonChart
+                                data={tortuosityData}
+                                title="Mean Tortuosity"
+                                size={chartSize}
+                                yLabel="Tortuosity"
+                                currentExperiment={currentExperiment}
+                                beginAtZero={beginAtZero}
+                                showFullVariationText={showFullVariationText}
+                            />
+                        </div>
                     </div>
 
                     <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
@@ -270,15 +327,22 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Endpoint Distance
                             <TrajectoryInfoTooltip metricKey="endpoint_distance" title="Endpoint Distance" />
                         </h5>
-                        <MetricComparisonChart
-                            data={endpointDistanceData}
-                            title="Mean Endpoint Distance"
-                            size={chartSize}
-                            yLabel="Distance"
-                            currentExperiment={currentExperiment}
-                            beginAtZero={beginAtZero}
-                            showFullVariationText={showFullVariationText}
-                        />
+                        <div 
+                            className="clickable-chart"
+                            onClick={() => openChartModal(endpointDistanceData, 'endpoint_distance', 'Endpoint Distance')}
+                            style={{ cursor: 'pointer' }}
+                            title="Click for detailed view"
+                        >
+                            <MetricComparisonChart
+                                data={endpointDistanceData}
+                                title="Mean Endpoint Distance"
+                                size={chartSize}
+                                yLabel="Distance"
+                                currentExperiment={currentExperiment}
+                                beginAtZero={beginAtZero}
+                                showFullVariationText={showFullVariationText}
+                            />
+                        </div>
                     </div>
 
                     <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
@@ -286,15 +350,22 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Semantic Convergence
                             <TrajectoryInfoTooltip metricKey="semantic_convergence" title="Semantic Convergence" />
                         </h5>
-                        <MetricComparisonChart
-                            data={semanticConvergenceData}
-                            title="Mean Half Life"
-                            size={chartSize}
-                            yLabel="Steps"
-                            currentExperiment={currentExperiment}
-                            beginAtZero={beginAtZero}
-                            showFullVariationText={showFullVariationText}
-                        />
+                        <div 
+                            className="clickable-chart"
+                            onClick={() => openChartModal(semanticConvergenceData, 'semantic_convergence', 'Semantic Convergence')}
+                            style={{ cursor: 'pointer' }}
+                            title="Click for detailed view"
+                        >
+                            <MetricComparisonChart
+                                data={semanticConvergenceData}
+                                title="Mean Half Life"
+                                size={chartSize}
+                                yLabel="Steps"
+                                currentExperiment={currentExperiment}
+                                beginAtZero={beginAtZero}
+                                showFullVariationText={showFullVariationText}
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -313,8 +384,14 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
         const efficiencyData = {};
         const stepVariabilityData = {};
 
+        // Prepare scatter plot data
+        const velocityVsLogVolumeScatterData = {};
+        const velocityVsCircuitousnessScatterData = {};
+
         promptGroups.forEach(promptGroup => {
             const geometric = analysisData?.individual_trajectory_geometry?.[promptGroup];
+            const temporal = analysisData?.temporal_analysis?.[promptGroup];
+            
             if (geometric) {
                 speedData[promptGroup] = geometric.speed_stats?.mean;
                 logVolumeData[promptGroup] = geometric.log_volume_stats?.mean;
@@ -324,6 +401,38 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                 circuitousnessData[promptGroup] = geometric.circuitousness_stats?.mean;
                 efficiencyData[promptGroup] = geometric.efficiency_metrics?.mean_efficiency;
                 stepVariabilityData[promptGroup] = geometric.step_variability_stats?.mean;
+
+                // Prepare scatter plot data - per-trajectory values
+                const velocityValues = temporal?.velocity_analysis?.mean_velocity_by_video || 
+                                     temporal?.velocity_analysis?.mean_velocity || [];
+                const logVolumeValues = geometric.log_volume_stats?.individual_values || [];
+                const circuitousnessValues = geometric.circuitousness_stats?.individual_values || [];
+
+                // Create scatter plot points for velocity vs log volume
+                const velocityLogVolumePoints = [];
+                const minLength = Math.min(velocityValues.length, logVolumeValues.length);
+                for (let i = 0; i < minLength; i++) {
+                    if (velocityValues[i] != null && logVolumeValues[i] != null) {
+                        velocityLogVolumePoints.push({
+                            x: velocityValues[i],
+                            y: logVolumeValues[i]
+                        });
+                    }
+                }
+                velocityVsLogVolumeScatterData[promptGroup] = velocityLogVolumePoints;
+
+                // Create scatter plot points for velocity vs circuitousness (minus 1.0)
+                const velocityCircuitousnessPoints = [];
+                const minLength2 = Math.min(velocityValues.length, circuitousnessValues.length);
+                for (let i = 0; i < minLength2; i++) {
+                    if (velocityValues[i] != null && circuitousnessValues[i] != null) {
+                        velocityCircuitousnessPoints.push({
+                            x: velocityValues[i],
+                            y: circuitousnessValues[i] - 1.0
+                        });
+                    }
+                }
+                velocityVsCircuitousnessScatterData[promptGroup] = velocityCircuitousnessPoints;
             }
         });
 
@@ -353,15 +462,22 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Log Volume Statistics
                             <TrajectoryInfoTooltip metricKey="log_volume_stats" title="Log Volume Statistics" />
                         </h5>
-                        <MetricComparisonChart
-                            data={logVolumeData}
-                            title="Mean Log Volume"
-                            size={chartSize}
-                            yLabel="Log Volume"
-                            currentExperiment={currentExperiment}
-                            beginAtZero={beginAtZero}
-                            showFullVariationText={showFullVariationText}
-                        />
+                        <div 
+                            className="clickable-chart"
+                            onClick={() => openChartModal(logVolumeData, 'log_volume_stats', 'Log Volume Statistics')}
+                            style={{ cursor: 'pointer' }}
+                            title="Click for detailed view"
+                        >
+                            <MetricComparisonChart
+                                data={logVolumeData}
+                                title="Mean Log Volume"
+                                size={chartSize}
+                                yLabel="Log Volume"
+                                currentExperiment={currentExperiment}
+                                beginAtZero={beginAtZero}
+                                showFullVariationText={showFullVariationText}
+                            />
+                        </div>
                     </div>
 
                     <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
@@ -458,6 +574,56 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             beginAtZero={beginAtZero}
                             showFullVariationText={showFullVariationText}
                         />
+                    </div>
+
+                    {/* Scatter Plot: Velocity vs Log Volume */}
+                    <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                        <h5>
+                            Velocity vs Log Volume
+                            <TrajectoryInfoTooltip metricKey="velocity_vs_log_volume" title="Velocity vs Log Volume Scatter Plot" />
+                        </h5>
+                        <div 
+                            className="clickable-chart"
+                            onClick={() => openChartModal(velocityVsLogVolumeScatterData, 'velocity_vs_log_volume', 'Velocity vs Log Volume')}
+                            style={{ cursor: 'pointer' }}
+                            title="Click for detailed view"
+                        >
+                            <ScatterChart
+                                data={velocityVsLogVolumeScatterData}
+                                title="Velocity vs Log Volume (points = trajectories)"
+                                size={chartSize}
+                                xLabel="Velocity (mean per trajectory)"
+                                yLabel="Log Volume"
+                                currentExperiment={currentExperiment}
+                                beginAtZero={beginAtZero}
+                                showFullVariationText={showFullVariationText}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Scatter Plot: Velocity vs Circuitousness */}
+                    <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                        <h5>
+                            Velocity vs Circuitousness
+                            <TrajectoryInfoTooltip metricKey="velocity_vs_circuitousness" title="Velocity vs Circuitousness Scatter Plot" />
+                        </h5>
+                        <div 
+                            className="clickable-chart"
+                            onClick={() => openChartModal(velocityVsCircuitousnessScatterData, 'velocity_vs_circuitousness', 'Velocity vs Circuitousness')}
+                            style={{ cursor: 'pointer' }}
+                            title="Click for detailed view"
+                        >
+                            <ScatterChart
+                                data={velocityVsCircuitousnessScatterData}
+                                title="Velocity vs Circuitousness (points = trajectories)"
+                                size={chartSize}
+                                xLabel="Velocity (mean per trajectory)"
+                                yLabel="Circuitousness − 1.0"
+                                currentExperiment={currentExperiment}
+                                beginAtZero={beginAtZero}
+                                showFullVariationText={showFullVariationText}
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -611,6 +777,22 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                 onChartSizeChange={setChartSize}
                 beginAtZero={beginAtZero}
                 onBeginAtZeroChange={setBeginAtZero}
+                showFullVariationText={showFullVariationText}
+                onShowFullVariationTextChange={setShowFullVariationText}
+            />
+
+            {/* Chart Detail Modal */}
+            <TrajectoryChartModal
+                isOpen={modalState.isOpen}
+                onClose={closeChartModal}
+                chartData={modalState.chartData}
+                metricKey={modalState.metricKey}
+                title={modalState.title}
+                analysisData={analysisData}
+                promptGroups={promptGroups}
+                currentExperiment={currentExperiment}
+                chartSize={chartSize}
+                beginAtZero={beginAtZero}
                 showFullVariationText={showFullVariationText}
                 onShowFullVariationTextChange={setShowFullVariationText}
             />

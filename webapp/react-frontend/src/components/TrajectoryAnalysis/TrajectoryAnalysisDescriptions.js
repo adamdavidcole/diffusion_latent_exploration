@@ -23,4 +23,9 @@ export const TrajectoryAnalysisDescriptions = {
     efficiency_metrics: "Efficiency Metrics: quantifies how efficiently the trajectory moves from its starting point to its endpoint. This includes the mean efficiency score and counts of ballistic (direct) versus meandering trajectories. Higher efficiency indicates more direct paths through latent space, while lower efficiency suggests more exploratory or indirect routes.",
     
     step_variability_stats: "Step Variability Statistics: measures the variability or consistency of step sizes throughout the trajectory. High variability indicates irregular movement with varying step sizes, while low variability suggests more consistent, regular progression. This metric helps identify whether trajectories maintain steady progress or exhibit irregular, episodic movement patterns.",
+
+    // SCATTER PLOT METRICS
+    velocity_vs_log_volume: "Velocity vs Log Volume Scatter Plot: shows the relationship between trajectory velocity (mean per trajectory) and log volume for individual trajectories. Each point represents a single trajectory, colored by prompt group. This visualization helps identify correlations between movement speed and spatial extent, revealing whether faster-moving trajectories tend to occupy larger or smaller volumes in latent space.",
+    
+    velocity_vs_circuitousness: "Velocity vs Circuitousness Scatter Plot: displays the relationship between trajectory velocity and path circuitousness (minus 1.0, where 0 represents a straight line) for individual trajectories. Each point represents a single trajectory, colored by prompt group. This plot reveals whether trajectories with higher velocities tend to follow more direct or more winding paths through latent space.",
 }
