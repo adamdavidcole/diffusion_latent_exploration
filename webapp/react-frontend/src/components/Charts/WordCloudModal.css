@@ -1,0 +1,183 @@
+/* WordCloud Modal Styles - Reusing Cultural Flags styling patterns */
+
+.wordcloud-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  backdrop-filter: blur(4px);
+}
+
+.wordcloud-modal {
+  background: rgba(16, 16, 16, 0.95);
+  border-radius: 8px;
+  border: 1px solid #333;
+  max-width: 600px;
+  max-height: 80vh;
+  width: 90vw;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.wordcloud-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #333;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.wordcloud-modal-header h3 {
+  color: #ffffff;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.wordcloud-modal-close {
+  background: none;
+  border: none;
+  color: #9B9B9B;
+  font-size: 24px;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.wordcloud-modal-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.wordcloud-modal-content {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.wordcloud-details {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.wordcloud-summary {
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 6px;
+  border-left: 3px solid #4A90E2;
+}
+
+.wordcloud-summary p {
+  color: #ffffff;
+  margin: 4px 0;
+  font-size: 14px;
+}
+
+.wordcloud-summary strong {
+  color: #7ED321;
+  font-weight: 600;
+}
+
+.wordcloud-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wordcloud-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 4px;
+  border-left: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.wordcloud-entry:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-left-color: #4A90E2;
+}
+
+.wordcloud-entry-word {
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  flex: 1;
+}
+
+.wordcloud-entry-count {
+  color: #7ED321;
+  font-size: 14px;
+  font-weight: 600;
+  background: rgba(126, 211, 33, 0.1);
+  padding: 2px 8px;
+  border-radius: 12px;
+  min-width: 24px;
+  text-align: center;
+}
+
+.wordcloud-no-data {
+  text-align: center;
+  color: #9B9B9B;
+  font-size: 14px;
+  padding: 40px;
+}
+
+/* Custom scrollbar for modal content */
+.wordcloud-modal-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.wordcloud-modal-content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.wordcloud-modal-content::-webkit-scrollbar-thumb {
+  background: #4A90E2;
+  border-radius: 3px;
+}
+
+.wordcloud-modal-content::-webkit-scrollbar-thumb:hover {
+  background: #5ba0f2;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .wordcloud-modal {
+    width: 95vw;
+    max-height: 85vh;
+  }
+  
+  .wordcloud-modal-header {
+    padding: 15px;
+  }
+  
+  .wordcloud-modal-content {
+    padding: 15px;
+  }
+  
+  .wordcloud-entry {
+    padding: 6px 10px;
+  }
+  
+  .wordcloud-entry-word, .wordcloud-entry-count {
+    font-size: 13px;
+  }
+}
