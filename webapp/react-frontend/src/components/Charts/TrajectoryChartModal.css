@@ -230,6 +230,39 @@
     }
 }
 
+/* Combined trajectory chart styles */
+.trajectory-chart-modal-combined-chart {
+    margin-top: 32px;
+    padding: 24px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.trajectory-chart-modal-combined-chart h4 {
+    margin: 0 0 12px 0;
+    color: #495057;
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.combined-chart-description {
+    margin: 0 0 20px 0;
+    color: #6c757d;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    font-style: italic;
+}
+
+.combined-chart-container {
+    display: flex;
+    justify-content: center;
+    background: white;
+    border-radius: 6px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
 /* Scrollbar styling */
 .trajectory-chart-modal::-webkit-scrollbar {
     width: 8px;

@@ -485,15 +485,22 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Effective Side Statistics
                             <TrajectoryInfoTooltip metricKey="effective_side_stats" title="Effective Side Statistics" />
                         </h5>
-                        <MetricComparisonChart
-                            data={effectiveSideData}
-                            title="Mean Effective Side"
-                            size={chartSize}
-                            yLabel="Effective Side"
-                            currentExperiment={currentExperiment}
-                            beginAtZero={beginAtZero}
-                            showFullVariationText={showFullVariationText}
-                        />
+                        <div 
+                            className="clickable-chart"
+                            onClick={() => openChartModal(effectiveSideData, 'effective_side_stats', 'Effective Side Statistics')}
+                            style={{ cursor: 'pointer' }}
+                            title="Click for detailed view"
+                        >
+                            <MetricComparisonChart
+                                data={effectiveSideData}
+                                title="Mean Effective Side"
+                                size={chartSize}
+                                yLabel="Effective Side"
+                                currentExperiment={currentExperiment}
+                                beginAtZero={beginAtZero}
+                                showFullVariationText={showFullVariationText}
+                            />
+                        </div>
                     </div>
 
                     <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
@@ -501,15 +508,22 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Endpoint Alignment
                             <TrajectoryInfoTooltip metricKey="endpoint_alignment_stats" title="Endpoint Alignment" />
                         </h5>
-                        <MetricComparisonChart
-                            data={endpointAlignmentData}
-                            title="Mean Endpoint Alignment"
-                            size={chartSize}
-                            yLabel="Alignment"
-                            currentExperiment={currentExperiment}
-                            beginAtZero={beginAtZero}
-                            showFullVariationText={showFullVariationText}
-                        />
+                        <div 
+                            className="clickable-chart"
+                            onClick={() => openChartModal(endpointAlignmentData, 'endpoint_alignment_stats', 'Endpoint Alignment')}
+                            style={{ cursor: 'pointer' }}
+                            title="Click for detailed view"
+                        >
+                            <MetricComparisonChart
+                                data={endpointAlignmentData}
+                                title="Mean Endpoint Alignment"
+                                size={chartSize}
+                                yLabel="Alignment"
+                                currentExperiment={currentExperiment}
+                                beginAtZero={beginAtZero}
+                                showFullVariationText={showFullVariationText}
+                            />
+                        </div>
                     </div>
 
                     <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
@@ -517,15 +531,22 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Turning Angle Statistics
                             <TrajectoryInfoTooltip metricKey="turning_angle_stats" title="Turning Angle Statistics" />
                         </h5>
-                        <MetricComparisonChart
-                            data={turningAngleData}
-                            title="Mean Turning Angle"
-                            size={chartSize}
-                            yLabel="Angle (radians)"
-                            currentExperiment={currentExperiment}
-                            beginAtZero={beginAtZero}
-                            showFullVariationText={showFullVariationText}
-                        />
+                        <div 
+                            className="clickable-chart"
+                            onClick={() => openChartModal(turningAngleData, 'turning_angle_stats', 'Turning Angle Statistics')}
+                            style={{ cursor: 'pointer' }}
+                            title="Click for detailed view"
+                        >
+                            <MetricComparisonChart
+                                data={turningAngleData}
+                                title="Mean Turning Angle"
+                                size={chartSize}
+                                yLabel="Angle (radians)"
+                                currentExperiment={currentExperiment}
+                                beginAtZero={beginAtZero}
+                                showFullVariationText={showFullVariationText}
+                            />
+                        </div>
                     </div>
 
                     <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
@@ -533,15 +554,22 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Circuitousness Statistics
                             <TrajectoryInfoTooltip metricKey="circuitousness_stats" title="Circuitousness Statistics" />
                         </h5>
-                        <MetricComparisonChart
-                            data={circuitousnessData}
-                            title="Mean Circuitousness"
-                            size={chartSize}
-                            yLabel="Circuitousness"
-                            currentExperiment={currentExperiment}
-                            beginAtZero={beginAtZero}
-                            showFullVariationText={showFullVariationText}
-                        />
+                        <div 
+                            className="clickable-chart"
+                            onClick={() => openChartModal(circuitousnessData, 'circuitousness_stats', 'Circuitousness Statistics')}
+                            style={{ cursor: 'pointer' }}
+                            title="Click for detailed view"
+                        >
+                            <MetricComparisonChart
+                                data={circuitousnessData}
+                                title="Mean Circuitousness"
+                                size={chartSize}
+                                yLabel="Circuitousness"
+                                currentExperiment={currentExperiment}
+                                beginAtZero={beginAtZero}
+                                showFullVariationText={showFullVariationText}
+                            />
+                        </div>
                     </div>
 
                     <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
@@ -549,15 +577,22 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Efficiency Metrics
                             <TrajectoryInfoTooltip metricKey="efficiency_metrics" title="Efficiency Metrics" />
                         </h5>
-                        <MetricComparisonChart
-                            data={efficiencyData}
-                            title="Mean Efficiency"
-                            size={chartSize}
-                            yLabel="Efficiency"
-                            currentExperiment={currentExperiment}
-                            beginAtZero={beginAtZero}
-                            showFullVariationText={showFullVariationText}
-                        />
+                        <div 
+                            className="clickable-chart"
+                            onClick={() => openChartModal(efficiencyData, 'efficiency_metrics', 'Efficiency Metrics')}
+                            style={{ cursor: 'pointer' }}
+                            title="Click for detailed view"
+                        >
+                            <MetricComparisonChart
+                                data={efficiencyData}
+                                title="Mean Efficiency"
+                                size={chartSize}
+                                yLabel="Efficiency"
+                                currentExperiment={currentExperiment}
+                                beginAtZero={beginAtZero}
+                                showFullVariationText={showFullVariationText}
+                            />
+                        </div>
                     </div>
 
                     <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
@@ -565,15 +600,22 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Step Variability Statistics
                             <TrajectoryInfoTooltip metricKey="step_variability_stats" title="Step Variability Statistics" />
                         </h5>
-                        <MetricComparisonChart
-                            data={stepVariabilityData}
-                            title="Mean Step Variability"
-                            size={chartSize}
-                            yLabel="Variability"
-                            currentExperiment={currentExperiment}
-                            beginAtZero={beginAtZero}
-                            showFullVariationText={showFullVariationText}
-                        />
+                        <div 
+                            className="clickable-chart"
+                            onClick={() => openChartModal(stepVariabilityData, 'step_variability_stats', 'Step Variability Statistics')}
+                            style={{ cursor: 'pointer' }}
+                            title="Click for detailed view"
+                        >
+                            <MetricComparisonChart
+                                data={stepVariabilityData}
+                                title="Mean Step Variability"
+                                size={chartSize}
+                                yLabel="Variability"
+                                currentExperiment={currentExperiment}
+                                beginAtZero={beginAtZero}
+                                showFullVariationText={showFullVariationText}
+                            />
+                        </div>
                     </div>
 
                     {/* Scatter Plot: Velocity vs Log Volume */}

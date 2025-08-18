@@ -12,7 +12,11 @@ const ScatterChart = ({
     colors = null,
     currentExperiment = null,
     showFullVariationText = false,
-    beginAtZero = false
+    beginAtZero = false,
+    xMin = null,
+    xMax = null,
+    yMin = null,
+    yMax = null
 }) => {
 
     if (!data || Object.keys(data).length === 0) {
@@ -139,7 +143,9 @@ const ScatterChart = ({
                     display: true,
                     color: 'rgba(0,0,0,0.1)'
                 },
-                beginAtZero: beginAtZero
+                beginAtZero: beginAtZero,
+                min: xMin,
+                max: xMax
             },
             y: {
                 title: {
@@ -152,9 +158,11 @@ const ScatterChart = ({
                 },
                 grid: {
                     display: true,
-                    color: 'rgba(255, 255, 255, 0.1)'
+                    color: 'rgba(0,0,0,0.1)'
                 },
-                beginAtZero: beginAtZero
+                beginAtZero: beginAtZero,
+                min: yMin,
+                max: yMax
             }
         },
         interaction: {

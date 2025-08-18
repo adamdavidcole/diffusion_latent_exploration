@@ -124,6 +124,40 @@ const TrajectoryChartModal = ({
     // Get consistent colors for all charts
     const consistentColors = getPromptGroupColors(promptGroups);
 
+    // Calculate global ranges for individual trajectory charts
+    const calculateGlobalRanges = () => {
+        let globalYMin = Infinity;
+        let globalYMax = -Infinity;
+        let globalXMax = 0; // X is trajectory number, so min is 1
+
+        Object.values(individualValues).forEach(trajectoryData => {
+            if (trajectoryData && trajectoryData.length > 0) {
+                trajectoryData.forEach(point => {
+                    if (point.y != null) {
+                        globalYMin = Math.min(globalYMin, point.y);
+                        globalYMax = Math.max(globalYMax, point.y);
+                    }
+                    if (point.x != null) {
+                        globalXMax = Math.max(globalXMax, point.x);
+                    }
+                });
+            }
+        });
+
+        // Add some padding to the ranges
+        const yRange = globalYMax - globalYMin;
+        const yPadding = yRange * 0.1; // 10% padding
+
+        return {
+            xMin: 0.5, // Start slightly before trajectory 1
+            xMax: globalXMax + 0.5, // End slightly after last trajectory
+            yMin: globalYMin - yPadding,
+            yMax: globalYMax + yPadding
+        };
+    };
+
+    const globalRanges = hasIndividualValues ? calculateGlobalRanges() : null;
+
     // Create enhanced chart data with error bars
     const createEnhancedChartData = () => {
         if (!hasIndividualValues) return chartData;
@@ -146,6 +180,26 @@ const TrajectoryChartModal = ({
 
         return enhancedData;
     };
+
+    // Create combined trajectory data for all-in-one visualization
+    const createCombinedTrajectoryData = () => {
+        const combinedData = {};
+        
+        promptGroups.forEach((promptGroup, index) => {
+            const values = individualValues[promptGroup];
+            if (values && values.length > 0) {
+                const label = showFullVariationText && currentExperiment ?
+                    getVariationTextFromPromptKey(promptGroup, currentExperiment) :
+                    promptGroup.replace('prompt_', 'P');
+                
+                combinedData[label] = values;
+            }
+        });
+        
+        return combinedData;
+    };
+
+    const combinedTrajectoryData = hasIndividualValues ? createCombinedTrajectoryData() : null;
 
     return (
         <div className="trajectory-chart-modal-backdrop" onClick={handleBackdropClick}>
@@ -266,10 +320,41 @@ const TrajectoryChartModal = ({
                                                 currentExperiment={currentExperiment}
                                                 beginAtZero={beginAtZero}
                                                 showFullVariationText={showFullVariationText}
+                                                xMin={globalRanges?.xMin}
+                                                xMax={globalRanges?.xMax}
+                                                yMin={globalRanges?.yMin}
+                                                yMax={globalRanges?.yMax}
                                             />
                                         </div>
                                     );
                                 })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Combined Trajectory Plot */}
+                    {hasIndividualValues && combinedTrajectoryData && Object.keys(combinedTrajectoryData).length > 1 && (
+                        <div className="trajectory-chart-modal-combined-chart">
+                            <h4>Combined Trajectory Comparison</h4>
+                            <p className="combined-chart-description">
+                                All individual trajectory values displayed together with consistent colors for direct comparison across prompt groups.
+                            </p>
+                            <div className="combined-chart-container">
+                                <ScatterChart
+                                    data={combinedTrajectoryData}
+                                    title={`${title} - All Trajectories Combined`}
+                                    size={800}
+                                    xLabel="Trajectory #"
+                                    yLabel={getYLabel(metricKey)}
+                                    colors={consistentColors}
+                                    currentExperiment={currentExperiment}
+                                    beginAtZero={beginAtZero}
+                                    showFullVariationText={showFullVariationText}
+                                    xMin={globalRanges?.xMin}
+                                    xMax={globalRanges?.xMax}
+                                    yMin={globalRanges?.yMin}
+                                    yMax={globalRanges?.yMax}
+                                />
                             </div>
                         </div>
                     )}
