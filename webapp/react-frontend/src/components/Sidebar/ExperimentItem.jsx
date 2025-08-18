@@ -76,7 +76,7 @@ const ExperimentItem = ({ experiment, isActive, onSelect }) => {
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
             >
-                <div className="experiment-header">
+                <div className="experiment-item-header">
                     <div className="experiment-name">{experiment.name}</div>
                     <div className="experiment-model">{modelDisplayName}</div>
                     <div className="experiment-meta">

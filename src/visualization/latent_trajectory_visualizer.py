@@ -71,10 +71,10 @@ class LatentTrajectoryVisualizer:
 
     def _setup_logger(self):
         logger = logging.getLogger(__name__)
-        handler = logging.FileHandler(self.output_dir / "visualization.log")
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
+        # handler = logging.FileHandler(self.output_dir / "visualization.log")
+        # formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        # handler.setFormatter(formatter)
+        # logger.addHandler(handler)
         logger.setLevel(logging.INFO)
         return logger
 
@@ -179,8 +179,8 @@ class LatentTrajectoryVisualizer:
             self.logger.info(f"Saved convex hull volume analysis plot to {output_path}")
        
             # 11. Functional PCA Analysis
-            output_path = plot_functional_pca_analysis(results, visualization_dir, viz_config=self.viz_config, labels_map=labels_map)
-            self.logger.info(f"Saved functional PCA analysis plot to {output_path}")
+            # output_path = plot_functional_pca_analysis(results, visualization_dir, viz_config=self.viz_config, labels_map=labels_map)
+            # self.logger.info(f"Saved functional PCA analysis plot to {output_path}")
 
             # 12. Individual Trajectory Geometry Dashboard
             output_path = plot_individual_trajectory_geometry_dashboard(results, visualization_dir, viz_config=self.viz_config, labels_map=labels_map)

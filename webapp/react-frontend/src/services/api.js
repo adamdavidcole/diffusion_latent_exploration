@@ -92,6 +92,19 @@ export const api = {
     return schemaData;
   },
 
+  async getExperimentTrajectoryAnalysis(experimentPath) {
+    console.log('API: Fetching experiment trajectory analysis:', experimentPath);
+    const response = await fetch(`${API_BASE}/api/experiment/${experimentPath}/trajectory-analysis`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch experiment trajectory analysis: ${response.status}`);
+    }
+    const trajectoryData = await response.json();
+    if (trajectoryData.error) {
+      throw new Error(trajectoryData.error);
+    }
+    return trajectoryData;
+  },
+
   // Helper function to flatten tree into list for search/filtering
   flattenExperimentTree(tree) {
     const experiments = [];

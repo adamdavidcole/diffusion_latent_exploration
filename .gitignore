@@ -10,6 +10,9 @@ run_batch_scripts/
 
 gpu_structure_analysis.log
 
+generation_*.log 
+nohup.out
+
 # Python
 __pycache__/
 *.py[cod]

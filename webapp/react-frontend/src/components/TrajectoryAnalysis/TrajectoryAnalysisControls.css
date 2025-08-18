@@ -1,0 +1,77 @@
+/* TrajectoryAnalysisControls.css */
+.trajectory-analysis-controls {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    z-index: 100;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(8px);
+}
+
+.normalization-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.normalization-selector label {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.normalization-buttons {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.normalization-button {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.normalization-button:hover {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border-color: var(--accent);
+}
+
+.normalization-button.selected {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+    font-weight: 600;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .trajectory-analysis-controls {
+        position: relative;
+        bottom: auto;
+        right: auto;
+        margin: 1rem;
+        width: calc(100% - 2rem);
+    }
+    
+    .normalization-buttons {
+        flex-direction: column;
+    }
+    
+    .normalization-button {
+        text-align: center;
+        padding: 0.75rem;
+    }
+}

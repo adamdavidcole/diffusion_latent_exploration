@@ -11,6 +11,7 @@ import AnalysisControls from './components/AnalysisControls/AnalysisControls';
 import ExperimentHeader from './components/ExperimentHeader/ExperimentHeader';
 import TabNavigation from './components/TabNavigation/TabNavigation';
 import AnalysisDashboard from './components/AnalysisDashboard/AnalysisDashboard';
+import TrajectoryAnalysis from './components/TrajectoryAnalysis/TrajectoryAnalysis';
 import './styles.css';
 
 // Experiment Route Handler
@@ -19,10 +20,14 @@ const ExperimentRoute = () => {
   const navigate = useNavigate();
   const { state, actions } = useApp();
 
-  // Determine if this is an analysis route
+  // Determine route type
   const isAnalysisRoute = experimentPath && experimentPath.endsWith('/analysis');
+  const isTrajectoryAnalysisRoute = experimentPath && experimentPath.endsWith('/trajectory-analysis');
+  
   const cleanExperimentPath = isAnalysisRoute
     ? experimentPath.replace('/analysis', '')
+    : isTrajectoryAnalysisRoute
+    ? experimentPath.replace('/trajectory-analysis', '')
     : experimentPath;
 
   // Load specific experiment when experimentPath changes
@@ -81,7 +86,7 @@ const ExperimentRoute = () => {
     loadExperiment();
   }, [cleanExperimentPath, navigate]); // Removed state and actions dependencies to prevent loops
 
-  return <AppContent experimentPath={cleanExperimentPath} isAnalysisRoute={isAnalysisRoute} />;
+  return <AppContent experimentPath={cleanExperimentPath} isAnalysisRoute={isAnalysisRoute} isTrajectoryAnalysisRoute={isTrajectoryAnalysisRoute} />;
 };
 
 // Helper function to find experiment in tree by path
@@ -241,11 +246,11 @@ const HomeRoute = () => {
     loadExperiments();
   }, [navigate]); // Removed state dependencies
 
-  return <AppContent experimentPath={null} isAnalysisRoute={false} />;
+  return <AppContent experimentPath={null} isAnalysisRoute={false} isTrajectoryAnalysisRoute={false} />;
 };
 
 // Main App Content Component
-const AppContent = ({ experimentPath, isAnalysisRoute }) => {
+const AppContent = ({ experimentPath, isAnalysisRoute, isTrajectoryAnalysisRoute }) => {
   const { state } = useApp();
   const { clearCache } = useVideoCache();
 
@@ -325,6 +330,8 @@ const AppContent = ({ experimentPath, isAnalysisRoute }) => {
 
               {isAnalysisRoute ? (
                 <AnalysisDashboard experimentPath={experimentPath} />
+              ) : isTrajectoryAnalysisRoute ? (
+                <TrajectoryAnalysis experimentPath={experimentPath} />
               ) : (
                 <VideoGrid />
               )}
@@ -340,9 +347,9 @@ const AppContent = ({ experimentPath, isAnalysisRoute }) => {
         </div>
 
         <div className="main-controls">
-          {!isAnalysisRoute && <AttentionControls />}
+          {!isAnalysisRoute && !isTrajectoryAnalysisRoute && <AttentionControls />}
           {isAnalysisRoute && <AnalysisControls />}
-          {!isAnalysisRoute && <SyncControls />}
+          {!isAnalysisRoute && !isTrajectoryAnalysisRoute && <SyncControls />}
         </div>
       </div>
     </div>

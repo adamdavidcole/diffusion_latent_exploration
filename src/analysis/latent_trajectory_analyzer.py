@@ -83,7 +83,7 @@ class LatentTrajectoryAnalyzer:
         batch_size : int
             Batch size for GPU ops.
         output_dir : Optional[str]
-            Where to write analysis outputs. Defaults to ``<batch>/latent_trajectory_analysis_results``.
+            Where to write analysis outputs. Defaults to ``<batch>/latent_trajectory_analysis``.
         Hull/geometry kwargs mirror CLI flags in ``run_latent_trajectory_analysis.py``.
         """
         # Paths & basic settings
@@ -103,7 +103,7 @@ class LatentTrajectoryAnalyzer:
 
         # Output directory
         if output_dir is None:
-            self.output_dir = self.latents_dir.parent / "latent_trajectory_analysis_results"
+            self.output_dir = self.latents_dir.parent / "latent_trajectory_analysis"
         else:
             self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True, parents=True)
@@ -258,8 +258,8 @@ class LatentTrajectoryAnalyzer:
             self.logger.info("Running convex hull analysis...")
             analysis_results['convex_hull_analysis'] = analyze_convex_hull_metrics_safe(group_tensors, hull_cfg=self.hull_cfg)
             
-            self.logger.info("Running functional PCA analysis...")
-            analysis_results['functional_pca_analysis'] = analyze_functional_pca(group_tensors, prompt_groups)
+            # self.logger.info("Running functional PCA analysis...")
+            # analysis_results['functional_pca_analysis'] = analyze_functional_pca(group_tensors, prompt_groups)
 
     
             
@@ -345,17 +345,19 @@ class LatentTrajectoryAnalyzer:
         return results
 
 
-    def run_dual_tracks(
+    ## runs analysis with various normalization techniques
+    def run_multi_track(
         self,
         prompt_groups: List[str],
         prompt_metadata: Optional[Dict[str, Dict[str, str]]] = None
     ) -> Dict[str, LatentTrajectoryAnalysis]:
         """Run SNR-only and Full normalization in one pass and build a combined board."""
         from copy import deepcopy
-        base_out = Path(self.output_dir) if self.output_dir else (self.latents_dir.parent / 'latent_trajectory_analysis_results')
+        base_out = Path(self.output_dir) if self.output_dir else (self.latents_dir.parent / 'latent_trajectory_analysis')
         base_out.mkdir(parents=True, exist_ok=True)
 
         tracks = {
+            'no_norm': {'per_step_whiten': False, 'per_channel_standardize': False, 'snr_normalize': False},
             'snr_norm_only': {'per_step_whiten': False, 'per_channel_standardize': False, 'snr_normalize': True},
             'full_norm': {'per_step_whiten': True,  'per_channel_standardize': True,  'snr_normalize': True},
         }
@@ -382,7 +384,7 @@ class LatentTrajectoryAnalyzer:
     def _save_results(self, results: LatentTrajectoryAnalysis):
         """Save analysis results to disk."""
         # Save main results
-        results_file = self.output_dir / "latent_trajectory_analysis_results.json"
+        results_file = self.output_dir / "latent_trajectory_analysis.json"
         with open(results_file, 'w') as f:
             json.dump(results.to_dict(), f, indent=2, default=str)
         

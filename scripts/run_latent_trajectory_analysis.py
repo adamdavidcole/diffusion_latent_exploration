@@ -28,7 +28,7 @@ from src.utils.prompt_utils import load_prompt_metadata
 from src.analysis.data_structures import LatentTrajectoryAnalysis
 
 
-VISUALIZATION_FOLDER_NAME = "latent_trajectory_analysis_visualization"
+VISUALIZATION_FOLDER_NAME = "visualizations"
 
 def setup_logging():
     """Configure logging for analysis."""
@@ -234,41 +234,38 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
                 )
         else:
         
-            # Run dual tracks analysis
-            print(f"🔬 Running dual tracks analysis with different norm configs")
-            results = analyzer.run_dual_tracks(prompt_groups, prompt_metadata)
-
-            # Get results for each normalization config
-            results_snr_only = results['snr_norm_only']
-            results_full_norm = results['full_norm']
+            # Run multi tracks analysis
+            print(f"🔬 Running multi tracks analysis with different norm configs")
+            results = analyzer.run_multi_track(prompt_groups, prompt_metadata)
 
             # Create visualizations for each normalization config
-            output_dir= analyzer.output_dir / "snr_norm_only" / VISUALIZATION_FOLDER_NAME
-            print(f"1️⃣ Creating visualizations for SNR-only normalization")
-            visualizer.create_comprehensive_visualizations(results_snr_only, output_dir=output_dir)
+            for i, (config_key, config_results) in enumerate(results.items(), 1):
+                # Create output directory for this config
+                output_dir = analyzer.output_dir / config_key / VISUALIZATION_FOLDER_NAME
+                
+                # Print progress
+                print(f"{i}️⃣ Creating visualizations for {config_key} normalization")
+                
+                # Create comprehensive visualizations
+                visualizer.create_comprehensive_visualizations(config_results, output_dir=output_dir)
+                
+                # Create tensor visualizations if not skipped
+                if not args.skip_tensor_vis:
+                    group_tensors_visualizer(
+                        group_tensors=group_tensors,
+                        prompt_groups=prompt_groups,
+                        output_dir=output_dir,
+                        norm_cfg=get_norm_cfg_from_results(config_results)
+                    )
 
-            if not args.skip_tensor_vis:
-                group_tensors_visualizer(
-                    group_tensors=group_tensors,
-                    prompt_groups=prompt_groups,
-                    output_dir=output_dir,
-                    norm_cfg=get_norm_cfg_from_results(results_snr_only)
-                )
-
-            print(f"2️⃣ Creating visualizations for full normalization")
-            output_dir= analyzer.output_dir / "full_norm" / VISUALIZATION_FOLDER_NAME
-            visualizer.create_comprehensive_visualizations(results_full_norm, output_dir=output_dir)
-
-            if not args.skip_tensor_vis:
-                group_tensors_visualizer(
-                    group_tensors=group_tensors,
-                    prompt_groups=prompt_groups,
-                    output_dir=output_dir,
-                    norm_cfg=get_norm_cfg_from_results(results_full_norm)
-                )
-
+            # Create dual run visualizations using the first two results
+            multi_track_visualizations_dir = analyzer.output_dir / "dual_run_visualizations"
             print(f"🔵 Creating visualizations for dual run visualizations")
-            visualizer.create_dual_run_visualizations(results_snr_only, results_full_norm, output_dir=visualizations_dir)
+            visualizer.create_dual_run_visualizations(
+                results['snr_norm_only'], 
+                results['full_norm'], 
+                output_dir=multi_track_visualizations_dir
+            )
 
         analysis_time = time.time() - analysis_start
         

@@ -11,13 +11,19 @@ const TabNavigation = ({ experimentPath }) => {
 
   // Determine active tab based on current path
   const isAnalysisTab = location.pathname.endsWith('/analysis');
-  const activeTab = isAnalysisTab ? 'analysis' : 'videos';
+  const isTrajectoryAnalysisTab = location.pathname.endsWith('/trajectory-analysis');
+  
+  let activeTab = 'videos';
+  if (isAnalysisTab) activeTab = 'analysis';
+  if (isTrajectoryAnalysisTab) activeTab = 'trajectory-analysis';
 
   const handleTabChange = (tab) => {
     if (tab === 'videos') {
       navigate(`/experiment/${experimentPath}`);
     } else if (tab === 'analysis') {
       navigate(`/experiment/${experimentPath}/analysis`);
+    } else if (tab === 'trajectory-analysis') {
+      navigate(`/experiment/${experimentPath}/trajectory-analysis`);
     }
   };
 
@@ -46,8 +52,27 @@ const TabNavigation = ({ experimentPath }) => {
               : 'View VLM analysis results'
           }
         >
-          📊 Analysis
+          📊 VLM Analysis
           {!currentExperiment?.has_vlm_analysis && (
+            <span className="disabled-indicator"> (unavailable)</span>
+          )}
+        </button>
+
+        <button
+          className={`tab-button ${activeTab === 'trajectory-analysis' ? 'active' : ''} ${!currentExperiment?.has_trajectory_analysis ? 'disabled' : ''
+            }`}
+          role="tab"
+          aria-selected={activeTab === 'trajectory-analysis'}
+          onClick={() => currentExperiment?.has_trajectory_analysis && handleTabChange('trajectory-analysis')}
+          disabled={!currentExperiment?.has_trajectory_analysis}
+          title={
+            !currentExperiment?.has_trajectory_analysis
+              ? 'Trajectory analysis not available for this experiment'
+              : 'View trajectory analysis results'
+          }
+        >
+          📈 Trajectory Analysis
+          {!currentExperiment?.has_trajectory_analysis && (
             <span className="disabled-indicator"> (unavailable)</span>
           )}
         </button>

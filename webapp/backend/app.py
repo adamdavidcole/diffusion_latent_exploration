@@ -217,7 +217,7 @@ class VideoAnalyzer:
             has_vlm_analysis = vlm_analysis_dir.exists() and any(vlm_analysis_dir.glob('prompt_*/aggregated_results.json'))
             
             # Check for trajectory analysis
-            trajectory_analysis_dir = exp_dir / 'latent_trajectory_analysis_results'
+            trajectory_analysis_dir = exp_dir / 'latent_trajectory_analysis'
             has_trajectory_analysis = trajectory_analysis_dir.exists()
             
             return {
@@ -393,7 +393,7 @@ class VideoAnalyzer:
         
         try:
             # Check for trajectory analysis
-            trajectory_analysis_dir = exp_dir / 'latent_trajectory_analysis_results'
+            trajectory_analysis_dir = exp_dir / 'latent_trajectory_analysis'
             has_trajectory_analysis = trajectory_analysis_dir.exists()
             
             # Load individual prompt group results
@@ -427,6 +427,42 @@ class VideoAnalyzer:
                 'has_vlm_analysis': False,
                 'has_trajectory_analysis': False,
                 'vlm_analysis': None
+            }
+
+    def _load_trajectory_analysis(self, exp_dir):
+        """Load trajectory analysis data for an experiment"""
+        trajectory_analysis_dir = exp_dir / 'latent_trajectory_analysis'
+        
+        if not trajectory_analysis_dir.exists():
+            return {
+                'has_trajectory_analysis': False,
+                'trajectory_analysis': None
+            }
+        
+        try:
+            # Load trajectory analysis data from each normalization subfolder
+            trajectory_data = {}
+            
+            for norm_dir in trajectory_analysis_dir.iterdir():
+                if norm_dir.is_dir():
+                    analysis_file = norm_dir / 'latent_trajectory_analysis.json'
+                    if analysis_file.exists():
+                        with open(analysis_file, 'r') as f:
+                            trajectory_data[norm_dir.name] = {
+                                'ok': True,
+                                'data': json.load(f)
+                            }
+            
+            return {
+                'has_trajectory_analysis': bool(trajectory_data),
+                'trajectory_analysis': trajectory_data if trajectory_data else None
+            }
+            
+        except Exception as e:
+            print(f"Error loading trajectory analysis for {exp_dir.name}: {e}")
+            return {
+                'has_trajectory_analysis': False,
+                'trajectory_analysis': None
             }
 
 
@@ -515,7 +551,7 @@ def create_app():
     
     @app.route('/api/experiment/<path:experiment_path>/analysis')
     def get_experiment_analysis(experiment_path):
-        """Get VLM and trajectory analysis data for a specific experiment"""
+        """Get VLM analysis data for a specific experiment"""
         try:
             # Find the experiment directory
             full_experiment_path = Path(app.config['VIDEO_OUTPUTS_DIR']) / experiment_path
@@ -527,6 +563,24 @@ def create_app():
             analysis_data = analyzer._load_vlm_analysis(full_experiment_path)
             
             return jsonify(analysis_data)
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/experiment/<path:experiment_path>/trajectory-analysis')
+    def get_experiment_trajectory_analysis(experiment_path):
+        """Get trajectory analysis data for a specific experiment"""
+        try:
+            # Find the experiment directory
+            full_experiment_path = Path(app.config['VIDEO_OUTPUTS_DIR']) / experiment_path
+            
+            if not full_experiment_path.exists():
+                return jsonify({'error': 'Experiment not found'}), 404
+            
+            # Load trajectory analysis data
+            trajectory_analysis_data = analyzer._load_trajectory_analysis(full_experiment_path)
+            
+            return jsonify(trajectory_analysis_data)
             
         except Exception as e:
             return jsonify({'error': str(e)}), 500
