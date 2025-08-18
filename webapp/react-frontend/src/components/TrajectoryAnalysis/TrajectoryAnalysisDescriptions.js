@@ -6,4 +6,21 @@ export const TrajectoryAnalysisDescriptions = {
     tortuosity: "Tortuosity (Circuitousness): how indirect or meandering the path is. We quantify this as circuitousness = trajectory length / endpoint distance 9 10 . A value of 1.0 would mean the trajectory was a straight line from start to finish. Larger values indicate a winding path. We record the mean tortuousity per group (and sometimes the distribution of this metric across videos) 11 . This is an important metric for understanding how efficiently the model gets to the final image – do latents wander around (high circuitousness) or move straight toward the solution (low circuitousness)?",
     endpoint_distance: "Endpoint Distance: the straight-line distance between the initial and final latent in a trajectory. This is simply ||x_final – x_initial|| for a video 7 8 . It tells us how far the final representation is from where it started (noise). This is always ≤ trajectory length, and the ratio gives the Circuitousness (defined below). The group mean endpoint distance is often smaller than mean trajectory length, since the path is not straight.", 
     semantic_convergence: "",
+
+    // GEOMETRIC METRICS
+    speed_stats: "Speed Statistics: quantifies the magnitude of movement through latent space at each step. Speed is calculated as the Euclidean norm of the step difference: speed<sub>t</sub> = ||x<sub>t+1</sub> – x<sub>t</sub>||. The mean speed represents the average rate of change across all diffusion steps for each trajectory, providing insight into how rapidly the latent representation evolves during generation.",
+    
+    log_volume_stats: "Log Volume Statistics: measures the logarithm of the hypervolume occupied by the trajectory in latent space. This metric captures the geometric 'size' or extent of the path through the high-dimensional latent space. Larger log volumes indicate trajectories that explore more of the latent space, while smaller values suggest more constrained paths.",
+    
+    effective_side_stats: "Effective Side Statistics: quantifies an effective 'side length' of the trajectory's bounding region in latent space. This geometric measure helps characterize the spatial extent of the trajectory along its principal dimensions, providing insight into how the path spreads across different latent dimensions.",
+    
+    endpoint_alignment_stats: "Endpoint Alignment: measures how well-aligned the trajectory's overall direction is with the straight-line path from start to end. Values close to 1.0 indicate the trajectory generally moves in the direction of its endpoint, while lower values suggest more deviation from the direct path. This metric complements tortuosity by focusing on directional consistency.",
+    
+    turning_angle_stats: "Turning Angle Statistics: quantifies the angular changes or 'turns' in the trajectory path. Larger turning angles indicate more dramatic directional changes between steps, while smaller angles suggest smoother, more consistent movement. This metric helps identify whether trajectories follow smooth paths or make sharp directional changes.",
+    
+    circuitousness_stats: "Circuitousness Statistics: measures how indirect or winding the trajectory path is, calculated as the ratio of trajectory length to endpoint distance. Values close to 1.0 indicate nearly straight paths, while larger values indicate more meandering trajectories. This metric quantifies path efficiency and helps identify different navigation strategies through latent space.",
+    
+    efficiency_metrics: "Efficiency Metrics: quantifies how efficiently the trajectory moves from its starting point to its endpoint. This includes the mean efficiency score and counts of ballistic (direct) versus meandering trajectories. Higher efficiency indicates more direct paths through latent space, while lower efficiency suggests more exploratory or indirect routes.",
+    
+    step_variability_stats: "Step Variability Statistics: measures the variability or consistency of step sizes throughout the trajectory. High variability indicates irregular movement with varying step sizes, while low variability suggests more consistent, regular progression. This metric helps identify whether trajectories maintain steady progress or exhibit irregular, episodic movement patterns.",
 }

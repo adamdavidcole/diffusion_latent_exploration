@@ -123,22 +123,7 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                 return renderTemporalAnalysis(analysisData, promptGroups);
 
             case 'geometric':
-                return (
-                    <div className="section-data">
-                        <h4>Geometric Analysis - Log Volume Stats</h4>
-                        <div className="data-grid">
-                            {promptGroups.map(promptGroup => {
-                                const logVolumeMean = analysisData?.individual_trajectory_geometry?.[promptGroup]?.log_volume_stats?.mean;
-                                return (
-                                    <div key={promptGroup} className="data-item">
-                                        <span className="prompt-label">{promptGroup}:</span>
-                                        <span className="data-value">{logVolumeMean?.toFixed(4) || 'N/A'}</span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                );
+                return renderGeometricAnalysis(analysisData, promptGroups);
 
             case 'spatial':
                 return (
@@ -306,6 +291,169 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             title="Mean Half Life"
                             size={chartSize}
                             yLabel="Steps"
+                            currentExperiment={currentExperiment}
+                            beginAtZero={beginAtZero}
+                            showFullVariationText={showFullVariationText}
+                        />
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    // Render geometric analysis with charts
+    const renderGeometricAnalysis = (analysisData, promptGroups) => {
+        // Extract geometric metrics data
+        const speedData = {};
+        const logVolumeData = {};
+        const effectiveSideData = {};
+        const endpointAlignmentData = {};
+        const turningAngleData = {};
+        const circuitousnessData = {};
+        const efficiencyData = {};
+        const stepVariabilityData = {};
+
+        promptGroups.forEach(promptGroup => {
+            const geometric = analysisData?.individual_trajectory_geometry?.[promptGroup];
+            if (geometric) {
+                speedData[promptGroup] = geometric.speed_stats?.mean;
+                logVolumeData[promptGroup] = geometric.log_volume_stats?.mean;
+                effectiveSideData[promptGroup] = geometric.effective_side_stats?.mean;
+                endpointAlignmentData[promptGroup] = geometric.endpoint_alignment_stats?.mean;
+                turningAngleData[promptGroup] = geometric.turning_angle_stats?.mean;
+                circuitousnessData[promptGroup] = geometric.circuitousness_stats?.mean;
+                efficiencyData[promptGroup] = geometric.efficiency_metrics?.mean_efficiency;
+                stepVariabilityData[promptGroup] = geometric.step_variability_stats?.mean;
+            }
+        });
+
+        return (
+            <div className="section-data">
+                <h4>Geometric Analysis</h4>
+
+                <div className="metrics-grid" style={{ '--chart-size': `${chartSize}px` }}>
+                    {/* <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                        <h5>
+                            Speed Statistics
+                            <TrajectoryInfoTooltip metricKey="speed_stats" title="Speed Statistics" />
+                        </h5>
+                        <MetricComparisonChart
+                            data={speedData}
+                            title="Mean Speed"
+                            size={chartSize}
+                            yLabel="Speed Units"
+                            currentExperiment={currentExperiment}
+                            beginAtZero={beginAtZero}
+                            showFullVariationText={showFullVariationText}
+                        />
+                    </div> */}
+
+                    <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                        <h5>
+                            Log Volume Statistics
+                            <TrajectoryInfoTooltip metricKey="log_volume_stats" title="Log Volume Statistics" />
+                        </h5>
+                        <MetricComparisonChart
+                            data={logVolumeData}
+                            title="Mean Log Volume"
+                            size={chartSize}
+                            yLabel="Log Volume"
+                            currentExperiment={currentExperiment}
+                            beginAtZero={beginAtZero}
+                            showFullVariationText={showFullVariationText}
+                        />
+                    </div>
+
+                    <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                        <h5>
+                            Effective Side Statistics
+                            <TrajectoryInfoTooltip metricKey="effective_side_stats" title="Effective Side Statistics" />
+                        </h5>
+                        <MetricComparisonChart
+                            data={effectiveSideData}
+                            title="Mean Effective Side"
+                            size={chartSize}
+                            yLabel="Effective Side"
+                            currentExperiment={currentExperiment}
+                            beginAtZero={beginAtZero}
+                            showFullVariationText={showFullVariationText}
+                        />
+                    </div>
+
+                    <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                        <h5>
+                            Endpoint Alignment
+                            <TrajectoryInfoTooltip metricKey="endpoint_alignment_stats" title="Endpoint Alignment" />
+                        </h5>
+                        <MetricComparisonChart
+                            data={endpointAlignmentData}
+                            title="Mean Endpoint Alignment"
+                            size={chartSize}
+                            yLabel="Alignment"
+                            currentExperiment={currentExperiment}
+                            beginAtZero={beginAtZero}
+                            showFullVariationText={showFullVariationText}
+                        />
+                    </div>
+
+                    <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                        <h5>
+                            Turning Angle Statistics
+                            <TrajectoryInfoTooltip metricKey="turning_angle_stats" title="Turning Angle Statistics" />
+                        </h5>
+                        <MetricComparisonChart
+                            data={turningAngleData}
+                            title="Mean Turning Angle"
+                            size={chartSize}
+                            yLabel="Angle (radians)"
+                            currentExperiment={currentExperiment}
+                            beginAtZero={beginAtZero}
+                            showFullVariationText={showFullVariationText}
+                        />
+                    </div>
+
+                    <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                        <h5>
+                            Circuitousness Statistics
+                            <TrajectoryInfoTooltip metricKey="circuitousness_stats" title="Circuitousness Statistics" />
+                        </h5>
+                        <MetricComparisonChart
+                            data={circuitousnessData}
+                            title="Mean Circuitousness"
+                            size={chartSize}
+                            yLabel="Circuitousness"
+                            currentExperiment={currentExperiment}
+                            beginAtZero={beginAtZero}
+                            showFullVariationText={showFullVariationText}
+                        />
+                    </div>
+
+                    <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                        <h5>
+                            Efficiency Metrics
+                            <TrajectoryInfoTooltip metricKey="efficiency_metrics" title="Efficiency Metrics" />
+                        </h5>
+                        <MetricComparisonChart
+                            data={efficiencyData}
+                            title="Mean Efficiency"
+                            size={chartSize}
+                            yLabel="Efficiency"
+                            currentExperiment={currentExperiment}
+                            beginAtZero={beginAtZero}
+                            showFullVariationText={showFullVariationText}
+                        />
+                    </div>
+
+                    <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                        <h5>
+                            Step Variability Statistics
+                            <TrajectoryInfoTooltip metricKey="step_variability_stats" title="Step Variability Statistics" />
+                        </h5>
+                        <MetricComparisonChart
+                            data={stepVariabilityData}
+                            title="Mean Step Variability"
+                            size={chartSize}
+                            yLabel="Variability"
                             currentExperiment={currentExperiment}
                             beginAtZero={beginAtZero}
                             showFullVariationText={showFullVariationText}
