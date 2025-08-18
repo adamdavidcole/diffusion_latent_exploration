@@ -4,6 +4,7 @@ import ScatterChart from './ScatterChart';
 import { TrajectoryAnalysisDescriptions } from '../TrajectoryAnalysis/TrajectoryAnalysisDescriptions';
 import { getVariationTextFromPromptKey } from '../../utils/variationText';
 import { getPromptGroupColors } from '../../utils/chartColors';
+import { extractChartData } from '../../utils/trajectoryDataHelpers';
 import './TrajectoryChartModal.css';
 
 const TrajectoryChartModal = ({
@@ -18,7 +19,8 @@ const TrajectoryChartModal = ({
     chartSize,
     beginAtZero,
     showFullVariationText,
-    onShowFullVariationTextChange
+    onShowFullVariationTextChange,
+    activeNormalization
 }) => {
     if (!isOpen || !chartData || !metricKey) return null;
 
@@ -28,92 +30,31 @@ const TrajectoryChartModal = ({
         }
     };
 
-    // Get individual values for detailed scatter plots
+    // Use the same data helper as TrajectoryAnalysis for consistent data access
+    const helperData = extractChartData({ [activeNormalization]: analysisData }, activeNormalization);
+
+    // Get individual values for detailed scatter plots using the data helper
     const getIndividualValuesData = () => {
-        const individualData = {};
+        // For scatter plots, return the scatter data directly from helper
+        if (metricKey === 'velocity_vs_log_volume') {
+            return helperData.velocityVsLogVolume || {};
+        } else if (metricKey === 'velocity_vs_circuitousness') {
+            return helperData.velocityVsCircuitousness || {};
+        }
 
-        promptGroups.forEach(promptGroup => {
-            let values = [];
-
-            // Extract individual values based on metric type
-            if (metricKey === 'trajectory_length') {
-                values = analysisData?.temporal_analysis?.[promptGroup]?.trajectory_length?.individual_lengths || [];
-            } else if (metricKey === 'velocity_analysis') {
-                values = analysisData?.temporal_analysis?.[promptGroup]?.velocity_analysis?.mean_velocity_by_video ||
-                    analysisData?.temporal_analysis?.[promptGroup]?.velocity_analysis?.mean_velocity || [];
-            } else if (metricKey === 'acceleration_analysis') {
-                values = analysisData?.temporal_analysis?.[promptGroup]?.acceleration_analysis?.mean_acceleration_by_video ||
-                    analysisData?.temporal_analysis?.[promptGroup]?.acceleration_analysis?.mean_acceleration || [];
-            } else if (metricKey === 'endpoint_distance') {
-                values = analysisData?.temporal_analysis?.[promptGroup]?.endpoint_distance?.individual_distances || [];
-            } else if (metricKey === 'tortuosity') {
-                values = analysisData?.temporal_analysis?.[promptGroup]?.tortuosity?.individual_tortuosity || [];
-            } else if (metricKey === 'log_volume_stats') {
-                values = analysisData?.individual_trajectory_geometry?.[promptGroup]?.log_volume_stats?.individual_values || [];
-            } else if (metricKey === 'effective_side_stats') {
-                values = analysisData?.individual_trajectory_geometry?.[promptGroup]?.effective_side_stats?.individual_values || [];
-            } else if (metricKey === 'endpoint_alignment_stats') {
-                values = analysisData?.individual_trajectory_geometry?.[promptGroup]?.endpoint_alignment_stats?.individual_values || [];
-            } else if (metricKey === 'turning_angle_stats') {
-                values = analysisData?.individual_trajectory_geometry?.[promptGroup]?.turning_angle_stats?.individual_values || [];
-            } else if (metricKey === 'circuitousness_stats') {
-                values = analysisData?.individual_trajectory_geometry?.[promptGroup]?.circuitousness_stats?.individual_values || [];
-            }
-
-            // Convert to scatter plot format with trajectory index as x-axis
-            if (values && values.length > 0) {
-                individualData[promptGroup] = values.map((value, index) => ({
-                    x: index + 1, // Trajectory number
-                    y: value
-                }));
-            }
-        });
-
-        return individualData;
+        // For regular metrics, use the helper function
+        return helperData.getIndividualValues(metricKey);
     };
 
-    // Get error bar data for intervals
+    // Get error bar data for intervals using consistent approach
     const getErrorBarData = () => {
-        const errorData = {};
+        // For scatter plots, no error bars
+        if (metricKey.includes('velocity_vs')) {
+            return {};
+        }
 
-        promptGroups.forEach(promptGroup => {
-            let statsData = null;
-
-            // Extract stats based on metric type
-            if (metricKey === 'trajectory_length') {
-                statsData = analysisData?.temporal_analysis?.[promptGroup]?.trajectory_length;
-            } else if (metricKey === 'velocity_analysis') {
-                statsData = analysisData?.temporal_analysis?.[promptGroup]?.velocity_analysis;
-            } else if (metricKey === 'acceleration_analysis') {
-                statsData = analysisData?.temporal_analysis?.[promptGroup]?.acceleration_analysis;
-            } else if (metricKey === 'endpoint_distance') {
-                statsData = analysisData?.temporal_analysis?.[promptGroup]?.endpoint_distance;
-            } else if (metricKey === 'tortuosity') {
-                statsData = analysisData?.temporal_analysis?.[promptGroup]?.tortuosity;
-            } else if (metricKey === 'log_volume_stats') {
-                statsData = analysisData?.individual_trajectory_geometry?.[promptGroup]?.log_volume_stats;
-            } else if (metricKey === 'effective_side_stats') {
-                statsData = analysisData?.individual_trajectory_geometry?.[promptGroup]?.effective_side_stats;
-            } else if (metricKey === 'endpoint_alignment_stats') {
-                statsData = analysisData?.individual_trajectory_geometry?.[promptGroup]?.endpoint_alignment_stats;
-            } else if (metricKey === 'turning_angle_stats') {
-                statsData = analysisData?.individual_trajectory_geometry?.[promptGroup]?.turning_angle_stats;
-            } else if (metricKey === 'circuitousness_stats') {
-                statsData = analysisData?.individual_trajectory_geometry?.[promptGroup]?.circuitousness_stats;
-            }
-
-            if (statsData) {
-                errorData[promptGroup] = {
-                    mean: statsData.mean,
-                    std: statsData.std,
-                    min: statsData.min,
-                    max: statsData.max,
-                    median: statsData.median
-                };
-            }
-        });
-
-        return errorData;
+        // Use the helper function for consistent statistical data extraction
+        return helperData.getStatisticalData(metricKey);
     };
 
     const individualValues = getIndividualValuesData();
@@ -158,32 +99,49 @@ const TrajectoryChartModal = ({
 
     const globalRanges = hasIndividualValues ? calculateGlobalRanges() : null;
 
-    // Create enhanced chart data with error bars
+    // Create enhanced chart data using helper data consistently
     const createEnhancedChartData = () => {
-        if (!hasIndividualValues) return chartData;
+        // For scatter plots, use the helper data directly
+        if (metricKey === 'velocity_vs_log_volume') {
+            return helperData.velocityVsLogVolume || {};
+        } else if (metricKey === 'velocity_vs_circuitousness') {
+            return helperData.velocityVsCircuitousness || {};
+        }
 
-        const enhancedData = { ...chartData };
-        const errorInfo = [];
+        // For regular metrics, prefer helper data if available, otherwise fall back to chartData
+        const helperMetricMap = {
+            'trajectory_length': 'trajectoryLength',
+            'velocity_analysis': 'velocity',
+            'acceleration_analysis': 'acceleration',
+            'endpoint_distance': 'endpointDistance',
+            'tortuosity': 'tortuosity',
+            'semantic_convergence': 'semanticConvergence',
+            'log_volume_stats': 'logVolume',
+            'effective_side_stats': 'effectiveSide',
+            'endpoint_alignment_stats': 'endpointAlignment',
+            'turning_angle_stats': 'turningAngle',
+            'circuitousness_stats': 'circuitousness',
+            'efficiency_metrics': 'efficiency',
+            'step_variability_stats': 'stepVariability'
+        };
 
-        promptGroups.forEach(promptGroup => {
-            const stats = errorBarData[promptGroup];
-            if (stats && stats.std) {
-                errorInfo.push({
-                    group: promptGroup,
-                    mean: stats.mean,
-                    std: stats.std,
-                    min: stats.min,
-                    max: stats.max
-                });
-            }
-        });
+        const helperKey = helperMetricMap[metricKey];
+        if (helperKey && helperData[helperKey]) {
+            return helperData[helperKey];
+        }
 
-        return enhancedData;
+        // Fallback to original chartData if helper doesn't have the metric
+        return chartData || {};
     };
 
     // Create combined trajectory data for all-in-one visualization
     const createCombinedTrajectoryData = () => {
         const combinedData = {};
+
+        // For scatter plots, we can't combine them into trajectory-index format
+        if (metricKey.includes('velocity_vs')) {
+            return null; // No combined view for scatter plots
+        }
 
         promptGroups.forEach((promptGroup, index) => {
             const values = individualValues[promptGroup];
@@ -297,7 +255,7 @@ const TrajectoryChartModal = ({
                     {/* Individual Values Scatter Plots */}
                     {hasIndividualValues && (
                         <div className="trajectory-chart-modal-individual-charts">
-                            <h4>Individual Trajectory Values</h4>
+                            <h4>{metricKey.includes('velocity_vs') ? 'Individual Scatter Plot Data' : 'Individual Trajectory Values'}</h4>
                             <div className="individual-charts-grid">
                                 {promptGroups.map((promptGroup, index) => {
                                     const values = individualValues[promptGroup];
@@ -310,14 +268,21 @@ const TrajectoryChartModal = ({
                                     // Use consistent color for this prompt group
                                     const promptColor = consistentColors[index];
 
+                                    // For scatter plots, use appropriate labels
+                                    const xLabel = metricKey.includes('velocity_vs') ? 
+                                        'Velocity (mean per trajectory)' : 'Trajectory #';
+                                    const yLabel = metricKey === 'velocity_vs_log_volume' ? 'Log Volume' :
+                                        metricKey === 'velocity_vs_circuitousness' ? 'Circuitousness − 1.0' :
+                                        getYLabel(metricKey);
+
                                     return (
                                         <div key={promptGroup} className="individual-chart-container">
                                             <ScatterChart
                                                 data={{ [promptGroup]: values }}
                                                 title={`${label} - Individual Values`}
                                                 size={350}
-                                                xLabel="Trajectory #"
-                                                yLabel={getYLabel(metricKey)}
+                                                xLabel={xLabel}
+                                                yLabel={yLabel}
                                                 colors={[promptColor]}
                                                 currentExperiment={currentExperiment}
                                                 beginAtZero={beginAtZero}

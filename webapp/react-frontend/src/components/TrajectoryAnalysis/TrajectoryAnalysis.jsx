@@ -5,10 +5,9 @@ import TrajectoryAnalysisControls from './TrajectoryAnalysisControls';
 import MetricComparisonChart from '../Charts/MetricComparisonChart';
 import ScatterChart from '../Charts/ScatterChart';
 import TrajectoryChartModal from '../Charts/TrajectoryChartModal';
-import LineChart from '../Charts/LineChart';
 import { getVariationTextFromPromptKey } from '../../utils/variationText';
-import { TrajectoryAnalysisDescriptions } from './TrajectoryAnalysisDescriptions';
 import TrajectoryInfoTooltip from './TrajectoryInfoTooltip';
+import { extractChartData } from '../../utils/trajectoryDataHelpers';
 import './TrajectoryAnalysis.css';
 
 const CHART_DEFAULT_SIZE = 600;
@@ -205,25 +204,8 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
 
     // Render temporal analysis with charts
     const renderTemporalAnalysis = (analysisData, promptGroups) => {
-        // Extract temporal metrics data
-        const trajectoryLengthData = {};
-        const velocityData = {};
-        const accelerationData = {};
-        const tortuosityData = {};
-        const endpointDistanceData = {};
-        const semanticConvergenceData = {};
-
-        promptGroups.forEach(promptGroup => {
-            const temporal = analysisData?.temporal_analysis?.[promptGroup];
-            if (temporal) {
-                trajectoryLengthData[promptGroup] = temporal.trajectory_length?.mean_length;
-                velocityData[promptGroup] = temporal.velocity_analysis?.overall_mean_velocity;
-                accelerationData[promptGroup] = temporal.acceleration_analysis?.overall_mean_acceleration;
-                tortuosityData[promptGroup] = temporal.tortuosity?.mean_tortuosity;
-                endpointDistanceData[promptGroup] = temporal.endpoint_distance?.mean_endpoint_distance;
-                semanticConvergenceData[promptGroup] = temporal.semantic_convergence?.mean_half_life;
-            }
-        });
+        // Use the data helper to extract chart data
+        const chartData = extractChartData({ [activeNormalization]: analysisData }, activeNormalization);
 
         return (
             <div className="section-data">
@@ -235,14 +217,14 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Trajectory Length
                             <TrajectoryInfoTooltip metricKey="trajectory_length" title="Trajectory Length" />
                         </h5>
-                        <div 
+                        <div
                             className="clickable-chart"
-                            onClick={() => openChartModal(trajectoryLengthData, 'trajectory_length', 'Trajectory Length')}
+                            onClick={() => openChartModal(chartData.trajectoryLength, 'trajectory_length', 'Trajectory Length')}
                             style={{ cursor: 'pointer' }}
                             title="Click for detailed view"
                         >
                             <MetricComparisonChart
-                                data={trajectoryLengthData}
+                                data={chartData.trajectoryLength}
                                 title="Mean Length"
                                 size={chartSize}
                                 yLabel="Length Units"
@@ -258,14 +240,14 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Velocity Analysis
                             <TrajectoryInfoTooltip metricKey="velocity_analysis" title="Velocity Analysis" />
                         </h5>
-                        <div 
+                        <div
                             className="clickable-chart"
-                            onClick={() => openChartModal(velocityData, 'velocity_analysis', 'Velocity Analysis')}
+                            onClick={() => openChartModal(chartData.velocity, 'velocity_analysis', 'Velocity Analysis')}
                             style={{ cursor: 'pointer' }}
                             title="Click for detailed view"
                         >
                             <MetricComparisonChart
-                                data={velocityData}
+                                data={chartData.velocity}
                                 title="Overall Mean Velocity"
                                 size={chartSize}
                                 yLabel="Velocity"
@@ -281,14 +263,14 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Acceleration Analysis
                             <TrajectoryInfoTooltip metricKey="acceleration_analysis" title="Acceleration Analysis" />
                         </h5>
-                        <div 
+                        <div
                             className="clickable-chart"
-                            onClick={() => openChartModal(accelerationData, 'acceleration_analysis', 'Acceleration Analysis')}
+                            onClick={() => openChartModal(chartData.acceleration, 'acceleration_analysis', 'Acceleration Analysis')}
                             style={{ cursor: 'pointer' }}
                             title="Click for detailed view"
                         >
                             <MetricComparisonChart
-                                data={accelerationData}
+                                data={chartData.acceleration}
                                 title="Overall Mean Acceleration"
                                 size={chartSize}
                                 yLabel="Acceleration"
@@ -304,14 +286,14 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Tortuosity
                             <TrajectoryInfoTooltip metricKey="tortuosity" title="Tortuosity" />
                         </h5>
-                        <div 
+                        <div
                             className="clickable-chart"
-                            onClick={() => openChartModal(tortuosityData, 'tortuosity', 'Tortuosity')}
+                            onClick={() => openChartModal(chartData.tortuosity, 'tortuosity', 'Tortuosity')}
                             style={{ cursor: 'pointer' }}
                             title="Click for detailed view"
                         >
                             <MetricComparisonChart
-                                data={tortuosityData}
+                                data={chartData.tortuosity}
                                 title="Mean Tortuosity"
                                 size={chartSize}
                                 yLabel="Tortuosity"
@@ -327,14 +309,14 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Endpoint Distance
                             <TrajectoryInfoTooltip metricKey="endpoint_distance" title="Endpoint Distance" />
                         </h5>
-                        <div 
+                        <div
                             className="clickable-chart"
-                            onClick={() => openChartModal(endpointDistanceData, 'endpoint_distance', 'Endpoint Distance')}
+                            onClick={() => openChartModal(chartData.endpointDistance, 'endpoint_distance', 'Endpoint Distance')}
                             style={{ cursor: 'pointer' }}
                             title="Click for detailed view"
                         >
                             <MetricComparisonChart
-                                data={endpointDistanceData}
+                                data={chartData.endpointDistance}
                                 title="Mean Endpoint Distance"
                                 size={chartSize}
                                 yLabel="Distance"
@@ -350,14 +332,14 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Semantic Convergence
                             <TrajectoryInfoTooltip metricKey="semantic_convergence" title="Semantic Convergence" />
                         </h5>
-                        <div 
+                        <div
                             className="clickable-chart"
-                            onClick={() => openChartModal(semanticConvergenceData, 'semantic_convergence', 'Semantic Convergence')}
+                            onClick={() => openChartModal(chartData.semanticConvergence, 'semantic_convergence', 'Semantic Convergence')}
                             style={{ cursor: 'pointer' }}
                             title="Click for detailed view"
                         >
                             <MetricComparisonChart
-                                data={semanticConvergenceData}
+                                data={chartData.semanticConvergence}
                                 title="Mean Half Life"
                                 size={chartSize}
                                 yLabel="Steps"
@@ -374,67 +356,8 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
 
     // Render geometric analysis with charts
     const renderGeometricAnalysis = (analysisData, promptGroups) => {
-        // Extract geometric metrics data
-        const speedData = {};
-        const logVolumeData = {};
-        const effectiveSideData = {};
-        const endpointAlignmentData = {};
-        const turningAngleData = {};
-        const circuitousnessData = {};
-        const efficiencyData = {};
-        const stepVariabilityData = {};
-
-        // Prepare scatter plot data
-        const velocityVsLogVolumeScatterData = {};
-        const velocityVsCircuitousnessScatterData = {};
-
-        promptGroups.forEach(promptGroup => {
-            const geometric = analysisData?.individual_trajectory_geometry?.[promptGroup];
-            const temporal = analysisData?.temporal_analysis?.[promptGroup];
-            
-            if (geometric) {
-                speedData[promptGroup] = geometric.speed_stats?.mean;
-                logVolumeData[promptGroup] = geometric.log_volume_stats?.mean;
-                effectiveSideData[promptGroup] = geometric.effective_side_stats?.mean;
-                endpointAlignmentData[promptGroup] = geometric.endpoint_alignment_stats?.mean;
-                turningAngleData[promptGroup] = geometric.turning_angle_stats?.mean;
-                circuitousnessData[promptGroup] = geometric.circuitousness_stats?.mean;
-                efficiencyData[promptGroup] = geometric.efficiency_metrics?.mean_efficiency;
-                stepVariabilityData[promptGroup] = geometric.step_variability_stats?.mean;
-
-                // Prepare scatter plot data - per-trajectory values
-                const velocityValues = temporal?.velocity_analysis?.mean_velocity_by_video || 
-                                     temporal?.velocity_analysis?.mean_velocity || [];
-                const logVolumeValues = geometric.log_volume_stats?.individual_values || [];
-                const circuitousnessValues = geometric.circuitousness_stats?.individual_values || [];
-
-                // Create scatter plot points for velocity vs log volume
-                const velocityLogVolumePoints = [];
-                const minLength = Math.min(velocityValues.length, logVolumeValues.length);
-                for (let i = 0; i < minLength; i++) {
-                    if (velocityValues[i] != null && logVolumeValues[i] != null) {
-                        velocityLogVolumePoints.push({
-                            x: velocityValues[i],
-                            y: logVolumeValues[i]
-                        });
-                    }
-                }
-                velocityVsLogVolumeScatterData[promptGroup] = velocityLogVolumePoints;
-
-                // Create scatter plot points for velocity vs circuitousness (minus 1.0)
-                const velocityCircuitousnessPoints = [];
-                const minLength2 = Math.min(velocityValues.length, circuitousnessValues.length);
-                for (let i = 0; i < minLength2; i++) {
-                    if (velocityValues[i] != null && circuitousnessValues[i] != null) {
-                        velocityCircuitousnessPoints.push({
-                            x: velocityValues[i],
-                            y: circuitousnessValues[i] - 1.0
-                        });
-                    }
-                }
-                velocityVsCircuitousnessScatterData[promptGroup] = velocityCircuitousnessPoints;
-            }
-        });
+        // Use the data helper to extract chart data
+        const chartData = extractChartData({ [activeNormalization]: analysisData }, activeNormalization);
 
         return (
             <div className="section-data">
@@ -462,14 +385,14 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Log Volume Statistics
                             <TrajectoryInfoTooltip metricKey="log_volume_stats" title="Log Volume Statistics" />
                         </h5>
-                        <div 
+                        <div
                             className="clickable-chart"
-                            onClick={() => openChartModal(logVolumeData, 'log_volume_stats', 'Log Volume Statistics')}
+                            onClick={() => openChartModal(chartData.logVolume, 'log_volume_stats', 'Log Volume Statistics')}
                             style={{ cursor: 'pointer' }}
                             title="Click for detailed view"
                         >
                             <MetricComparisonChart
-                                data={logVolumeData}
+                                data={chartData.logVolume}
                                 title="Mean Log Volume"
                                 size={chartSize}
                                 yLabel="Log Volume"
@@ -485,14 +408,14 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Effective Side Statistics
                             <TrajectoryInfoTooltip metricKey="effective_side_stats" title="Effective Side Statistics" />
                         </h5>
-                        <div 
+                        <div
                             className="clickable-chart"
-                            onClick={() => openChartModal(effectiveSideData, 'effective_side_stats', 'Effective Side Statistics')}
+                            onClick={() => openChartModal(chartData.effectiveSide, 'effective_side_stats', 'Effective Side Statistics')}
                             style={{ cursor: 'pointer' }}
                             title="Click for detailed view"
                         >
                             <MetricComparisonChart
-                                data={effectiveSideData}
+                                data={chartData.effectiveSide}
                                 title="Mean Effective Side"
                                 size={chartSize}
                                 yLabel="Effective Side"
@@ -508,14 +431,14 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Endpoint Alignment
                             <TrajectoryInfoTooltip metricKey="endpoint_alignment_stats" title="Endpoint Alignment" />
                         </h5>
-                        <div 
+                        <div
                             className="clickable-chart"
-                            onClick={() => openChartModal(endpointAlignmentData, 'endpoint_alignment_stats', 'Endpoint Alignment')}
+                            onClick={() => openChartModal(chartData.endpointAlignment, 'endpoint_alignment_stats', 'Endpoint Alignment')}
                             style={{ cursor: 'pointer' }}
                             title="Click for detailed view"
                         >
                             <MetricComparisonChart
-                                data={endpointAlignmentData}
+                                data={chartData.endpointAlignment}
                                 title="Mean Endpoint Alignment"
                                 size={chartSize}
                                 yLabel="Alignment"
@@ -531,14 +454,14 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Turning Angle Statistics
                             <TrajectoryInfoTooltip metricKey="turning_angle_stats" title="Turning Angle Statistics" />
                         </h5>
-                        <div 
+                        <div
                             className="clickable-chart"
-                            onClick={() => openChartModal(turningAngleData, 'turning_angle_stats', 'Turning Angle Statistics')}
+                            onClick={() => openChartModal(chartData.turningAngle, 'turning_angle_stats', 'Turning Angle Statistics')}
                             style={{ cursor: 'pointer' }}
                             title="Click for detailed view"
                         >
                             <MetricComparisonChart
-                                data={turningAngleData}
+                                data={chartData.turningAngle}
                                 title="Mean Turning Angle"
                                 size={chartSize}
                                 yLabel="Angle (radians)"
@@ -554,14 +477,14 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Circuitousness Statistics
                             <TrajectoryInfoTooltip metricKey="circuitousness_stats" title="Circuitousness Statistics" />
                         </h5>
-                        <div 
+                        <div
                             className="clickable-chart"
-                            onClick={() => openChartModal(circuitousnessData, 'circuitousness_stats', 'Circuitousness Statistics')}
+                            onClick={() => openChartModal(chartData.circuitousness, 'circuitousness_stats', 'Circuitousness Statistics')}
                             style={{ cursor: 'pointer' }}
                             title="Click for detailed view"
                         >
                             <MetricComparisonChart
-                                data={circuitousnessData}
+                                data={chartData.circuitousness}
                                 title="Mean Circuitousness"
                                 size={chartSize}
                                 yLabel="Circuitousness"
@@ -577,14 +500,14 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Efficiency Metrics
                             <TrajectoryInfoTooltip metricKey="efficiency_metrics" title="Efficiency Metrics" />
                         </h5>
-                        <div 
+                        <div
                             className="clickable-chart"
-                            onClick={() => openChartModal(efficiencyData, 'efficiency_metrics', 'Efficiency Metrics')}
+                            onClick={() => openChartModal(chartData.efficiency, 'efficiency_metrics', 'Efficiency Metrics')}
                             style={{ cursor: 'pointer' }}
                             title="Click for detailed view"
                         >
                             <MetricComparisonChart
-                                data={efficiencyData}
+                                data={chartData.efficiency}
                                 title="Mean Efficiency"
                                 size={chartSize}
                                 yLabel="Efficiency"
@@ -600,14 +523,14 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Step Variability Statistics
                             <TrajectoryInfoTooltip metricKey="step_variability_stats" title="Step Variability Statistics" />
                         </h5>
-                        <div 
+                        <div
                             className="clickable-chart"
-                            onClick={() => openChartModal(stepVariabilityData, 'step_variability_stats', 'Step Variability Statistics')}
+                            onClick={() => openChartModal(chartData.stepVariability, 'step_variability_stats', 'Step Variability Statistics')}
                             style={{ cursor: 'pointer' }}
                             title="Click for detailed view"
                         >
                             <MetricComparisonChart
-                                data={stepVariabilityData}
+                                data={chartData.stepVariability}
                                 title="Mean Step Variability"
                                 size={chartSize}
                                 yLabel="Variability"
@@ -624,14 +547,14 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Velocity vs Log Volume
                             <TrajectoryInfoTooltip metricKey="velocity_vs_log_volume" title="Velocity vs Log Volume Scatter Plot" />
                         </h5>
-                        <div 
+                        <div
                             className="clickable-chart"
-                            onClick={() => openChartModal(velocityVsLogVolumeScatterData, 'velocity_vs_log_volume', 'Velocity vs Log Volume')}
+                            onClick={() => openChartModal(chartData.velocityVsLogVolume, 'velocity_vs_log_volume', 'Velocity vs Log Volume')}
                             style={{ cursor: 'pointer' }}
                             title="Click for detailed view"
                         >
                             <ScatterChart
-                                data={velocityVsLogVolumeScatterData}
+                                data={chartData.velocityVsLogVolume}
                                 title="Velocity vs Log Volume (points = trajectories)"
                                 size={chartSize}
                                 xLabel="Velocity (mean per trajectory)"
@@ -649,14 +572,14 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                             Velocity vs Circuitousness
                             <TrajectoryInfoTooltip metricKey="velocity_vs_circuitousness" title="Velocity vs Circuitousness Scatter Plot" />
                         </h5>
-                        <div 
+                        <div
                             className="clickable-chart"
-                            onClick={() => openChartModal(velocityVsCircuitousnessScatterData, 'velocity_vs_circuitousness', 'Velocity vs Circuitousness')}
+                            onClick={() => openChartModal(chartData.velocityVsCircuitousness, 'velocity_vs_circuitousness', 'Velocity vs Circuitousness')}
                             style={{ cursor: 'pointer' }}
                             title="Click for detailed view"
                         >
                             <ScatterChart
-                                data={velocityVsCircuitousnessScatterData}
+                                data={chartData.velocityVsCircuitousness}
                                 title="Velocity vs Circuitousness (points = trajectories)"
                                 size={chartSize}
                                 xLabel="Velocity (mean per trajectory)"
@@ -837,6 +760,7 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                 beginAtZero={beginAtZero}
                 showFullVariationText={showFullVariationText}
                 onShowFullVariationTextChange={setShowFullVariationText}
+                activeNormalization={activeNormalization}
             />
         </div>
     );
