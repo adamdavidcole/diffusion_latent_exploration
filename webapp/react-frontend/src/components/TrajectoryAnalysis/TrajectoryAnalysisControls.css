@@ -56,6 +56,97 @@
     font-weight: 600;
 }
 
+.chart-size-control,
+.begin-at-zero-control,
+.full-variation-text-control {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.chart-size-control label,
+.begin-at-zero-control label,
+.full-variation-text-control label {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+}
+
+.size-slider {
+    width: 100%;
+    margin-top: 0.25rem;
+}
+
+/* Chart size control */
+.chart-size-control {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+}
+
+.chart-size-control label {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.size-slider {
+    width: 100%;
+    height: 4px;
+    background: var(--bg-tertiary);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+.size-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--primary-color);
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.size-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--primary-color);
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+}
+
+/* Begin at zero control */
+.begin-at-zero-control {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+}
+
+.begin-at-zero-control label {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+}
+
+.begin-at-zero-control input[type="checkbox"] {
+    accent-color: var(--primary-color);
+    transform: scale(1.2);
+}
+
 /* Mobile responsiveness */
 @media (max-width: 768px) {
     .trajectory-analysis-controls {
