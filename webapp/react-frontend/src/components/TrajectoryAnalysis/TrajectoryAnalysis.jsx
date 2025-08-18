@@ -5,9 +5,11 @@ import TrajectoryAnalysisControls from './TrajectoryAnalysisControls';
 import MetricComparisonChart from '../Charts/MetricComparisonChart';
 import LineChart from '../Charts/LineChart';
 import { getVariationTextFromPromptKey } from '../../utils/variationText';
+import { TrajectoryAnalysisDescriptions } from './TrajectoryAnalysisDescriptions';
+import TrajectoryInfoTooltip from './TrajectoryInfoTooltip';
 import './TrajectoryAnalysis.css';
 
-const CHART_DEFAULT_SIZE = 550;
+const CHART_DEFAULT_SIZE = 600;
 
 const TrajectoryAnalysis = ({ experimentPath }) => {
     const { state } = useApp();
@@ -215,27 +217,42 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
 
                 <div className="metrics-grid" style={{ '--chart-size': `${chartSize}px` }}>
                     <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
-                        <h5>Trajectory Length</h5>
+                        <h5>
+                            Trajectory Length
+                            <TrajectoryInfoTooltip metricKey="trajectory_length" title="Trajectory Length" />
+                        </h5>
                         <MetricComparisonChart
                             data={trajectoryLengthData}
                             title="Mean Length"
                             size={chartSize}
                             yLabel="Length Units"
+                            currentExperiment={currentExperiment}
+                            beginAtZero={beginAtZero}
+                            showFullVariationText={showFullVariationText}
                         />
                     </div>
 
                     <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
-                        <h5>Velocity Analysis</h5>
+                        <h5>
+                            Velocity Analysis
+                            <TrajectoryInfoTooltip metricKey="velocity_analysis" title="Velocity Analysis" />
+                        </h5>
                         <MetricComparisonChart
                             data={velocityData}
                             title="Overall Mean Velocity"
                             size={chartSize}
                             yLabel="Velocity"
+                            currentExperiment={currentExperiment}
+                            beginAtZero={beginAtZero}
+                            showFullVariationText={showFullVariationText}
                         />
                     </div>
 
                     <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
-                        <h5>Acceleration Analysis</h5>
+                        <h5>
+                            Acceleration Analysis
+                            <TrajectoryInfoTooltip metricKey="acceleration_analysis" title="Acceleration Analysis" />
+                        </h5>
                         <MetricComparisonChart
                             data={accelerationData}
                             title="Overall Mean Acceleration"
@@ -248,7 +265,10 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                     </div>
 
                     <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
-                        <h5>Tortuosity</h5>
+                        <h5>
+                            Tortuosity
+                            <TrajectoryInfoTooltip metricKey="tortuosity" title="Tortuosity" />
+                        </h5>
                         <MetricComparisonChart
                             data={tortuosityData}
                             title="Mean Tortuosity"
@@ -261,7 +281,10 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                     </div>
 
                     <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
-                        <h5>Endpoint Distance</h5>
+                        <h5>
+                            Endpoint Distance
+                            <TrajectoryInfoTooltip metricKey="endpoint_distance" title="Endpoint Distance" />
+                        </h5>
                         <MetricComparisonChart
                             data={endpointDistanceData}
                             title="Mean Endpoint Distance"
@@ -274,7 +297,10 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                     </div>
 
                     <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
-                        <h5>Semantic Convergence</h5>
+                        <h5>
+                            Semantic Convergence
+                            <TrajectoryInfoTooltip metricKey="semantic_convergence" title="Semantic Convergence" />
+                        </h5>
                         <MetricComparisonChart
                             data={semanticConvergenceData}
                             title="Mean Half Life"
