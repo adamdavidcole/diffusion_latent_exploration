@@ -6,14 +6,14 @@ import { getVariationTextFromPromptKey } from '../../utils/variationText';
 import { getPromptGroupColors } from '../../utils/chartColors';
 import './TrajectoryChartModal.css';
 
-const TrajectoryChartModal = ({ 
-    isOpen, 
-    onClose, 
-    chartData, 
-    metricKey, 
-    title, 
-    analysisData, 
-    promptGroups, 
+const TrajectoryChartModal = ({
+    isOpen,
+    onClose,
+    chartData,
+    metricKey,
+    title,
+    analysisData,
+    promptGroups,
     currentExperiment,
     chartSize,
     beginAtZero,
@@ -31,19 +31,19 @@ const TrajectoryChartModal = ({
     // Get individual values for detailed scatter plots
     const getIndividualValuesData = () => {
         const individualData = {};
-        
+
         promptGroups.forEach(promptGroup => {
             let values = [];
-            
+
             // Extract individual values based on metric type
             if (metricKey === 'trajectory_length') {
                 values = analysisData?.temporal_analysis?.[promptGroup]?.trajectory_length?.individual_lengths || [];
             } else if (metricKey === 'velocity_analysis') {
                 values = analysisData?.temporal_analysis?.[promptGroup]?.velocity_analysis?.mean_velocity_by_video ||
-                        analysisData?.temporal_analysis?.[promptGroup]?.velocity_analysis?.mean_velocity || [];
+                    analysisData?.temporal_analysis?.[promptGroup]?.velocity_analysis?.mean_velocity || [];
             } else if (metricKey === 'acceleration_analysis') {
                 values = analysisData?.temporal_analysis?.[promptGroup]?.acceleration_analysis?.mean_acceleration_by_video ||
-                        analysisData?.temporal_analysis?.[promptGroup]?.acceleration_analysis?.mean_acceleration || [];
+                    analysisData?.temporal_analysis?.[promptGroup]?.acceleration_analysis?.mean_acceleration || [];
             } else if (metricKey === 'endpoint_distance') {
                 values = analysisData?.temporal_analysis?.[promptGroup]?.endpoint_distance?.individual_distances || [];
             } else if (metricKey === 'tortuosity') {
@@ -59,7 +59,7 @@ const TrajectoryChartModal = ({
             } else if (metricKey === 'circuitousness_stats') {
                 values = analysisData?.individual_trajectory_geometry?.[promptGroup]?.circuitousness_stats?.individual_values || [];
             }
-            
+
             // Convert to scatter plot format with trajectory index as x-axis
             if (values && values.length > 0) {
                 individualData[promptGroup] = values.map((value, index) => ({
@@ -68,17 +68,17 @@ const TrajectoryChartModal = ({
                 }));
             }
         });
-        
+
         return individualData;
     };
 
     // Get error bar data for intervals
     const getErrorBarData = () => {
         const errorData = {};
-        
+
         promptGroups.forEach(promptGroup => {
             let statsData = null;
-            
+
             // Extract stats based on metric type
             if (metricKey === 'trajectory_length') {
                 statsData = analysisData?.temporal_analysis?.[promptGroup]?.trajectory_length;
@@ -101,7 +101,7 @@ const TrajectoryChartModal = ({
             } else if (metricKey === 'circuitousness_stats') {
                 statsData = analysisData?.individual_trajectory_geometry?.[promptGroup]?.circuitousness_stats;
             }
-            
+
             if (statsData) {
                 errorData[promptGroup] = {
                     mean: statsData.mean,
@@ -112,7 +112,7 @@ const TrajectoryChartModal = ({
                 };
             }
         });
-        
+
         return errorData;
     };
 
@@ -184,18 +184,18 @@ const TrajectoryChartModal = ({
     // Create combined trajectory data for all-in-one visualization
     const createCombinedTrajectoryData = () => {
         const combinedData = {};
-        
+
         promptGroups.forEach((promptGroup, index) => {
             const values = individualValues[promptGroup];
             if (values && values.length > 0) {
                 const label = showFullVariationText && currentExperiment ?
                     getVariationTextFromPromptKey(promptGroup, currentExperiment) :
                     promptGroup.replace('prompt_', 'P');
-                
+
                 combinedData[label] = values;
             }
         });
-        
+
         return combinedData;
     };
 
@@ -215,8 +215,8 @@ const TrajectoryChartModal = ({
                             />
                             Show Full Variation Text
                         </label>
-                        <button 
-                            className="trajectory-chart-modal-close" 
+                        <button
+                            className="trajectory-chart-modal-close"
                             onClick={onClose}
                             aria-label="Close modal"
                         >
@@ -254,6 +254,14 @@ const TrajectoryChartModal = ({
                         )}
                     </div>
 
+                    {/* Description */}
+                    {description && (
+                        <div className="trajectory-chart-modal-description">
+                            <h4>About This Metric</h4>
+                            <div dangerouslySetInnerHTML={{ __html: description }} />
+                        </div>
+                    )}
+
                     {/* Statistics Summary */}
                     {Object.keys(errorBarData).length > 0 && (
                         <div className="trajectory-chart-modal-stats">
@@ -262,11 +270,11 @@ const TrajectoryChartModal = ({
                                 {promptGroups.map(promptGroup => {
                                     const stats = errorBarData[promptGroup];
                                     if (!stats) return null;
-                                    
+
                                     const label = showFullVariationText && currentExperiment ?
                                         getVariationTextFromPromptKey(promptGroup, currentExperiment) :
                                         promptGroup.replace('prompt_', 'P');
-                                    
+
                                     return (
                                         <div key={promptGroup} className="stats-item">
                                             <strong>{label}</strong>
@@ -284,13 +292,7 @@ const TrajectoryChartModal = ({
                         </div>
                     )}
 
-                    {/* Description */}
-                    {description && (
-                        <div className="trajectory-chart-modal-description">
-                            <h4>About This Metric</h4>
-                            <div dangerouslySetInnerHTML={{ __html: description }} />
-                        </div>
-                    )}
+
 
                     {/* Individual Values Scatter Plots */}
                     {hasIndividualValues && (
@@ -300,14 +302,14 @@ const TrajectoryChartModal = ({
                                 {promptGroups.map((promptGroup, index) => {
                                     const values = individualValues[promptGroup];
                                     if (!values || values.length === 0) return null;
-                                    
+
                                     const label = showFullVariationText && currentExperiment ?
                                         getVariationTextFromPromptKey(promptGroup, currentExperiment) :
                                         promptGroup.replace('prompt_', 'P');
-                                    
+
                                     // Use consistent color for this prompt group
                                     const promptColor = consistentColors[index];
-                                    
+
                                     return (
                                         <div key={promptGroup} className="individual-chart-container">
                                             <ScatterChart
@@ -382,7 +384,7 @@ const getYLabel = (metricKey) => {
         'efficiency_metrics': 'Efficiency',
         'step_variability_stats': 'Variability'
     };
-    
+
     return labels[metricKey] || 'Value';
 };
 
