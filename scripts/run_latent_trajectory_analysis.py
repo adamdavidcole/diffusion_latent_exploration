@@ -3,7 +3,10 @@
 GPU-Optimized Latent Analysis Runner
 
 This script runs the GPU-accelerated version of the structure-aware latent analysis,
-with command-line flexibility for specifying batch name, device, and prompt groups.
+with command-line flexibil        # load group tensors if we are not skipping visualization entirely or tensor visualization specifically
+        # so we can pass them around (if skipped and necessary for analysis, they will load later in the pipeline)
+        group_tensors = None
+        if not args.skip_visualization and not args.skip_tensor_vis:for specifying batch name, device, and prompt groups.
 """
 
 import argparse
@@ -89,6 +92,13 @@ def parse_arguments():
         action='store_true',
         dest='skip_tensor_vis', # The parsed attribute will be named 'no_tensor_vis'
         help="Use this flag to disable group tensor visualization (UMAP, PCA, etc)."
+    )
+
+    parser.add_argument(
+        '--skip-visualization',
+        action='store_true',
+        dest='skip_visualization',
+        help="Use this flag to skip all visualization generation and only run the analysis."
     )
 
     parser.add_argument(
@@ -204,13 +214,14 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
         logger.info("📋 Loading prompt metadata...")
         prompt_metadata = load_prompt_metadata(batch_name, prompt_groups)
 
-
-        # TODO: visualizer
-        visualizer = LatentTrajectoryVisualizer(
-            batch_dir=batch_name,
-            output_dir=visualizations_dir,
-            use_prompt_variation_text_label=False
-        )
+        # Create visualizer only if we're not skipping visualizations
+        visualizer = None
+        if not args.skip_visualization:
+            visualizer = LatentTrajectoryVisualizer(
+                batch_dir=batch_name,
+                output_dir=visualizations_dir,
+                use_prompt_variation_text_label=False
+            )
 
         if args.no_dual_run or args.results_file_path:
             results = None 
@@ -224,48 +235,55 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
                 logger.info(f"🔬 Running single analysis (no dual tracks) with {norm_cfg}")
                 results = analyzer.analyze_prompt_groups(prompt_groups, prompt_metadata)
             
-            visualizer.create_comprehensive_visualizations(results)
-            if not args.skip_tensor_vis:
-                group_tensors_visualizer(
-                    group_tensors=group_tensors,
-                    output_dir=visualizations_dir,
-                    prompt_groups=prompt_groups,
-                    norm_cfg=get_norm_cfg_from_results(results)
-                )
+            # Create visualizations unless skipped
+            if not args.skip_visualization:
+                visualizer.create_comprehensive_visualizations(results)
+                if not args.skip_tensor_vis:
+                    group_tensors_visualizer(
+                        group_tensors=group_tensors,
+                        output_dir=visualizations_dir,
+                        prompt_groups=prompt_groups,
+                        norm_cfg=get_norm_cfg_from_results(results)
+                    )
+            else:
+                logger.info("🚫 Skipping visualization generation as requested")
         else:
         
             # Run multi tracks analysis
             print(f"🔬 Running multi tracks analysis with different norm configs")
             results = analyzer.run_multi_track(prompt_groups, prompt_metadata)
 
-            # Create visualizations for each normalization config
-            for i, (config_key, config_results) in enumerate(results.items(), 1):
-                # Create output directory for this config
-                output_dir = analyzer.output_dir / config_key / VISUALIZATION_FOLDER_NAME
-                
-                # Print progress
-                print(f"{i}️⃣ Creating visualizations for {config_key} normalization")
-                
-                # Create comprehensive visualizations
-                visualizer.create_comprehensive_visualizations(config_results, output_dir=output_dir)
-                
-                # Create tensor visualizations if not skipped
-                if not args.skip_tensor_vis:
-                    group_tensors_visualizer(
-                        group_tensors=group_tensors,
-                        prompt_groups=prompt_groups,
-                        output_dir=output_dir,
-                        norm_cfg=get_norm_cfg_from_results(config_results)
-                    )
+            # Create visualizations for each normalization config unless skipped
+            if not args.skip_visualization:
+                for i, (config_key, config_results) in enumerate(results.items(), 1):
+                    # Create output directory for this config
+                    output_dir = analyzer.output_dir / config_key / VISUALIZATION_FOLDER_NAME
+                    
+                    # Print progress
+                    print(f"{i}️⃣ Creating visualizations for {config_key} normalization")
+                    
+                    # Create comprehensive visualizations
+                    visualizer.create_comprehensive_visualizations(config_results, output_dir=output_dir)
+                    
+                    # Create tensor visualizations if not skipped
+                    if not args.skip_tensor_vis:
+                        group_tensors_visualizer(
+                            group_tensors=group_tensors,
+                            prompt_groups=prompt_groups,
+                            output_dir=output_dir,
+                            norm_cfg=get_norm_cfg_from_results(config_results)
+                        )
 
-            # Create dual run visualizations using the first two results
-            multi_track_visualizations_dir = analyzer.output_dir / "dual_run_visualizations"
-            print(f"🔵 Creating visualizations for dual run visualizations")
-            visualizer.create_dual_run_visualizations(
-                results['snr_norm_only'], 
-                results['full_norm'], 
-                output_dir=multi_track_visualizations_dir
-            )
+                # Create dual run visualizations using the first two results
+                multi_track_visualizations_dir = analyzer.output_dir / "dual_run_visualizations"
+                print(f"🔵 Creating visualizations for dual run visualizations")
+                visualizer.create_dual_run_visualizations(
+                    results['snr_norm_only'], 
+                    results['full_norm'], 
+                    output_dir=multi_track_visualizations_dir
+                )
+            else:
+                logger.info("🚫 Skipping visualization generation as requested")
 
         analysis_time = time.time() - analysis_start
         
@@ -282,6 +300,12 @@ def run_gpu_optimized_analysis(batch_name, device, prompt_groups, args=None):
 if __name__ == "__main__":
     try:
         args = parse_arguments()
+        
+        # Validate argument combinations
+        if args.results_file_path and args.skip_visualization:
+            print("⚠️  Warning: --results-file-path is intended for visualization only, but --skip-visualization is set.")
+            print("   Consider removing --skip-visualization or using --results-file-path without it.")
+        
         prompt_groups = get_prompt_groups(
             Path(args.batch_name) / "latents", args.prompt_groups
         )
