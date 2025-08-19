@@ -114,8 +114,7 @@ class DynamicGuidanceCallback:
     def __init__(self, 
                  guidance_scheduler: GuidanceScheduler,
                  apply_to_guidance_2: bool = True,
-                 verbose: bool = False,
-                 force_cfg: bool = True):
+                 verbose: bool = False):
         """
         Initialize dynamic guidance callback.
         
@@ -123,18 +122,15 @@ class DynamicGuidanceCallback:
             guidance_scheduler: GuidanceScheduler instance
             apply_to_guidance_2: Whether to also apply schedule to guidance_scale_2 (for dual-model WAN)
             verbose: Whether to log guidance scale changes
-            force_cfg: Whether to force classifier-free guidance even when guidance_scale <= 1.0
         """
         self.guidance_scheduler = guidance_scheduler
         self.apply_to_guidance_2 = apply_to_guidance_2
         self.verbose = verbose
-        self.force_cfg = force_cfg
         self.logger = logging.getLogger(__name__)
         
         # Track original values for restoration
         self.original_guidance_scale = None
         self.original_guidance_scale_2 = None
-        self.original_do_classifier_free_guidance = None
 
 
     def __call__(self, pipe, step: int, timestep: torch.Tensor, callback_kwargs: dict):
@@ -147,11 +143,6 @@ class DynamicGuidanceCallback:
                     
                 if hasattr(pipe, '_guidance_scale_2'):
                     self.original_guidance_scale_2 = pipe._guidance_scale_2
-                    
-                # Store original do_classifier_free_guidance method if we need to override it
-                if self.force_cfg and hasattr(pipe, 'do_classifier_free_guidance'):
-                    # Save the original method/property
-                    self.original_do_classifier_free_guidance = pipe.__class__.do_classifier_free_guidance
             
             # Calculate the guidance value for this step
             guidance_value = self.guidance_scheduler.get_guidance_scale(step)
@@ -171,16 +162,6 @@ class DynamicGuidanceCallback:
                 logging.debug(f"Step {step}: Set guidance_scale to {guidance_value}")
             else:
                 logging.warning(f"Pipeline {type(pipe)} doesn't have a known guidance_scale attribute")
-            
-            # Override do_classifier_free_guidance if force_cfg is enabled
-            if self.force_cfg and hasattr(pipe, 'do_classifier_free_guidance'):
-                # Monkey-patch the property to always return True
-                def force_cfg_property(self):
-                    return True
-                
-                # Replace the property on the class temporarily
-                pipe.__class__.do_classifier_free_guidance = property(force_cfg_property)
-                logging.debug(f"Step {step}: Forced do_classifier_free_guidance to True")
                 
         except Exception as e:
             logging.error(f"Error in dynamic guidance callback: {e}")
@@ -195,18 +176,13 @@ class DynamicGuidanceCallback:
             
         if self.original_guidance_scale_2 is not None and hasattr(pipe, '_guidance_scale_2'):
             pipe._guidance_scale_2 = self.original_guidance_scale_2
-            
-        # Restore original do_classifier_free_guidance property
-        if self.original_do_classifier_free_guidance is not None:
-            pipe.__class__.do_classifier_free_guidance = self.original_do_classifier_free_guidance
 
 
 def create_guidance_callback(schedule: Dict[int, float], 
                            interpolation: str = "linear",
                            total_steps: Optional[int] = None,
                            apply_to_guidance_2: bool = True,
-                           verbose: bool = False,
-                           force_cfg: bool = True) -> DynamicGuidanceCallback:
+                           verbose: bool = False) -> DynamicGuidanceCallback:
     """
     Factory function to create a dynamic guidance callback.
     
@@ -216,7 +192,6 @@ def create_guidance_callback(schedule: Dict[int, float],
         total_steps: Total number of inference steps
         apply_to_guidance_2: Whether to apply to guidance_scale_2 as well
         verbose: Whether to log guidance changes
-        force_cfg: Whether to force classifier-free guidance even when guidance_scale <= 1.0
         
     Returns:
         DynamicGuidanceCallback instance
@@ -225,8 +200,7 @@ def create_guidance_callback(schedule: Dict[int, float],
     return DynamicGuidanceCallback(
         guidance_scheduler=scheduler, 
         apply_to_guidance_2=apply_to_guidance_2, 
-        verbose=verbose,
-        force_cfg=force_cfg
+        verbose=verbose
     )
 
 
@@ -251,7 +225,6 @@ def parse_guidance_schedule_config(config_dict: Dict) -> Optional[DynamicGuidanc
     interpolation = cfg_schedule.get('interpolation', 'linear')
     apply_to_guidance_2 = cfg_schedule.get('apply_to_guidance_2', True)
     verbose = cfg_schedule.get('verbose', False)
-    force_cfg = cfg_schedule.get('force_cfg', True)  # Default to True for better behavior with CFG=0
     
     # Convert string keys to integers if needed
     if isinstance(schedule, dict):
@@ -261,6 +234,5 @@ def parse_guidance_schedule_config(config_dict: Dict) -> Optional[DynamicGuidanc
         schedule=schedule,
         interpolation=interpolation,
         apply_to_guidance_2=apply_to_guidance_2,
-        verbose=verbose,
-        force_cfg=force_cfg
+        verbose=verbose
     )

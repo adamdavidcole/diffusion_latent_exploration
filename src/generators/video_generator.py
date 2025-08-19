@@ -613,8 +613,9 @@ class WanVideoGenerator:
             # Check if dynamic guidance schedule is enabled and override initial guidance_scale
             cfg_schedule_settings = getattr(self.config, 'cfg_schedule_settings', None)
             if cfg_schedule_settings and cfg_schedule_settings.enabled and cfg_schedule_settings.schedule:
-                # Get the guidance scale for step 0 from the schedule
                 schedule = cfg_schedule_settings.schedule
+                
+                # Get the guidance scale for step 0 from the schedule
                 if 0 in schedule:
                     guidance_scale = schedule[0]
                     logging.info(f"🎯 Using initial guidance_scale from schedule: {guidance_scale} (step 0)")
@@ -625,6 +626,14 @@ class WanVideoGenerator:
                     logging.info(f"🎯 Using guidance_scale from first scheduled step {first_step}: {guidance_scale}")
             else:
                 logging.info(f"🎯 Using guidance_scale from config: {guidance_scale}")
+            
+            # Check if we need to force CFG mode (when using dynamic guidance with potential CFG=0)
+            force_cfg_for_dynamic_guidance = (
+                cfg_schedule_settings and 
+                cfg_schedule_settings.enabled and 
+                cfg_schedule_settings.schedule and
+                getattr(cfg_schedule_settings, 'force_cfg', True)
+            )
             
             # Extract latent storage parameters
             latent_storage = kwargs.get('latent_storage', None)
@@ -699,6 +708,7 @@ class WanVideoGenerator:
             
             # Setup dynamic guidance schedule if enabled (cfg_schedule_settings already checked above)
             guidance_callback = None
+            original_do_classifier_free_guidance = None
             if cfg_schedule_settings and cfg_schedule_settings.enabled and cfg_schedule_settings.schedule:
                 try:
                     from src.utils.dynamic_guidance import create_guidance_callback
@@ -707,8 +717,22 @@ class WanVideoGenerator:
                         interpolation=cfg_schedule_settings.interpolation,
                         total_steps=num_inference_steps,
                         apply_to_guidance_2=cfg_schedule_settings.apply_to_guidance_2,
-                        verbose=cfg_schedule_settings.verbose
+                        verbose=cfg_schedule_settings.verbose,
                     )
+                    
+                    # Handle force_cfg by patching do_classifier_free_guidance property once
+                    force_cfg = getattr(cfg_schedule_settings, 'force_cfg', False)
+                    if force_cfg and hasattr(self.pipe, 'do_classifier_free_guidance'):
+                        # Store original property
+                        original_do_classifier_free_guidance = self.pipe.__class__.do_classifier_free_guidance
+                        
+                        # Monkey-patch the property to always return True
+                        def force_cfg_property(self):
+                            return True
+                        
+                        self.pipe.__class__.do_classifier_free_guidance = property(force_cfg_property)
+                        logging.info("🔧 Forced do_classifier_free_guidance to True for entire generation")
+                    
                     logging.info(f"✨ Dynamic guidance scheduling enabled with {len(cfg_schedule_settings.schedule)} keyframes")
                     logging.info(f"📊 Schedule: {cfg_schedule_settings.schedule}")
                     logging.info(f"🔄 Interpolation: {cfg_schedule_settings.interpolation}")
@@ -888,6 +912,27 @@ class WanVideoGenerator:
                 
                 callback_fn = final_guidance_callback
             
+            # Check if we need to force CFG by providing explicit negative prompt
+            explicit_negative_prompt = None
+            force_negative_embeds = None
+            if force_cfg_for_dynamic_guidance:
+                logging.info("🔧 Force CFG for dynamic guidance: ensuring negative prompt embeddings are generated")
+                explicit_negative_prompt = ""  # Empty string for unconditional generation
+                
+                # Pre-generate negative embeddings to ensure they're available
+                try:
+                    force_negative_embeds = self.pipe.encode_prompt(
+                        prompt="",  # Empty prompt for unconditional
+                        negative_prompt=None,
+                        do_classifier_free_guidance=True,
+                        num_videos_per_prompt=1,
+                        device=self.device
+                    )[1]  # Get the negative embeddings
+                    logging.info("✅ Pre-generated negative embeddings for force_cfg")
+                except Exception as e:
+                    logging.warning(f"Failed to pre-generate negative embeddings: {e}")
+                    force_negative_embeds = None
+            
             # Generate video with memory optimization
             with torch.no_grad():
                 if use_weighted_embeddings:
@@ -901,9 +946,21 @@ class WanVideoGenerator:
                             weighting_method=embedding_method
                         )
                         
+                        # For dynamic guidance with weighted embeddings, we need to create negative embeddings manually
+                        negative_prompt_embeds = force_negative_embeds
+                        if negative_prompt_embeds is None and force_cfg_for_dynamic_guidance:
+                            negative_prompt_embeds = self.pipe.encode_prompt(
+                                prompt="",  # Empty prompt for unconditional
+                                negative_prompt=None,
+                                do_classifier_free_guidance=True,
+                                num_videos_per_prompt=1,
+                                device=self.device
+                            )[1]  # Get the negative embeddings
+                        
                         # Generate using prompt_embeds with callback
                         video_frames = self.pipe(
                             prompt_embeds=prompt_embeds,
+                            negative_prompt_embeds=negative_prompt_embeds,
                             width=width,
                             height=height,
                             num_frames=num_frames,
@@ -920,9 +977,106 @@ class WanVideoGenerator:
                         logging.error(f"Weighted embeddings generation failed: {e}")
                         logging.info("Falling back to processed prompt generation")
                         
-                        # Fallback to processed prompt with callback
+                        # Fallback to processed prompt with callback - use pre-generated embeddings if force_cfg
+                        if force_cfg_for_dynamic_guidance and force_negative_embeds is not None:
+                            try:
+                                prompt_embeds_fallback = self.pipe.encode_prompt(
+                                    prompt=processed_prompt,
+                                    negative_prompt=None,
+                                    do_classifier_free_guidance=True,
+                                    num_videos_per_prompt=1,
+                                    device=self.device
+                                )[0]  # Get the positive embeddings
+                                
+                                video_frames = self.pipe(
+                                    prompt_embeds=prompt_embeds_fallback,
+                                    negative_prompt_embeds=force_negative_embeds,
+                                    width=width,
+                                    height=height,
+                                    num_frames=num_frames,
+                                    num_inference_steps=num_inference_steps,
+                                    guidance_scale=guidance_scale,
+                                    generator=generator,
+                                    callback_on_step_end=callback_fn,
+                                    callback_on_step_end_tensor_inputs=callback_tensor_inputs if callback_fn else None
+                                ).frames[0]
+                            except Exception as fallback_e:
+                                logging.error(f"Force CFG fallback failed: {fallback_e}")
+                                # Final fallback to regular prompt
+                                video_frames = self.pipe(
+                                    prompt=processed_prompt,
+                                    negative_prompt=explicit_negative_prompt,
+                                    width=width,
+                                    height=height,
+                                    num_frames=num_frames,
+                                    num_inference_steps=num_inference_steps,
+                                    guidance_scale=guidance_scale,
+                                    generator=generator,
+                                    callback_on_step_end=callback_fn,
+                                    callback_on_step_end_tensor_inputs=callback_tensor_inputs if callback_fn else None
+                                ).frames[0]
+                        else:
+                            # Regular fallback
+                            video_frames = self.pipe(
+                                prompt=processed_prompt,
+                                negative_prompt=explicit_negative_prompt,
+                                width=width,
+                                height=height,
+                                num_frames=num_frames,
+                                num_inference_steps=num_inference_steps,
+                                guidance_scale=guidance_scale,
+                                generator=generator,
+                                callback_on_step_end=callback_fn,
+                                callback_on_step_end_tensor_inputs=callback_tensor_inputs if callback_fn else None
+                            ).frames[0]
+                else:
+                    # Use processed prompt (repetition, enhanced language, or clean) with callback
+                    if force_cfg_for_dynamic_guidance and force_negative_embeds is not None:
+                        # Use pre-generated prompt embeddings and negative embeddings for force_cfg
+                        try:
+                            prompt_embeds = self.pipe.encode_prompt(
+                                prompt=processed_prompt,
+                                negative_prompt=None,
+                                do_classifier_free_guidance=True,
+                                num_videos_per_prompt=1,
+                                device=self.device
+                            )[0]  # Get the positive embeddings
+                            
+                            video_frames = self.pipe(
+                                prompt_embeds=prompt_embeds,
+                                negative_prompt_embeds=force_negative_embeds,
+                                width=width,
+                                height=height,
+                                num_frames=num_frames,
+                                num_inference_steps=num_inference_steps,
+                                guidance_scale=guidance_scale,
+                                generator=generator,
+                                callback_on_step_end=callback_fn,
+                                callback_on_step_end_tensor_inputs=callback_tensor_inputs if callback_fn else None
+                            ).frames[0]
+                            
+                        except Exception as e:
+                            logging.error(f"Force CFG with embeddings failed: {e}")
+                            logging.info("Falling back to regular prompt generation")
+                            
+                            # Fallback to regular prompt generation
+                            video_frames = self.pipe(
+                                prompt=processed_prompt,
+                                negative_prompt=explicit_negative_prompt,
+                                width=width,
+                                height=height,
+                                num_frames=num_frames,
+                                num_inference_steps=num_inference_steps,
+                                guidance_scale=guidance_scale,
+                                generator=generator,
+                                callback_on_step_end=callback_fn,
+                                callback_on_step_end_tensor_inputs=callback_tensor_inputs if callback_fn else None
+                            ).frames[0]
+                    else:
+                        # Regular prompt generation
                         video_frames = self.pipe(
                             prompt=processed_prompt,
+                            negative_prompt=explicit_negative_prompt,
                             width=width,
                             height=height,
                             num_frames=num_frames,
@@ -932,19 +1086,6 @@ class WanVideoGenerator:
                             callback_on_step_end=callback_fn,
                             callback_on_step_end_tensor_inputs=callback_tensor_inputs if callback_fn else None
                         ).frames[0]
-                else:
-                    # Use processed prompt (repetition, enhanced language, or clean) with callback
-                    video_frames = self.pipe(
-                        prompt=processed_prompt,
-                        width=width,
-                        height=height,
-                        num_frames=num_frames,
-                        num_inference_steps=num_inference_steps,
-                        guidance_scale=guidance_scale,
-                        generator=generator,
-                        callback_on_step_end=callback_fn,
-                        callback_on_step_end_tensor_inputs=callback_tensor_inputs if callback_fn else None
-                    ).frames[0]
             
             # Finish latent storage if enabled
             latent_summary = None
@@ -972,6 +1113,14 @@ class WanVideoGenerator:
                     logging.info("✨ Restored original guidance scale after dynamic scheduling")
                 except Exception as e:
                     logging.error(f"Error restoring original guidance scale: {e}")
+            
+            # Restore original do_classifier_free_guidance property if force_cfg was used
+            if original_do_classifier_free_guidance is not None:
+                try:
+                    self.pipe.transformer.do_classifier_free_guidance = original_do_classifier_free_guidance
+                    logging.info("✨ Restored original do_classifier_free_guidance property")
+                except Exception as e:
+                    logging.error(f"Error restoring do_classifier_free_guidance property: {e}")
             
             # Debug video frames structure
             logging.info(f"Video frames type: {type(video_frames)}")
@@ -1121,13 +1270,21 @@ class WanVideoGenerator:
             import traceback
             logging.error(traceback.format_exc())
             
+            # Restore original guidance scale if dynamic guidance was used
+            if guidance_callback:
+                try:
+                    guidance_callback.restore_original_guidance(self.pipe)
+                    logging.info("✨ Restored original guidance scale after error")
+                except Exception as restore_error:
+                    logging.error(f"Error restoring original guidance scale after error: {restore_error}")
+            
             # Try to clean up memory on error if configured
             if self._is_large_model() and self.memory_settings.clear_cache_between_videos:
                 clear_gpu_memory()
                 logging.info("Cleaned up GPU memory after error")
             
             # Clean up attention hooks on error if they were registered
-            if attention_storage and attention_hooks_registered:
+            if 'attention_hooks_registered' in locals() and attention_storage and attention_hooks_registered:
                 try:
                     attention_storage.remove_attention_hooks(self.pipe.transformer)
                     logging.info("Removed attention hooks after error")
