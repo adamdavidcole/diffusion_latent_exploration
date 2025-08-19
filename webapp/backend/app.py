@@ -189,8 +189,15 @@ class VideoAnalyzer:
                         
                         # Get the actual variation text from the JSON data
                         variation_info = variations_data.get(variation_num, {})
-                        # Use the shorter variation text from variables.var_0 for easier skimming
-                        variation_text = variation_info.get('variables', {}).get('var_0', f"Variation {variation_num}")
+                        
+                        # Use the full 'text' field for complete variation text (untruncated)
+                        # Falls back to 'prompt' field, then 'var_0', then generic text
+                        variation_text = (
+                            variation_info.get('text', '') or 
+                            variation_info.get('prompt', '') or
+                            variation_info.get('variables', {}).get('var_0', f"Variation {variation_num}")
+                        )
+                        
                         variation_id = variation_info.get('id', f"variation_{variation_num}")
                         
                         # Find video files in this prompt directory
@@ -205,9 +212,12 @@ class VideoAnalyzer:
             # Organize videos by variation and seed
             video_grid = self._organize_videos(videos)
             
-            # Extract unique seeds and variations
+            # Extract unique seeds and variations (by variation_num to avoid duplicates)
             seeds = sorted(list(set(v['seed'] for v in videos)))
-            variations = sorted(list(set(v['variation'] for v in videos)))
+            unique_variations = {}
+            for v in videos:
+                unique_variations[v['variation_num']] = v['variation']
+            variations = [unique_variations[var_num] for var_num in sorted(unique_variations.keys())]
             
             # Scan for attention videos
             attention_videos = self._scan_attention_videos(exp_dir)
@@ -281,23 +291,25 @@ class VideoAnalyzer:
     
     def _organize_videos(self, videos):
         """Organize videos into a grid structure by variation and seed"""
-        # Group by variation text, but keep track of variation number for sorting
+        # Group by variation_num (unique) rather than variation text (potentially duplicate)
         variations = {}
         for video in videos:
-            var = video['variation']
-            if var not in variations:
-                variations[var] = {
+            var_num = video['variation_num']  # Use unique variation number as key
+            if var_num not in variations:
+                variations[var_num] = {
                     'videos': [],
-                    'variation_num': video['variation_num']  # Keep the numeric order
+                    'variation_text': video['variation'],  # Store the display text
+                    'variation_num': var_num  # Keep the numeric order
                 }
-            variations[var]['videos'].append(video)
+            variations[var_num]['videos'].append(video)
         
         # Create grid structure, sorted by variation number (original generation order)
         grid = []
-        for variation in sorted(variations.keys(), key=lambda x: variations[x]['variation_num']):
+        for var_num in sorted(variations.keys()):
             row = {
-                'variation': variation,
-                'videos': sorted(variations[variation]['videos'], key=lambda x: x['seed'])
+                'variation': variations[var_num]['variation_text'],  # Use the display text
+                'variation_num': var_num,  # Include variation number for reference
+                'videos': sorted(variations[var_num]['videos'], key=lambda x: x['seed'])
             }
             grid.append(row)
             
