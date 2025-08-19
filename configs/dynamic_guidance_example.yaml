@@ -5,7 +5,7 @@
 model_settings:
   seed: 999
   sampler: "unipc"
-  cfg_scale: 6.5  # This will be the initial guidance scale (overridden by schedule)
+  cfg_scale: 0.0  # This will be the initial guidance scale (overridden by schedule)
   steps: 20
   eta: 0.0
   clip_skip: 1
@@ -29,12 +29,10 @@ video_settings:
   frames: 61
 
 # Dynamic Classifier-Free Guidance Scheduling
-cfg_schedule_settings:
+cfg_schedule_settings: 
   enabled: true
   schedule:
-    0: 0.0    # High guidance at start for strong prompt following
-    10: 0.0   # Medium guidance in middle
-    19: 0.0   # No guidance at end for more creative/diverse results
+    0: 6.5   # zero guidance at start for no prompt following
   interpolation: "linear"  # Options: "linear", "step", "cosine"
   apply_to_guidance_2: true  # Apply to both transformer and transformer_2 (if using dual-model WAN)
   verbose: true  # Log guidance scale changes during generation

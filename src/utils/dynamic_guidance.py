@@ -4,6 +4,7 @@ Allows modulating classifier-free guidance scale during generation based on a sc
 """
 
 import logging
+import traceback
 from typing import Dict, Union, Optional, Callable
 import torch
 
@@ -130,40 +131,33 @@ class DynamicGuidanceCallback:
         # Track original values for restoration
         self.original_guidance_scale = None
         self.original_guidance_scale_2 = None
-        
-    def __call__(self, pipe, step_index: int, timestep: torch.Tensor, callback_kwargs: Dict) -> Dict:
-        """
-        Callback function called during each denoising step.
-        
-        Args:
-            pipe: The WAN pipeline instance
-            step_index: Current step index (0-indexed)
-            timestep: Current timestep tensor
-            callback_kwargs: Additional callback arguments
+
+
+    def __call__(self, pipe, step: int, timestep: torch.Tensor, callback_kwargs: dict):
+        """Apply the guidance schedule at this step."""
+        try:
+            # Calculate the guidance value for this step
+            guidance_value = self.guidance_scheduler.get_guidance_scale(step)
             
-        Returns:
-            Updated callback_kwargs (unchanged in this case)
-        """
-        # Store original values on first call
-        if self.original_guidance_scale is None:
-            self.original_guidance_scale = pipe._guidance_scale
-            if hasattr(pipe, '_guidance_scale_2') and pipe._guidance_scale_2 is not None:
-                self.original_guidance_scale_2 = pipe._guidance_scale_2
-        
-        # Get new guidance scale for this step
-        new_guidance_scale = self.guidance_scheduler.get_guidance_scale(step_index)
-        
-        # Update pipeline guidance scale
-        old_guidance = pipe._guidance_scale
-        pipe._guidance_scale = new_guidance_scale
-        
-        # Also update guidance_scale_2 if applicable
-        if self.apply_to_guidance_2 and hasattr(pipe, '_guidance_scale_2') and pipe._guidance_scale_2 is not None:
-            pipe._guidance_scale_2 = new_guidance_scale
-            
-        # Log the change if verbose
-        if self.verbose and old_guidance != new_guidance_scale:
-            self.logger.info(f"Step {step_index}: Guidance scale {old_guidance:.2f} -> {new_guidance_scale:.2f}")
+            # Apply to WAN pipeline - it stores guidance in _guidance_scale and _guidance_scale_2
+            if hasattr(pipe, '_guidance_scale'):
+                pipe._guidance_scale = guidance_value
+                logging.debug(f"Step {step}: Set _guidance_scale to {guidance_value}")
+                
+                # Also set _guidance_scale_2 if it exists (for dual-stage WAN models)
+                if hasattr(pipe, '_guidance_scale_2'):
+                    pipe._guidance_scale_2 = guidance_value
+                    logging.debug(f"Step {step}: Set _guidance_scale_2 to {guidance_value}")
+                    
+            elif hasattr(pipe, 'guidance_scale'):
+                pipe.guidance_scale = guidance_value
+                logging.debug(f"Step {step}: Set guidance_scale to {guidance_value}")
+            else:
+                logging.warning(f"Pipeline {type(pipe)} doesn't have a known guidance_scale attribute")
+                
+        except Exception as e:
+            logging.error(f"Error in dynamic guidance callback: {e}")
+            logging.error(traceback.format_exc())
             
         return callback_kwargs
     

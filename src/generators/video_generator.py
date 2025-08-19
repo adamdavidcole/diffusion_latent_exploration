@@ -610,6 +610,22 @@ class WanVideoGenerator:
             guidance_scale = kwargs.get('cfg_scale', self.config.model_settings.cfg_scale)
             generator_seed = kwargs.get('seed', self.config.model_settings.seed)
             
+            # Check if dynamic guidance schedule is enabled and override initial guidance_scale
+            cfg_schedule_settings = getattr(self.config, 'cfg_schedule_settings', None)
+            if cfg_schedule_settings and cfg_schedule_settings.enabled and cfg_schedule_settings.schedule:
+                # Get the guidance scale for step 0 from the schedule
+                schedule = cfg_schedule_settings.schedule
+                if 0 in schedule:
+                    guidance_scale = schedule[0]
+                    logging.info(f"🎯 Using initial guidance_scale from schedule: {guidance_scale} (step 0)")
+                else:
+                    # Find the first scheduled step and use its value
+                    first_step = min(schedule.keys())
+                    guidance_scale = schedule[first_step]
+                    logging.info(f"🎯 Using guidance_scale from first scheduled step {first_step}: {guidance_scale}")
+            else:
+                logging.info(f"🎯 Using guidance_scale from config: {guidance_scale}")
+            
             # Extract latent storage parameters
             latent_storage = kwargs.get('latent_storage', None)
             attention_storage = kwargs.get('attention_storage', None)
@@ -681,9 +697,8 @@ class WanVideoGenerator:
             callback_fn = None
             callback_tensor_inputs = ['latents']
             
-            # Setup dynamic guidance schedule if enabled
+            # Setup dynamic guidance schedule if enabled (cfg_schedule_settings already checked above)
             guidance_callback = None
-            cfg_schedule_settings = getattr(self.config, 'cfg_schedule_settings', None)
             if cfg_schedule_settings and cfg_schedule_settings.enabled and cfg_schedule_settings.schedule:
                 try:
                     from src.utils.dynamic_guidance import create_guidance_callback
@@ -695,12 +710,23 @@ class WanVideoGenerator:
                         verbose=cfg_schedule_settings.verbose
                     )
                     logging.info(f"✨ Dynamic guidance scheduling enabled with {len(cfg_schedule_settings.schedule)} keyframes")
+                    logging.info(f"📊 Schedule: {cfg_schedule_settings.schedule}")
+                    logging.info(f"🔄 Interpolation: {cfg_schedule_settings.interpolation}")
+                    logging.info(f"🎯 Total steps: {num_inference_steps}")
+                    logging.info(f"🔊 Verbose: {cfg_schedule_settings.verbose}")
                     if cfg_schedule_settings.verbose:
                         for step, scale in sorted(cfg_schedule_settings.schedule.items()):
                             logging.info(f"   Step {step}: guidance_scale = {scale}")
                 except Exception as e:
                     logging.error(f"❌ Failed to setup dynamic guidance callback: {e}")
+                    import traceback
+                    logging.error(traceback.format_exc())
                     guidance_callback = None
+            else:
+                if cfg_schedule_settings:
+                    logging.info(f"🚫 Dynamic guidance disabled: enabled={getattr(cfg_schedule_settings, 'enabled', None)}, schedule={getattr(cfg_schedule_settings, 'schedule', None)}")
+                else:
+                    logging.info("🚫 No cfg_schedule_settings found in config")
             
             if latent_storage and video_id:
                 # Start latent storage for this video
@@ -790,7 +816,9 @@ class WanVideoGenerator:
                     # Apply dynamic guidance schedule first (before other callbacks)
                     if guidance_callback:
                         try:
+                            logging.debug(f"🎯 Applying guidance callback at step {step}")
                             result = guidance_callback(pipe, step, timestep, result)
+                            logging.debug(f"🎯 Pipeline guidance after callback: {pipe._guidance_scale}")
                         except Exception as e:
                             logging.error(f"Error in guidance callback: {e}")
                     
@@ -817,6 +845,7 @@ class WanVideoGenerator:
                     return result
                 
                 callback_fn = combined_callback
+                logging.info(f"✅ Created combined callback with guidance_callback={guidance_callback is not None}")
             
             # If we only have guidance callback but no attention storage, still need to combine callbacks
             elif guidance_callback:
@@ -828,7 +857,9 @@ class WanVideoGenerator:
                     
                     # Apply dynamic guidance schedule first
                     try:
+                        logging.debug(f"🎯 Applying guidance-only callback at step {step}")
                         result = guidance_callback(pipe, step, timestep, result)
+                        logging.debug(f"🎯 Pipeline guidance after callback: {pipe._guidance_scale}")
                     except Exception as e:
                         logging.error(f"Error in guidance callback: {e}")
                     
@@ -839,6 +870,7 @@ class WanVideoGenerator:
                     return result
                 
                 callback_fn = guidance_only_callback
+                logging.info(f"✅ Created guidance-only callback with guidance_callback={guidance_callback is not None}")
             
             # Final fallback: if we only have guidance callback and no other callbacks
             elif guidance_callback and not callback_fn:
