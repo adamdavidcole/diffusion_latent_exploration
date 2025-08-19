@@ -10,6 +10,31 @@ const formatDuration = (seconds) => {
   return `${minutes}m ${remainingSeconds.toFixed(1)}s`;
 };
 
+// Helper function to format CFG information
+const formatCfgInfo = (experiment) => {
+  const { cfg_scale, cfg_schedule_settings } = experiment;
+  
+  // Check if CFG schedule is enabled and has a schedule
+  if (cfg_schedule_settings?.enabled && cfg_schedule_settings?.schedule) {
+    const schedule = cfg_schedule_settings.schedule;
+    const interpolation = cfg_schedule_settings.interpolation || 'linear';
+    
+    // Format schedule as compact string
+    const scheduleStr = Object.entries(schedule)
+      .map(([step, value]) => `${step}: ${value}`)
+      .join(', ');
+    
+    return `CFG Schedule: {${scheduleStr}} (${interpolation})`;
+  }
+  
+  // Fall back to basic CFG scale
+  if (cfg_scale !== null && cfg_scale !== undefined) {
+    return `CFG: ${cfg_scale}`;
+  }
+  
+  return null;
+};
+
 const ExperimentHeader = () => {
   const { state } = useApp();
   const { currentExperiment } = state;
@@ -35,6 +60,9 @@ const ExperimentHeader = () => {
         <span className="stat-item">{currentExperiment.seeds_count} seeds</span>
         {currentExperiment.duration_seconds && (
           <span className="stat-item">{formatDuration(currentExperiment.duration_seconds)} duration</span>
+        )}
+        {formatCfgInfo(currentExperiment) && (
+          <span className="stat-item cfg-info">{formatCfgInfo(currentExperiment)}</span>
         )}
         {currentExperiment.has_vlm_analysis && (
           <span className="stat-item analysis-indicator">📊 VLM Analysis</span>

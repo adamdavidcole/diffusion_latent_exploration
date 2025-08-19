@@ -150,14 +150,36 @@ class VideoAnalyzer:
             # Load model info and other config from YAML
             config_path = exp_dir / 'configs' / 'generation_config.yaml'
             duration_seconds = None
+            cfg_scale = None
+            cfg_schedule_settings = None
+            cfg_schedule_data = None
+            
             if config_path.exists():
                 with open(config_path, 'r') as f:
                     config = yaml.safe_load(f)
                     if not prompt_template_path.exists():
                         base_prompt = config.get('base_prompt', 'Unknown prompt')
                     model_id = config.get('model_settings', {}).get('model_id', 'Unknown model')
+                    
+                    # Extract CFG scale from model_settings
+                    model_settings = config.get('model_settings', {})
+                    cfg_scale = model_settings.get('cfg_scale')
+                    
+                    # Extract CFG schedule settings if present
+                    cfg_schedule_settings = config.get('cfg_schedule_settings')
+                    
                     # Extract duration from config
                     video_settings = config.get('video_settings', {})
+            
+            # Load detailed CFG schedule data if available
+            cfg_schedule_file = exp_dir / 'configs' / 'cfg_schedule.json'
+            if cfg_schedule_file.exists():
+                try:
+                    with open(cfg_schedule_file, 'r') as f:
+                        cfg_schedule_data = json.load(f)
+                except Exception as e:
+                    print(f"Failed to load CFG schedule data: {e}")
+                    cfg_schedule_data = None
                     duration_seconds = video_settings.get('duration')
                     if duration_seconds is None:
                         frames = video_settings.get('frames')
@@ -242,6 +264,9 @@ class VideoAnalyzer:
                 'variations_count': len(variations),
                 'seeds_count': len(seeds),
                 'duration_seconds': duration_seconds,
+                'cfg_scale': cfg_scale,
+                'cfg_schedule_settings': cfg_schedule_settings,
+                'cfg_schedule_data': cfg_schedule_data,
                 'path': str(exp_dir),
                 'created_at': creation_datetime.isoformat(),
                 'created_timestamp': creation_time,
