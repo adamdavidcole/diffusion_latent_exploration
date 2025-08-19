@@ -3,11 +3,13 @@ import {
   CategoryScale,
   LinearScale,
   BarElement,
+  LineElement,
   PointElement,
   Title,
   Tooltip,
   Legend,
   ArcElement,
+  Filler,
 } from 'chart.js';
 import { WordCloudController, WordElement } from 'chartjs-chart-wordcloud';
 
@@ -16,11 +18,13 @@ ChartJS.register(
   CategoryScale,
   LinearScale,
   BarElement,
+  LineElement,
   PointElement,
   Title,
   Tooltip,
   Legend,
   ArcElement,
+  Filler,
   WordCloudController,
   WordElement
 );

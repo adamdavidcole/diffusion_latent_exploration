@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import MetricComparisonChart from './MetricComparisonChart';
 import ScatterChart from './ScatterChart';
+import LineChart from './LineChart';
+import VarianceComparisonChart from './VarianceComparisonChart';
+import BarChartWithLabels from './BarChartWithLabels';
 import { TrajectoryAnalysisDescriptions } from '../TrajectoryAnalysis/TrajectoryAnalysisDescriptions';
 import { getVariationTextFromPromptKey } from '../../utils/variationText';
 import { getPromptGroupColors } from '../../utils/chartColors';
@@ -30,11 +33,13 @@ const TrajectoryChartModal = ({
         }
     };
 
-    // Use the same data helper as TrajectoryAnalysis for consistent data access
+    // Use the same data helper as TrajectoryAnalysis
     const helperData = extractChartData({ [activeNormalization]: analysisData }, activeNormalization);
 
     // Get individual values for detailed scatter plots using the data helper
     const getIndividualValuesData = () => {
+        const individualData = {};
+
         // For scatter plots, return the scatter data directly from helper
         if (metricKey === 'velocity_vs_log_volume') {
             return helperData.velocityVsLogVolume || {};
@@ -42,19 +47,129 @@ const TrajectoryChartModal = ({
             return helperData.velocityVsCircuitousness || {};
         }
 
-        // For regular metrics, use the helper function
-        return helperData.getIndividualValues(metricKey);
+        // For regular metrics, we still need to extract individual values manually
+        // since the helper only provides aggregated means, not individual trajectory values
+        promptGroups.forEach(promptGroup => {
+            let values = [];
+
+            // Extract individual values based on metric type
+            // Note: These are individual trajectory values, not available in the helper
+            if (metricKey === 'trajectory_length') {
+                values = analysisData?.temporal_analysis?.[promptGroup]?.trajectory_length?.individual_lengths || [];
+            } else if (metricKey === 'velocity_analysis') {
+                values = analysisData?.temporal_analysis?.[promptGroup]?.velocity_analysis?.mean_velocity_by_video ||
+                    analysisData?.temporal_analysis?.[promptGroup]?.velocity_analysis?.mean_velocity || [];
+            } else if (metricKey === 'acceleration_analysis') {
+                values = analysisData?.temporal_analysis?.[promptGroup]?.acceleration_analysis?.mean_acceleration_by_video ||
+                    analysisData?.temporal_analysis?.[promptGroup]?.acceleration_analysis?.mean_acceleration || [];
+            } else if (metricKey === 'endpoint_distance') {
+                values = analysisData?.temporal_analysis?.[promptGroup]?.endpoint_distance?.individual_distances || [];
+            } else if (metricKey === 'tortuosity') {
+                values = analysisData?.temporal_analysis?.[promptGroup]?.tortuosity?.individual_tortuosity || [];
+            } else if (metricKey === 'semantic_convergence') {
+                values = analysisData?.temporal_analysis?.[promptGroup]?.semantic_convergence?.individual_half_life || [];
+            } else if (metricKey === 'log_volume_stats') {
+                values = analysisData?.individual_trajectory_geometry?.[promptGroup]?.log_volume_stats?.individual_values || [];
+            } else if (metricKey === 'effective_side_stats') {
+                values = analysisData?.individual_trajectory_geometry?.[promptGroup]?.effective_side_stats?.individual_values || [];
+            } else if (metricKey === 'endpoint_alignment_stats') {
+                values = analysisData?.individual_trajectory_geometry?.[promptGroup]?.endpoint_alignment_stats?.individual_values || [];
+            } else if (metricKey === 'turning_angle_stats') {
+                values = analysisData?.individual_trajectory_geometry?.[promptGroup]?.turning_angle_stats?.individual_values || [];
+            } else if (metricKey === 'circuitousness_stats') {
+                values = analysisData?.individual_trajectory_geometry?.[promptGroup]?.circuitousness_stats?.individual_values || [];
+            } else if (metricKey === 'efficiency_metrics') {
+                values = analysisData?.individual_trajectory_geometry?.[promptGroup]?.efficiency_metrics?.individual_efficiency || [];
+            } else if (metricKey === 'step_variability_stats') {
+                values = analysisData?.individual_trajectory_geometry?.[promptGroup]?.step_variability_stats?.individual_values || [];
+            }
+
+            // Convert to scatter plot format with trajectory index as x-axis
+            if (values && values.length > 0) {
+                individualData[promptGroup] = values.map((value, index) => ({
+                    x: index + 1, // Trajectory number
+                    y: value
+                }));
+            }
+        });
+
+        return individualData;
     };
 
     // Get error bar data for intervals using consistent approach
     const getErrorBarData = () => {
+        const errorData = {};
+
         // For scatter plots, no error bars
         if (metricKey.includes('velocity_vs')) {
             return {};
         }
 
-        // Use the helper function for consistent statistical data extraction
-        return helperData.getStatisticalData(metricKey);
+        // For aggregated metrics that are in helper data, we could potentially
+        // extract from helper, but since we need the full stats (std, min, max)
+        // we still need to access analysisData directly for now
+        promptGroups.forEach(promptGroup => {
+            let statsData = null;
+
+            // Extract stats based on metric type
+            if (metricKey === 'trajectory_length') {
+                statsData = analysisData?.temporal_analysis?.[promptGroup]?.trajectory_length;
+            } else if (metricKey === 'velocity_analysis') {
+                statsData = analysisData?.temporal_analysis?.[promptGroup]?.velocity_analysis;
+            } else if (metricKey === 'acceleration_analysis') {
+                statsData = analysisData?.temporal_analysis?.[promptGroup]?.acceleration_analysis;
+            } else if (metricKey === 'endpoint_distance') {
+                statsData = analysisData?.temporal_analysis?.[promptGroup]?.endpoint_distance;
+            } else if (metricKey === 'tortuosity') {
+                statsData = analysisData?.temporal_analysis?.[promptGroup]?.tortuosity;
+            } else if (metricKey === 'semantic_convergence') {
+                statsData = analysisData?.temporal_analysis?.[promptGroup]?.semantic_convergence;
+            } else if (metricKey === 'log_volume_stats') {
+                statsData = analysisData?.individual_trajectory_geometry?.[promptGroup]?.log_volume_stats;
+            } else if (metricKey === 'effective_side_stats') {
+                statsData = analysisData?.individual_trajectory_geometry?.[promptGroup]?.effective_side_stats;
+            } else if (metricKey === 'endpoint_alignment_stats') {
+                statsData = analysisData?.individual_trajectory_geometry?.[promptGroup]?.endpoint_alignment_stats;
+            } else if (metricKey === 'turning_angle_stats') {
+                statsData = analysisData?.individual_trajectory_geometry?.[promptGroup]?.turning_angle_stats;
+            } else if (metricKey === 'circuitousness_stats') {
+                statsData = analysisData?.individual_trajectory_geometry?.[promptGroup]?.circuitousness_stats;
+            } else if (metricKey === 'efficiency_metrics') {
+                statsData = analysisData?.individual_trajectory_geometry?.[promptGroup]?.efficiency_metrics;
+            } else if (metricKey === 'step_variability_stats') {
+                statsData = analysisData?.individual_trajectory_geometry?.[promptGroup]?.step_variability_stats;
+            }
+
+            if (statsData) {
+                // Use appropriate mean field based on metric type
+                let meanValue = statsData.mean;
+                if (metricKey === 'trajectory_length') {
+                    meanValue = statsData.mean_length;
+                } else if (metricKey === 'velocity_analysis') {
+                    meanValue = statsData.overall_mean_velocity;
+                } else if (metricKey === 'acceleration_analysis') {
+                    meanValue = statsData.overall_mean_acceleration;
+                } else if (metricKey === 'endpoint_distance') {
+                    meanValue = statsData.mean_endpoint_distance;
+                } else if (metricKey === 'tortuosity') {
+                    meanValue = statsData.mean_tortuosity;
+                } else if (metricKey === 'semantic_convergence') {
+                    meanValue = statsData.mean_half_life;
+                } else if (metricKey === 'efficiency_metrics') {
+                    meanValue = statsData.mean_efficiency;
+                }
+
+                errorData[promptGroup] = {
+                    mean: meanValue,
+                    std: statsData.std,
+                    min: statsData.min,
+                    max: statsData.max,
+                    median: statsData.median
+                };
+            }
+        });
+
+        return errorData;
     };
 
     const individualValues = getIndividualValuesData();
@@ -99,13 +214,22 @@ const TrajectoryChartModal = ({
 
     const globalRanges = hasIndividualValues ? calculateGlobalRanges() : null;
 
-    // Create enhanced chart data using helper data consistently
+    // Create enhanced chart data with error bars
     const createEnhancedChartData = () => {
         // For scatter plots, use the helper data directly
         if (metricKey === 'velocity_vs_log_volume') {
             return helperData.velocityVsLogVolume || {};
         } else if (metricKey === 'velocity_vs_circuitousness') {
             return helperData.velocityVsCircuitousness || {};
+        }
+
+        // For variance comparison, return the special format
+        if (metricKey === 'variance_comparison') {
+            return {
+                overall: helperData.overallVariance || {},
+                acrossVideos: helperData.varianceAcrossVideos || {},
+                acrossSteps: helperData.varianceAcrossSteps || {}
+            };
         }
 
         // For regular metrics, prefer helper data if available, otherwise fall back to chartData
@@ -122,7 +246,22 @@ const TrajectoryChartModal = ({
             'turning_angle_stats': 'turningAngle',
             'circuitousness_stats': 'circuitousness',
             'efficiency_metrics': 'efficiency',
-            'step_variability_stats': 'stepVariability'
+            'step_variability_stats': 'stepVariability',
+            // Spatial metrics
+            'temporal_variance': 'temporalVariance',
+            'spatial_variance': 'spatialVariance',
+            'trajectory_pattern': 'trajectoryPattern',
+            'evolution_ratio': 'evolutionRatio',
+            'early_vs_late_significance': 'earlyVsLateSignificance',
+            'trajectory_smoothness': 'trajectorySmooth',
+            'phase_transition_strength': 'phaseTransitionStrength',
+            'step_deltas_mean': 'stepDeltasMean',
+            'step_deltas_std': 'stepDeltasStd',
+            'progression_consistency': 'progressionConsistency',
+            'progression_variability': 'progressionVariability',
+            // Geometry derivatives
+            'curvature_peak_mean': 'curvaturePeakMean',
+            'jerk_peak_mean': 'jerkPeakMean'
         };
 
         const helperKey = helperMetricMap[metricKey];
@@ -194,6 +333,51 @@ const TrajectoryChartModal = ({
                                 xLabel={metricKey === 'velocity_vs_log_volume' ? 'Velocity (mean per trajectory)' : 'Velocity (mean per trajectory)'}
                                 yLabel={metricKey === 'velocity_vs_log_volume' ? 'Log Volume' : 'Circuitousness − 1.0'}
                                 colors={consistentColors}
+                                currentExperiment={currentExperiment}
+                                beginAtZero={beginAtZero}
+                                showFullVariationText={showFullVariationText}
+                            />
+                        ) : metricKey === 'variance_comparison' ? (
+                            <VarianceComparisonChart
+                                overallVarianceData={createEnhancedChartData().overall}
+                                varianceAcrossVideosData={createEnhancedChartData().acrossVideos}
+                                varianceAcrossStepsData={createEnhancedChartData().acrossSteps}
+                                title={title}
+                                size={800}
+                                yLabel="Variance"
+                                currentExperiment={currentExperiment}
+                                beginAtZero={beginAtZero}
+                                showFullVariationText={showFullVariationText}
+                            />
+                        ) : metricKey === 'curvature_peak_mean' ? (
+                            <BarChartWithLabels
+                                data={createEnhancedChartData()}
+                                labelData={helperData.curvaturePeakStepMean}
+                                title={title}
+                                size={800}
+                                yLabel="Curvature"
+                                currentExperiment={currentExperiment}
+                                beginAtZero={beginAtZero}
+                                showFullVariationText={showFullVariationText}
+                            />
+                        ) : metricKey === 'jerk_peak_mean' ? (
+                            <BarChartWithLabels
+                                data={createEnhancedChartData()}
+                                labelData={helperData.jerkPeakStepMean}
+                                title={title}
+                                size={800}
+                                yLabel="Jerk"
+                                currentExperiment={currentExperiment}
+                                beginAtZero={beginAtZero}
+                                showFullVariationText={showFullVariationText}
+                            />
+                        ) : isArrayDataType(metricKey) ? (
+                            <LineChart
+                                data={createEnhancedChartData()}
+                                title={title}
+                                size={800}
+                                xLabel="Diffusion Step"
+                                yLabel={getYLabel(metricKey)}
                                 currentExperiment={currentExperiment}
                                 beginAtZero={beginAtZero}
                                 showFullVariationText={showFullVariationText}
@@ -347,10 +531,38 @@ const getYLabel = (metricKey) => {
         'turning_angle_stats': 'Angle (radians)',
         'circuitousness_stats': 'Circuitousness',
         'efficiency_metrics': 'Efficiency',
-        'step_variability_stats': 'Variability'
+        'step_variability_stats': 'Variability',
+        // Spatial metrics
+        'temporal_variance': 'Temporal Variance',
+        'spatial_variance': 'Spatial Variance',
+        'trajectory_pattern': 'Spatial Pattern Value',
+        'evolution_ratio': 'Ratio',
+        'early_vs_late_significance': 'Significance',
+        'trajectory_smoothness': 'Smoothness',
+        'phase_transition_strength': 'Transition Strength',
+        'step_deltas_mean': 'Step Delta Mean',
+        'step_deltas_std': 'Step Delta Std',
+        'progression_consistency': 'Consistency',
+        'progression_variability': 'Variability',
+        // Geometry derivatives
+        'curvature_peak_mean': 'Curvature',
+        'jerk_peak_mean': 'Jerk'
     };
 
     return labels[metricKey] || 'Value';
+};
+
+// Helper function to determine if a metric uses array data (time series)
+const isArrayDataType = (metricKey) => {
+    const arrayMetrics = [
+        'temporal_variance',
+        'spatial_variance', 
+        'trajectory_pattern',
+        'step_deltas_mean',
+        'step_deltas_std'
+    ];
+    
+    return arrayMetrics.includes(metricKey);
 };
 
 export default TrajectoryChartModal;

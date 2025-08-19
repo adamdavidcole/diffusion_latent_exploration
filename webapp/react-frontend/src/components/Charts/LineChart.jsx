@@ -1,12 +1,123 @@
 import React from 'react';
 import { Line } from 'react-chartjs-2';
 import '../../utils/chartSetup';
+import { getPromptGroupColors } from '../../utils/chartColors';
+import { getVariationTextFromPromptKey } from '../../utils/variationText';
 
-const LineChart = ({ data, title, size = 250, yLabel = '', color = '#4A90E2' }) => {
+const LineChart = ({ 
+  data, 
+  title, 
+  size = 250, 
+  yLabel = '', 
+  xLabel = 'Step',
+  color = '#4A90E2',
+  currentExperiment,
+  showFullVariationText = false,
+  beginAtZero = true
+}) => {
+  // Handle object data with multiple prompt groups (like { prompt_1: [array], prompt_2: [array] })
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const promptGroups = Object.keys(data);
+    const colors = getPromptGroupColors(promptGroups);
+    
+    // Find the maximum array length to create consistent x-axis labels
+    const maxLength = Math.max(...promptGroups.map(group => 
+      Array.isArray(data[group]) ? data[group].length : 0
+    ));
+    
+    const labels = Array.from({ length: maxLength }, (_, i) => `${i + 1}`);
+    
+    const datasets = promptGroups.map((promptGroup, index) => {
+      const groupData = data[promptGroup];
+      if (!Array.isArray(groupData)) return null;
+      
+      const label = showFullVariationText && currentExperiment ?
+        getVariationTextFromPromptKey(promptGroup, currentExperiment) :
+        promptGroup.replace('prompt_', 'P');
+      
+      return {
+        label,
+        data: groupData,
+        borderColor: colors[index],
+        backgroundColor: `${colors[index]}20`,
+        borderWidth: 2,
+        fill: false,
+        tension: 0.4,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        pointBackgroundColor: colors[index],
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 2,
+      };
+    }).filter(Boolean);
+
+    const chartData = {
+      labels,
+      datasets
+    };
+
+    const options = {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+          labels: {
+            color: '#b0b0b0',
+            font: {
+              size: 10
+            }
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          titleColor: '#ffffff',
+          bodyColor: '#ffffff',
+          borderWidth: 1,
+        },
+      },
+      scales: {
+        y: {
+          beginAtZero,
+          title: {
+            display: !!yLabel,
+            text: yLabel,
+            color: '#b0b0b0',
+          },
+          ticks: {
+            color: '#b0b0b0',
+          },
+          grid: {
+            color: 'rgba(176, 176, 176, 0.1)',
+          },
+        },
+        x: {
+          title: {
+            display: !!xLabel,
+            text: xLabel,
+            color: '#b0b0b0',
+          },
+          ticks: {
+            color: '#b0b0b0',
+          },
+          grid: {
+            color: 'rgba(176, 176, 176, 0.1)',
+          },
+        },
+      },
+    };
+
+    return (
+      <div style={{ width: size, height: size }}>
+        <Line data={chartData} options={options} />
+      </div>
+    );
+  }
   // Handle array data (time series)
   if (Array.isArray(data)) {
     const chartData = {
-      labels: data.map((_, index) => `Step ${index + 1}`),
+      labels: data.map((_, index) => `${index + 1}`),
       datasets: [
         {
           label: title,
@@ -42,7 +153,7 @@ const LineChart = ({ data, title, size = 250, yLabel = '', color = '#4A90E2' }) 
       },
       scales: {
         y: {
-          beginAtZero: true,
+          beginAtZero,
           title: {
             display: !!yLabel,
             text: yLabel,
@@ -57,8 +168,8 @@ const LineChart = ({ data, title, size = 250, yLabel = '', color = '#4A90E2' }) 
         },
         x: {
           title: {
-            display: true,
-            text: 'Individual Trajectories',
+            display: !!xLabel,
+            text: xLabel,
             color: '#b0b0b0',
           },
           ticks: {
@@ -110,7 +221,7 @@ const LineChart = ({ data, title, size = 250, yLabel = '', color = '#4A90E2' }) 
       },
       scales: {
         y: {
-          beginAtZero: true,
+          beginAtZero,
           title: {
             display: !!yLabel,
             text: yLabel,
@@ -180,7 +291,7 @@ const LineChart = ({ data, title, size = 250, yLabel = '', color = '#4A90E2' }) 
       },
       scales: {
         y: {
-          beginAtZero: true,
+          beginAtZero,
           title: {
             display: !!yLabel,
             text: yLabel,

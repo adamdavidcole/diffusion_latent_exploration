@@ -4,6 +4,9 @@ import { api } from '../../services/api';
 import TrajectoryAnalysisControls from './TrajectoryAnalysisControls';
 import MetricComparisonChart from '../Charts/MetricComparisonChart';
 import ScatterChart from '../Charts/ScatterChart';
+import LineChart from '../Charts/LineChart';
+import VarianceComparisonChart from '../Charts/VarianceComparisonChart';
+import BarChartWithLabels from '../Charts/BarChartWithLabels';
 import TrajectoryChartModal from '../Charts/TrajectoryChartModal';
 import { getVariationTextFromPromptKey } from '../../utils/variationText';
 import TrajectoryInfoTooltip from './TrajectoryInfoTooltip';
@@ -154,22 +157,7 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                 return renderGeometricAnalysis(analysisData, promptGroups);
 
             case 'spatial':
-                return (
-                    <div className="section-data">
-                        <h4>Spatial Analysis - Overall Variance</h4>
-                        <div className="data-grid">
-                            {promptGroups.map(promptGroup => {
-                                const overallVariance = analysisData?.structural_analysis?.[promptGroup]?.latent_space_variance?.overall_variance;
-                                return (
-                                    <div key={promptGroup} className="data-item">
-                                        <span className="prompt-label">{promptGroup}:</span>
-                                        <span className="data-value">{overallVariance?.toFixed(4) || 'N/A'}</span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                );
+                return renderSpatialAnalysis(analysisData, promptGroups);
 
             case 'channel':
                 return (
@@ -588,6 +576,374 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                                 beginAtZero={beginAtZero}
                                 showFullVariationText={showFullVariationText}
                             />
+                        </div>
+                    </div>
+
+                    {/* Curvature Peak Mean */}
+                    <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                        <h5>
+                            Curvature Peak Mean
+                            <TrajectoryInfoTooltip metricKey="curvature_peak_mean" title="Curvature Peak Mean" />
+                        </h5>
+                        <div
+                            className="clickable-chart"
+                            onClick={() => openChartModal(chartData.curvaturePeakMean, 'curvature_peak_mean', 'Curvature Peak Mean')}
+                            style={{ cursor: 'pointer' }}
+                            title="Click for detailed view"
+                        >
+                            <BarChartWithLabels
+                                data={chartData.curvaturePeakMean}
+                                labelData={chartData.curvaturePeakStepMean}
+                                title="Curvature Peak Mean"
+                                size={chartSize}
+                                yLabel="Curvature"
+                                currentExperiment={currentExperiment}
+                                beginAtZero={beginAtZero}
+                                showFullVariationText={showFullVariationText}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Jerk Peak Mean */}
+                    <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                        <h5>
+                            Jerk Peak Mean
+                            <TrajectoryInfoTooltip metricKey="jerk_peak_mean" title="Jerk Peak Mean" />
+                        </h5>
+                        <div
+                            className="clickable-chart"
+                            onClick={() => openChartModal(chartData.jerkPeakMean, 'jerk_peak_mean', 'Jerk Peak Mean')}
+                            style={{ cursor: 'pointer' }}
+                            title="Click for detailed view"
+                        >
+                            <BarChartWithLabels
+                                data={chartData.jerkPeakMean}
+                                labelData={chartData.jerkPeakStepMean}
+                                title="Jerk Peak Mean"
+                                size={chartSize}
+                                yLabel="Jerk"
+                                currentExperiment={currentExperiment}
+                                beginAtZero={beginAtZero}
+                                showFullVariationText={showFullVariationText}
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    // Render spatial analysis with charts
+    const renderSpatialAnalysis = (analysisData, promptGroups) => {
+        // Use the data helper to extract chart data
+        const chartData = extractChartData({ [activeNormalization]: analysisData }, activeNormalization);
+
+        return (
+            <div className="section-data">
+                <h4>Spatial Analysis</h4>
+
+                {/* STRUCTURAL ANALYSIS */}
+                <div className="metrics-section">
+                    <h5 className="metrics-section-header">Structural Analysis</h5>
+                    <div className="metrics-grid" style={{ '--chart-size': `${chartSize}px` }}>
+                        {/*<div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                             <h5>
+                                Temporal Variance Evolution
+                                <TrajectoryInfoTooltip metricKey="temporal_variance" title="Temporal Variance" />
+                            </h5>
+                            <div
+                                className="clickable-chart"
+                                onClick={() => openChartModal(chartData.temporalVariance, 'temporal_variance', 'Temporal Variance Evolution')}
+                                style={{ cursor: 'pointer' }}
+                                title="Click for detailed view"
+                            >
+                                <LineChart
+                                    data={chartData.temporalVariance}
+                                    title="Temporal Variance by Step"
+                                    size={chartSize}
+                                    xLabel="Diffusion Step"
+                                    yLabel="Temporal Variance"
+                                    currentExperiment={currentExperiment}
+                                    beginAtZero={beginAtZero}
+                                    showFullVariationText={showFullVariationText}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                            <h5>
+                                Spatial Variance Evolution
+                                <TrajectoryInfoTooltip metricKey="spatial_variance" title="Spatial Variance" />
+                            </h5>
+                            <div
+                                className="clickable-chart"
+                                onClick={() => openChartModal(chartData.spatialVariance, 'spatial_variance', 'Spatial Variance Evolution')}
+                                style={{ cursor: 'pointer' }}
+                                title="Click for detailed view"
+                            >
+                                <LineChart
+                                    data={chartData.spatialVariance}
+                                    title="Spatial Variance by Step"
+                                    size={chartSize}
+                                    xLabel="Diffusion Step"
+                                    yLabel="Spatial Variance"
+                                    currentExperiment={currentExperiment}
+                                    beginAtZero={beginAtZero}
+                                    showFullVariationText={showFullVariationText}
+                                />
+                            </div>
+                        </div> */}
+
+
+                    </div>
+                </div>
+
+                {/* SPATIAL EVOLUTION PATTERNS */}
+                <div className="metrics-section">
+                    <h5 className="metrics-section-header">Spatial Evolution Patterns</h5>
+                    <div className="metrics-grid" style={{ '--chart-size': `${chartSize}px` }}>
+                        <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                            <h5>
+                                Trajectory Spatial Pattern
+                                <TrajectoryInfoTooltip metricKey="trajectory_pattern" title="Trajectory Spatial Pattern" />
+                            </h5>
+                            <div
+                                className="clickable-chart"
+                                onClick={() => openChartModal(chartData.trajectoryPattern, 'trajectory_pattern', 'Trajectory Spatial Pattern')}
+                                style={{ cursor: 'pointer' }}
+                                title="Click for detailed view"
+                            >
+                                <LineChart
+                                    data={chartData.trajectoryPattern}
+                                    title="Trajectory Pattern by Step"
+                                    size={chartSize}
+                                    xLabel="Diffusion Step"
+                                    yLabel="Spatial Pattern Value"
+                                    currentExperiment={currentExperiment}
+                                    beginAtZero={beginAtZero}
+                                    showFullVariationText={showFullVariationText}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                            <h5>
+                                Evolution Ratio
+                                <TrajectoryInfoTooltip metricKey="evolution_ratio" title="Evolution Ratio" />
+                            </h5>
+                            <div
+                                className="clickable-chart"
+                                onClick={() => openChartModal(chartData.evolutionRatio, 'evolution_ratio', 'Evolution Ratio')}
+                                style={{ cursor: 'pointer' }}
+                                title="Click for detailed view"
+                            >
+                                <MetricComparisonChart
+                                    data={chartData.evolutionRatio}
+                                    title="Late/Early Evolution Ratio"
+                                    size={chartSize}
+                                    yLabel="Ratio"
+                                    currentExperiment={currentExperiment}
+                                    beginAtZero={beginAtZero}
+                                    showFullVariationText={showFullVariationText}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                            <h5>
+                                Early vs Late Significance
+                                <TrajectoryInfoTooltip metricKey="early_vs_late_significance" title="Early vs Late Significance" />
+                            </h5>
+                            <div
+                                className="clickable-chart"
+                                onClick={() => openChartModal(chartData.earlyVsLateSignificance, 'early_vs_late_significance', 'Early vs Late Significance')}
+                                style={{ cursor: 'pointer' }}
+                                title="Click for detailed view"
+                            >
+                                <MetricComparisonChart
+                                    data={chartData.earlyVsLateSignificance}
+                                    title="Early vs Late Significance"
+                                    size={chartSize}
+                                    yLabel="Significance"
+                                    currentExperiment={currentExperiment}
+                                    beginAtZero={beginAtZero}
+                                    showFullVariationText={showFullVariationText}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                            <h5>
+                                Trajectory Smoothness
+                                <TrajectoryInfoTooltip metricKey="trajectory_smoothness" title="Trajectory Smoothness" />
+                            </h5>
+                            <div
+                                className="clickable-chart"
+                                onClick={() => openChartModal(chartData.trajectorySmooth, 'trajectory_smoothness', 'Trajectory Smoothness')}
+                                style={{ cursor: 'pointer' }}
+                                title="Click for detailed view"
+                            >
+                                <MetricComparisonChart
+                                    data={chartData.trajectorySmooth}
+                                    title="Trajectory Smoothness"
+                                    size={chartSize}
+                                    yLabel="Smoothness"
+                                    currentExperiment={currentExperiment}
+                                    beginAtZero={beginAtZero}
+                                    showFullVariationText={showFullVariationText}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                            <h5>
+                                Phase Transition Strength
+                                <TrajectoryInfoTooltip metricKey="phase_transition_strength" title="Phase Transition Strength" />
+                            </h5>
+                            <div
+                                className="clickable-chart"
+                                onClick={() => openChartModal(chartData.phaseTransitionStrength, 'phase_transition_strength', 'Phase Transition Strength')}
+                                style={{ cursor: 'pointer' }}
+                                title="Click for detailed view"
+                            >
+                                <MetricComparisonChart
+                                    data={chartData.phaseTransitionStrength}
+                                    title="Phase Transition Strength"
+                                    size={chartSize}
+                                    yLabel="Transition Strength"
+                                    currentExperiment={currentExperiment}
+                                    beginAtZero={beginAtZero}
+                                    showFullVariationText={showFullVariationText}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* SPATIAL PROGRESSION PATTERNS */}
+                <div className="metrics-section">
+                    <h5 className="metrics-section-header">Spatial Progression Patterns</h5>
+                    <div className="metrics-grid" style={{ '--chart-size': `${chartSize}px` }}>
+                        <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                            <h5>
+                                Step Deltas Mean Evolution
+                                <TrajectoryInfoTooltip metricKey="step_deltas_mean" title="Step Deltas Mean" />
+                            </h5>
+                            <div
+                                className="clickable-chart"
+                                onClick={() => openChartModal(chartData.stepDeltasMean, 'step_deltas_mean', 'Step Deltas Mean Evolution')}
+                                style={{ cursor: 'pointer' }}
+                                title="Click for detailed view"
+                            >
+                                <LineChart
+                                    data={chartData.stepDeltasMean}
+                                    title="Step Deltas Mean by Step"
+                                    size={chartSize}
+                                    xLabel="Diffusion Step"
+                                    yLabel="Step Delta Mean"
+                                    currentExperiment={currentExperiment}
+                                    beginAtZero={beginAtZero}
+                                    showFullVariationText={showFullVariationText}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                            <h5>
+                                Step Deltas Std Evolution
+                                <TrajectoryInfoTooltip metricKey="step_deltas_std" title="Step Deltas Standard Deviation" />
+                            </h5>
+                            <div
+                                className="clickable-chart"
+                                onClick={() => openChartModal(chartData.stepDeltasStd, 'step_deltas_std', 'Step Deltas Std Evolution')}
+                                style={{ cursor: 'pointer' }}
+                                title="Click for detailed view"
+                            >
+                                <LineChart
+                                    data={chartData.stepDeltasStd}
+                                    title="Step Deltas Std by Step"
+                                    size={chartSize}
+                                    xLabel="Diffusion Step"
+                                    yLabel="Step Delta Std"
+                                    currentExperiment={currentExperiment}
+                                    beginAtZero={beginAtZero}
+                                    showFullVariationText={showFullVariationText}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                            <h5>
+                                Progression Consistency
+                                <TrajectoryInfoTooltip metricKey="progression_consistency" title="Progression Consistency" />
+                            </h5>
+                            <div
+                                className="clickable-chart"
+                                onClick={() => openChartModal(chartData.progressionConsistency, 'progression_consistency', 'Progression Consistency')}
+                                style={{ cursor: 'pointer' }}
+                                title="Click for detailed view"
+                            >
+                                <MetricComparisonChart
+                                    data={chartData.progressionConsistency}
+                                    title="Progression Consistency"
+                                    size={chartSize}
+                                    yLabel="Consistency"
+                                    currentExperiment={currentExperiment}
+                                    beginAtZero={beginAtZero}
+                                    showFullVariationText={showFullVariationText}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                            <h5>
+                                Progression Variability
+                                <TrajectoryInfoTooltip metricKey="progression_variability" title="Progression Variability" />
+                            </h5>
+                            <div
+                                className="clickable-chart"
+                                onClick={() => openChartModal(chartData.progressionVariability, 'progression_variability', 'Progression Variability')}
+                                style={{ cursor: 'pointer' }}
+                                title="Click for detailed view"
+                            >
+                                <MetricComparisonChart
+                                    data={chartData.progressionVariability}
+                                    title="Progression Variability"
+                                    size={chartSize}
+                                    yLabel="Variability"
+                                    currentExperiment={currentExperiment}
+                                    beginAtZero={beginAtZero}
+                                    showFullVariationText={showFullVariationText}
+                                />
+                            </div>
+                        </div>
+                        <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                            <h5>
+                                Variance Components Comparison
+                                <TrajectoryInfoTooltip metricKey="overall_variance" title="Variance Comparison" />
+                            </h5>
+                            <div
+                                className="clickable-chart"
+                                onClick={() => openChartModal({
+                                    overall: chartData.overallVariance,
+                                    acrossVideos: chartData.varianceAcrossVideos,
+                                    acrossSteps: chartData.varianceAcrossSteps
+                                }, 'variance_comparison', 'Variance Components Comparison')}
+                                style={{ cursor: 'pointer' }}
+                                title="Click for detailed view"
+                            >
+                                <VarianceComparisonChart
+                                    overallVarianceData={chartData.overallVariance}
+                                    varianceAcrossVideosData={chartData.varianceAcrossVideos}
+                                    varianceAcrossStepsData={chartData.varianceAcrossSteps}
+                                    title="Variance Comparison"
+                                    size={chartSize}
+                                    yLabel="Variance"
+                                    currentExperiment={currentExperiment}
+                                    beginAtZero={beginAtZero}
+                                    showFullVariationText={showFullVariationText}
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
