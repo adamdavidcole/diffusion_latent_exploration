@@ -23,12 +23,12 @@ const ExperimentRoute = () => {
   // Determine route type
   const isAnalysisRoute = experimentPath && experimentPath.endsWith('/analysis');
   const isTrajectoryAnalysisRoute = experimentPath && experimentPath.endsWith('/trajectory-analysis');
-  
+
   const cleanExperimentPath = isAnalysisRoute
     ? experimentPath.replace('/analysis', '')
     : isTrajectoryAnalysisRoute
-    ? experimentPath.replace('/trajectory-analysis', '')
-    : experimentPath;
+      ? experimentPath.replace('/trajectory-analysis', '')
+      : experimentPath;
 
   // Load specific experiment when experimentPath changes
   useEffect(() => {

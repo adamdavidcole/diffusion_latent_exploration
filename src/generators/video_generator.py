@@ -40,6 +40,7 @@ from src.prompts.prompt_weighting import (
 from src.prompts.wan_weighted_embeddings_fixed import create_wan_weighted_embeddings
 from src.utils.latent_storage import LatentStorage, create_denoising_callback
 from src.utils.attention_storage import AttentionStorage
+from src.utils.dynamic_guidance import parse_guidance_schedule_config
 
 
 def generate_thumbnail(video_path: str) -> bool:
@@ -679,6 +680,28 @@ class WanVideoGenerator:
             # Setup latent storage callback if enabled
             callback_fn = None
             callback_tensor_inputs = ['latents']
+            
+            # Setup dynamic guidance schedule if enabled
+            guidance_callback = None
+            cfg_schedule_settings = getattr(self.config, 'cfg_schedule_settings', None)
+            if cfg_schedule_settings and cfg_schedule_settings.enabled and cfg_schedule_settings.schedule:
+                try:
+                    from src.utils.dynamic_guidance import create_guidance_callback
+                    guidance_callback = create_guidance_callback(
+                        schedule=cfg_schedule_settings.schedule,
+                        interpolation=cfg_schedule_settings.interpolation,
+                        total_steps=num_inference_steps,
+                        apply_to_guidance_2=cfg_schedule_settings.apply_to_guidance_2,
+                        verbose=cfg_schedule_settings.verbose
+                    )
+                    logging.info(f"✨ Dynamic guidance scheduling enabled with {len(cfg_schedule_settings.schedule)} keyframes")
+                    if cfg_schedule_settings.verbose:
+                        for step, scale in sorted(cfg_schedule_settings.schedule.items()):
+                            logging.info(f"   Step {step}: guidance_scale = {scale}")
+                except Exception as e:
+                    logging.error(f"❌ Failed to setup dynamic guidance callback: {e}")
+                    guidance_callback = None
+            
             if latent_storage and video_id:
                 # Start latent storage for this video
                 latent_storage.start_video_storage(
@@ -761,8 +784,15 @@ class WanVideoGenerator:
                 original_callback = callback_fn
                 
                 def combined_callback(pipe, step: int, timestep: torch.Tensor, callback_kwargs: dict):
-                    """Combined callback for latent and attention storage."""
+                    """Combined callback for latent, attention storage, and dynamic guidance."""
                     result = callback_kwargs or {}
+                    
+                    # Apply dynamic guidance schedule first (before other callbacks)
+                    if guidance_callback:
+                        try:
+                            result = guidance_callback(pipe, step, timestep, result)
+                        except Exception as e:
+                            logging.error(f"Error in guidance callback: {e}")
                     
                     # Call original latent callback if it exists
                     if original_callback:
@@ -787,6 +817,44 @@ class WanVideoGenerator:
                     return result
                 
                 callback_fn = combined_callback
+            
+            # If we only have guidance callback but no attention storage, still need to combine callbacks
+            elif guidance_callback:
+                original_callback = callback_fn
+                
+                def guidance_only_callback(pipe, step: int, timestep: torch.Tensor, callback_kwargs: dict):
+                    """Callback that only handles latent storage and dynamic guidance."""
+                    result = callback_kwargs or {}
+                    
+                    # Apply dynamic guidance schedule first
+                    try:
+                        result = guidance_callback(pipe, step, timestep, result)
+                    except Exception as e:
+                        logging.error(f"Error in guidance callback: {e}")
+                    
+                    # Call original latent callback if it exists
+                    if original_callback:
+                        result = original_callback(pipe, step, timestep, result)
+                    
+                    return result
+                
+                callback_fn = guidance_only_callback
+            
+            # Final fallback: if we only have guidance callback and no other callbacks
+            elif guidance_callback and not callback_fn:
+                def final_guidance_callback(pipe, step: int, timestep: torch.Tensor, callback_kwargs: dict):
+                    """Callback that only handles dynamic guidance."""
+                    result = callback_kwargs or {}
+                    
+                    # Apply dynamic guidance schedule
+                    try:
+                        result = guidance_callback(pipe, step, timestep, result)
+                    except Exception as e:
+                        logging.error(f"Error in guidance callback: {e}")
+                    
+                    return result
+                
+                callback_fn = final_guidance_callback
             
             # Generate video with memory optimization
             with torch.no_grad():
@@ -864,6 +932,14 @@ class WanVideoGenerator:
                 logging.info(f"Attention storage completed for video: {video_id}")
                 if attention_summary.get('target_tokens'):
                     logging.info(f"Attention tokens stored: {list(attention_summary['target_tokens'].keys())}")
+            
+            # Restore original guidance scale if dynamic guidance was used
+            if guidance_callback:
+                try:
+                    guidance_callback.restore_original_guidance(self.pipe)
+                    logging.info("✨ Restored original guidance scale after dynamic scheduling")
+                except Exception as e:
+                    logging.error(f"Error restoring original guidance scale: {e}")
             
             # Debug video frames structure
             logging.info(f"Video frames type: {type(video_frames)}")

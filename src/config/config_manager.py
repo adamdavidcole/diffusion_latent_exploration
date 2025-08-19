@@ -102,6 +102,16 @@ class VideoSettings:
     
 
 @dataclass
+class CFGScheduleSettings:
+    """Classifier-free guidance schedule settings."""
+    enabled: bool = False
+    schedule: Dict[int, float] = field(default_factory=dict)  # step -> guidance_scale mapping
+    interpolation: str = "linear"  # "linear", "step", or "cosine"
+    apply_to_guidance_2: bool = True  # Apply to guidance_scale_2 as well
+    verbose: bool = False  # Log guidance scale changes
+
+
+@dataclass
 class GenerationConfig:
     """Complete configuration for video generation batch."""
     model_settings: ModelSettings = field(default_factory=ModelSettings)
@@ -110,6 +120,7 @@ class GenerationConfig:
     prompt_settings: PromptSettings = field(default_factory=PromptSettings)
     latent_analysis_settings: LatentAnalysisSettings = field(default_factory=LatentAnalysisSettings)
     attention_analysis_settings: AttentionAnalysisSettings = field(default_factory=AttentionAnalysisSettings)
+    cfg_schedule_settings: CFGScheduleSettings = field(default_factory=CFGScheduleSettings)
     videos_per_variation: int = 3
     output_dir: str = "outputs"
     batch_name: Optional[str] = None
@@ -167,6 +178,7 @@ class ConfigManager:
         prompt_data = config_data.get('prompt_settings', {})
         latent_data = config_data.get('latent_analysis_settings', {})
         attention_data = config_data.get('attention_analysis_settings', {})
+        cfg_schedule_data = config_data.get('cfg_schedule_settings', {})
         
         model_settings = ModelSettings(
             seed=model_data.get('seed', 42),
@@ -236,6 +248,15 @@ class ConfigManager:
             })
         )
         
+        # Parse CFG schedule settings
+        cfg_schedule_settings = CFGScheduleSettings(
+            enabled=cfg_schedule_data.get('enabled', False),
+            schedule=cfg_schedule_data.get('schedule', {}),
+            interpolation=cfg_schedule_data.get('interpolation', 'linear'),
+            apply_to_guidance_2=cfg_schedule_data.get('apply_to_guidance_2', True),
+            verbose=cfg_schedule_data.get('verbose', False)
+        )
+        
         return GenerationConfig(
             model_settings=model_settings,
             memory_settings=memory_settings,
@@ -243,6 +264,7 @@ class ConfigManager:
             prompt_settings=prompt_settings,
             latent_analysis_settings=latent_analysis_settings,
             attention_analysis_settings=attention_analysis_settings,
+            cfg_schedule_settings=cfg_schedule_settings,
             videos_per_variation=config_data.get('videos_per_variation', 3),
             output_dir=config_data.get('output_dir', 'outputs'),
             batch_name=config_data.get('batch_name'),
@@ -307,6 +329,13 @@ class ConfigManager:
                 'auto_generate_videos': config.attention_analysis_settings.auto_generate_videos,
                 'auto_generate_per_video': config.attention_analysis_settings.auto_generate_per_video,
                 'visualization_params': config.attention_analysis_settings.visualization_params
+            },
+            'cfg_schedule_settings': {
+                'enabled': config.cfg_schedule_settings.enabled,
+                'schedule': config.cfg_schedule_settings.schedule,
+                'interpolation': config.cfg_schedule_settings.interpolation,
+                'apply_to_guidance_2': config.cfg_schedule_settings.apply_to_guidance_2,
+                'verbose': config.cfg_schedule_settings.verbose
             },
             'videos_per_variation': config.videos_per_variation,
             'output_dir': config.output_dir,

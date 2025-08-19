@@ -1,0 +1,89 @@
+# Example configuration with dynamic classifier-free guidance scheduling
+# This demonstrates how to vary the guidance scale during generation
+
+# Model-specific settings
+model_settings:
+  seed: 999
+  sampler: "unipc"
+  cfg_scale: 6.5  # This will be the initial guidance scale (overridden by schedule)
+  steps: 20
+  eta: 0.0
+  clip_skip: 1
+  model_id: "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
+  device: "cuda:1"  # Use appropriate device
+
+# Memory optimization settings
+memory_settings:
+  enable_memory_optimization: true
+  clear_cache_between_videos: true
+  reload_model_for_large_models: true
+  use_gradient_checkpointing: true
+  enable_memory_efficient_attention: false
+
+# Video generation parameters
+video_settings:
+  width: 848
+  height: 480
+  fps: 12
+  duration: null
+  frames: 61
+
+# Dynamic Classifier-Free Guidance Scheduling
+cfg_schedule_settings:
+  enabled: true
+  schedule:
+    0: 0.0    # High guidance at start for strong prompt following
+    10: 0.0   # Medium guidance in middle
+    19: 0.0   # No guidance at end for more creative/diverse results
+  interpolation: "linear"  # Options: "linear", "step", "cosine"
+  apply_to_guidance_2: true  # Apply to both transformer and transformer_2 (if using dual-model WAN)
+  verbose: true  # Log guidance scale changes during generation
+
+# Batch settings
+videos_per_variation: 5
+output_dir: "outputs"
+batch_name: null
+use_timestamp: true
+
+# Prompt weighting configuration
+prompt_settings:
+  enable_weighting: false
+  variation_weight: 1.0
+  base_weight: 1.0
+  use_weighted_embeddings: true
+  embedding_method: "multiply"
+
+# Latent trajectory analysis settings
+latent_analysis_settings:
+  store_latents: false
+  latent_storage_format: "numpy"
+  storage_interval: 1
+  compress_latents: true
+  storage_dtype: "float16"
+
+# Attention map analysis settings
+attention_analysis_settings:
+  store_attention: false  # Disabled for performance in this example
+  tokenizer_name: "google/umt5-xxl"
+  storage_format: "numpy"
+  compress_attention: true
+  storage_interval: 1
+  storage_dtype: "float16"
+  store_per_head: false
+  store_per_block: false
+  store_individual_tokens: false
+  attention_threshold: null
+  spatial_downsample_factor: 2
+  store_aggregated_attention: false
+  aggregated_storage_format: "numpy"
+  auto_generate_videos: false
+  auto_generate_per_video: false
+  visualization_params:
+    figsize: [12, 8]
+    colormap: "hot"
+    overlay_alpha: 0.7
+    static_duration: 3.0
+    fps: 12
+    interpolation_steps: 2
+    include_colorbar: true
+    video_format: "mp4"
