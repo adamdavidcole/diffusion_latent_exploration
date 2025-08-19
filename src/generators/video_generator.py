@@ -1118,6 +1118,8 @@ class WanVideoGenerator:
         except Exception as e:
             generation_time = time.time() - start_time
             logging.error(f"WAN video generation failed: {e}")
+            import traceback
+            logging.error(traceback.format_exc())
             
             # Try to clean up memory on error if configured
             if self._is_large_model() and self.memory_settings.clear_cache_between_videos:

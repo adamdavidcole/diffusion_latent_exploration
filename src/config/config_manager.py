@@ -109,6 +109,7 @@ class CFGScheduleSettings:
     interpolation: str = "linear"  # "linear", "step", or "cosine"
     apply_to_guidance_2: bool = True  # Apply to guidance_scale_2 as well
     verbose: bool = False  # Log guidance scale changes
+    force_cfg: bool = True  # Force classifier-free guidance even when guidance_scale <= 1.0
 
 
 @dataclass
@@ -254,7 +255,8 @@ class ConfigManager:
             schedule=cfg_schedule_data.get('schedule', {}),
             interpolation=cfg_schedule_data.get('interpolation', 'linear'),
             apply_to_guidance_2=cfg_schedule_data.get('apply_to_guidance_2', True),
-            verbose=cfg_schedule_data.get('verbose', False)
+            verbose=cfg_schedule_data.get('verbose', False),
+            force_cfg=cfg_schedule_data.get('force_cfg', True)
         )
         
         return GenerationConfig(
