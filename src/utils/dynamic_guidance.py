@@ -107,6 +107,21 @@ class GuidanceScheduler:
         else:
             raise ValueError(f"Unknown interpolation method: {self.interpolation}")
 
+    def generate_full_schedule(self, total_steps: int) -> Dict[int, float]:
+        """
+        Generate the full guidance scale schedule for all timesteps.
+        
+        Args:
+            total_steps: Total number of inference steps
+            
+        Returns:
+            Dictionary mapping each step (0 to total_steps-1) to its guidance scale value
+        """
+        full_schedule = {}
+        for step in range(total_steps):
+            full_schedule[step] = self.get_guidance_scale(step)
+        return full_schedule
+
 
 class DynamicGuidanceCallback:
     """Callback that dynamically adjusts guidance scale during generation."""

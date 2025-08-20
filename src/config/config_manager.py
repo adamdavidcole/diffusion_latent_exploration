@@ -109,7 +109,7 @@ class CFGScheduleSettings:
     interpolation: str = "linear"  # "linear", "step", or "cosine"
     apply_to_guidance_2: bool = True  # Apply to guidance_scale_2 as well
     verbose: bool = False  # Log guidance scale changes
-    force_cfg: bool = True  # Force classifier-free guidance even when guidance_scale <= 1.0
+    force_cfg: bool = False
 
 
 @dataclass
@@ -256,7 +256,7 @@ class ConfigManager:
             interpolation=cfg_schedule_data.get('interpolation', 'linear'),
             apply_to_guidance_2=cfg_schedule_data.get('apply_to_guidance_2', True),
             verbose=cfg_schedule_data.get('verbose', False),
-            force_cfg=cfg_schedule_data.get('force_cfg', True)
+            force_cfg=cfg_schedule_data.get('force_cfg', False)
         )
         
         return GenerationConfig(
@@ -337,7 +337,8 @@ class ConfigManager:
                 'schedule': config.cfg_schedule_settings.schedule,
                 'interpolation': config.cfg_schedule_settings.interpolation,
                 'apply_to_guidance_2': config.cfg_schedule_settings.apply_to_guidance_2,
-                'verbose': config.cfg_schedule_settings.verbose
+                'verbose': config.cfg_schedule_settings.verbose,
+                'force_cfg': config.cfg_schedule_settings.force_cfg 
             },
             'videos_per_variation': config.videos_per_variation,
             'output_dir': config.output_dir,

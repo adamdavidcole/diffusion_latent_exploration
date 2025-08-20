@@ -634,6 +634,8 @@ class WanVideoGenerator:
                 cfg_schedule_settings.schedule and
                 getattr(cfg_schedule_settings, 'force_cfg', True)
             )
+
+            print("force cfg force_cfg_for_dynamic_guidance", force_cfg_for_dynamic_guidance)
             
             # Extract latent storage parameters
             latent_storage = kwargs.get('latent_storage', None)
@@ -741,6 +743,44 @@ class WanVideoGenerator:
                     if cfg_schedule_settings.verbose:
                         for step, scale in sorted(cfg_schedule_settings.schedule.items()):
                             logging.info(f"   Step {step}: guidance_scale = {scale}")
+                    
+                    # Generate and save the full CFG schedule if this is the first video in a batch
+                    try:
+                        # Determine if we're in a batch by checking if output_path contains prompt_000
+                        output_path_obj = Path(output_path)
+                        if 'prompt_000' in str(output_path_obj) and 'video_001' in str(output_path_obj):
+                            # This is the first video of the first prompt, save the CFG schedule
+                            root_output_dir = output_path_obj.parent.parent.parent  # video_001.mp4 -> prompt_000 -> videos -> root
+                            configs_dir = root_output_dir / "configs"
+                            cfg_schedule_file = configs_dir / "cfg_schedule.json"
+                            
+                            # Generate the full schedule using the guidance scheduler
+                            full_schedule = guidance_callback.guidance_scheduler.generate_full_schedule(num_inference_steps)
+                            
+                            # Create the complete CFG schedule metadata
+                            cfg_schedule_data = {
+                                "full_schedule": full_schedule,
+                                "schedule_definition": dict(cfg_schedule_settings.schedule),
+                                "interpolation": cfg_schedule_settings.interpolation,
+                                "enabled": cfg_schedule_settings.enabled,
+                                "apply_to_guidance_2": cfg_schedule_settings.apply_to_guidance_2,
+                                "verbose": cfg_schedule_settings.verbose,
+                                "total_steps": num_inference_steps,
+                                "force_cfg": getattr(cfg_schedule_settings, 'force_cfg', False),
+                                "generation_timestamp": time.time()
+                            }
+                            
+                            # Save the CFG schedule to JSON
+                            with open(cfg_schedule_file, 'w') as f:
+                                json.dump(cfg_schedule_data, f, indent=2)
+                            
+                            logging.info(f"💾 Saved complete CFG schedule to {cfg_schedule_file}")
+                            logging.info(f"📈 Full schedule covers {len(full_schedule)} timesteps")
+                    
+                    except Exception as e:
+                        logging.error(f"❌ Failed to save CFG schedule: {e}")
+                        import traceback
+                        logging.error(traceback.format_exc())
                 except Exception as e:
                     logging.error(f"❌ Failed to setup dynamic guidance callback: {e}")
                     import traceback
@@ -923,7 +963,7 @@ class WanVideoGenerator:
                 try:
                     force_negative_embeds = self.pipe.encode_prompt(
                         prompt="",  # Empty prompt for unconditional
-                        negative_prompt=None,
+                        negative_prompt="",
                         do_classifier_free_guidance=True,
                         num_videos_per_prompt=1,
                         device=self.device
@@ -951,7 +991,7 @@ class WanVideoGenerator:
                         if negative_prompt_embeds is None and force_cfg_for_dynamic_guidance:
                             negative_prompt_embeds = self.pipe.encode_prompt(
                                 prompt="",  # Empty prompt for unconditional
-                                negative_prompt=None,
+                                negative_prompt="",
                                 do_classifier_free_guidance=True,
                                 num_videos_per_prompt=1,
                                 device=self.device
