@@ -598,6 +598,9 @@ class WanVideoGenerator:
         """Generate a video using the WAN model with memory optimization."""
         start_time = time.time()
         
+        # Initialize property override tracking
+        original_do_classifier_free_guidance = None
+        
         try:
             if self.pipe is None:
                 self._load_model()
@@ -751,7 +754,6 @@ class WanVideoGenerator:
                                 "apply_to_guidance_2": cfg_schedule_settings.apply_to_guidance_2,
                                 "verbose": cfg_schedule_settings.verbose,
                                 "total_steps": num_inference_steps,
-                                "force_cfg": getattr(cfg_schedule_settings, 'force_cfg', False),
                                 "generation_timestamp": time.time()
                             }
                             
@@ -940,6 +942,25 @@ class WanVideoGenerator:
             # For CFG scheduling, ensure we always use proper negative prompt embeddings
             explicit_negative_prompt = ""  # Always use empty string for consistency
             
+            # Override do_classifier_free_guidance property for CFG scheduling if needed
+            if ensure_cfg_for_schedule:
+                # The property may not exist until the pipeline has been called once,
+                # so we need to create it if it doesn't exist or override it if it does
+                try:
+                    # Store original property descriptor (may be None if property doesn't exist yet)
+                    original_do_classifier_free_guidance = getattr(self.pipe.__class__, 'do_classifier_free_guidance', None)
+                    
+                    # Create override property that always returns True for CFG scheduling
+                    def force_cfg_property(self):
+                        return True
+                    
+                    # Override the property
+                    self.pipe.__class__.do_classifier_free_guidance = property(force_cfg_property)
+                    logging.info("🔧 Overrode do_classifier_free_guidance to always return True for CFG scheduling")
+                    
+                except Exception as e:
+                    logging.warning(f"Failed to override do_classifier_free_guidance property: {e}")
+            
             # Generate video with memory optimization
             with torch.no_grad():
                 if use_weighted_embeddings:
@@ -1027,6 +1048,14 @@ class WanVideoGenerator:
                     logging.info("✨ Restored original guidance scale after dynamic scheduling")
                 except Exception as e:
                     logging.error(f"Error restoring original guidance scale: {e}")
+            
+            # Restore original do_classifier_free_guidance property if we overrode it
+            if original_do_classifier_free_guidance is not None:
+                try:
+                    self.pipe.__class__.do_classifier_free_guidance = original_do_classifier_free_guidance
+                    logging.info("🔧 Restored original do_classifier_free_guidance property")
+                except Exception as e:
+                    logging.error(f"Error restoring do_classifier_free_guidance property: {e}")
             
             # Debug video frames structure
             logging.info(f"Video frames type: {type(video_frames)}")
