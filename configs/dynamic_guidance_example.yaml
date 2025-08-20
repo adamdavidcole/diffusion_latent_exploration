@@ -32,12 +32,11 @@ video_settings:
 cfg_schedule_settings: 
   enabled: true
   schedule:
-    0: 6.5   # zero guidance at start for no prompt following
+    0: 0   # zero guidance at start for no prompt following
     10: 6.5
   interpolation: "linear"  # Options: "linear", "step", "cosine"
   apply_to_guidance_2: true  # Apply to both transformer and transformer_2 (if using dual-model WAN)
   verbose: true  # Log guidance scale changes during generation
-  force_cfg: true
 
 # Batch settings
 videos_per_variation: 5
