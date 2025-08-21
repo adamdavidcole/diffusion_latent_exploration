@@ -712,10 +712,11 @@ class WanVideoGenerator:
             
             # Setup dynamic guidance schedule if enabled (cfg_schedule_settings already checked above)
             guidance_callback = None
+            dynamic_guidance_scale = None
             if cfg_schedule_settings and cfg_schedule_settings.enabled and cfg_schedule_settings.schedule:
                 try:
                     from src.utils.dynamic_guidance import create_guidance_callback
-                    guidance_callback = create_guidance_callback(
+                    dynamic_guidance_scale, guidance_callback = create_guidance_callback(
                         schedule=cfg_schedule_settings.schedule,
                         interpolation=cfg_schedule_settings.interpolation,
                         total_steps=num_inference_steps,
@@ -731,6 +732,17 @@ class WanVideoGenerator:
                     if cfg_schedule_settings.verbose:
                         for step, scale in sorted(cfg_schedule_settings.schedule.items()):
                             logging.info(f"   Step {step}: guidance_scale = {scale}")
+                    
+                    # Debug: Show what the full interpolated schedule will look like
+                    full_schedule = guidance_callback.guidance_scheduler.generate_full_schedule(num_inference_steps)
+                    logging.info(f"📈 Full interpolated schedule preview (first 5 steps):")
+                    for step in range(min(5, num_inference_steps)):
+                        logging.info(f"   Step {step}: {full_schedule[step]}")
+                    if num_inference_steps > 5:
+                        logging.info(f"   ... (showing first 5 of {num_inference_steps} steps)")
+                        last_steps = range(max(5, num_inference_steps-3), num_inference_steps)
+                        for step in last_steps:
+                            logging.info(f"   Step {step}: {full_schedule[step]}")
                     
                     # Generate and save the full CFG schedule if this is the first video in a batch
                     try:
@@ -866,14 +878,9 @@ class WanVideoGenerator:
                     
                     # Apply dynamic guidance schedule first (before other callbacks)
                     if guidance_callback:
-                        try:
-                            logging.debug(f"🎯 Applying guidance callback at step {step}")
-                            result = guidance_callback(pipe, step, timestep, result)
-                            logging.debug(f"🎯 Pipeline guidance after callback: {pipe._guidance_scale}")
-                        except Exception as e:
-                            logging.error(f"Error in guidance callback: {e}")
+                        result = guidance_callback(pipe, step, timestep, result)
                     
-                    # Call original latent callback if it exists
+                    # Apply original callback (latent storage) if it exists
                     if original_callback:
                         result = original_callback(pipe, step, timestep, result)
                     
@@ -898,21 +905,16 @@ class WanVideoGenerator:
                 callback_fn = combined_callback
                 logging.info(f"✅ Created combined callback with guidance_callback={guidance_callback is not None}")
             
-            # If we only have guidance callback but no attention storage, still need to combine callbacks
+            # If no attention storage but we have guidance callback, make sure it's used
             elif guidance_callback:
                 original_callback = callback_fn
                 
                 def guidance_only_callback(pipe, step: int, timestep: torch.Tensor, callback_kwargs: dict):
-                    """Callback that only handles latent storage and dynamic guidance."""
+                    """Callback that handles latent storage and dynamic guidance."""
                     result = callback_kwargs or {}
                     
                     # Apply dynamic guidance schedule first
-                    try:
-                        logging.debug(f"🎯 Applying guidance-only callback at step {step}")
-                        result = guidance_callback(pipe, step, timestep, result)
-                        logging.debug(f"🎯 Pipeline guidance after callback: {pipe._guidance_scale}")
-                    except Exception as e:
-                        logging.error(f"Error in guidance callback: {e}")
+                    result = guidance_callback(pipe, step, timestep, result)
                     
                     # Call original latent callback if it exists
                     if original_callback:
@@ -922,22 +924,6 @@ class WanVideoGenerator:
                 
                 callback_fn = guidance_only_callback
                 logging.info(f"✅ Created guidance-only callback with guidance_callback={guidance_callback is not None}")
-            
-            # Final fallback: if we only have guidance callback and no other callbacks
-            elif guidance_callback and not callback_fn:
-                def final_guidance_callback(pipe, step: int, timestep: torch.Tensor, callback_kwargs: dict):
-                    """Callback that only handles dynamic guidance."""
-                    result = callback_kwargs or {}
-                    
-                    # Apply dynamic guidance schedule
-                    try:
-                        result = guidance_callback(pipe, step, timestep, result)
-                    except Exception as e:
-                        logging.error(f"Error in guidance callback: {e}")
-                    
-                    return result
-                
-                callback_fn = final_guidance_callback
             
             # For CFG scheduling, ensure we always use proper negative prompt embeddings
             explicit_negative_prompt = ""  # Always use empty string for consistency
@@ -958,11 +944,62 @@ class WanVideoGenerator:
                     self.pipe.__class__.do_classifier_free_guidance = property(force_cfg_property)
                     logging.info("🔧 Overrode do_classifier_free_guidance to always return True for CFG scheduling")
                     
+                    # CRITICAL FIX: Monkey patch the WAN pipeline to use self._guidance_scale
+                    # The issue is that WAN uses local variables current_guidance_scale = guidance_scale
+                    # instead of self._guidance_scale that our callback updates
+                    if not hasattr(self.pipe, '_dynamic_guidance_patched'):
+                        import types
+                        
+                        # Store the original __call__ method
+                        original_call = self.pipe.__call__
+                        
+                        def patched_call(pipe_self, *args, **kwargs):
+                            # Patch the guidance_scale parameters to use our scheduled values
+                            # Get parameters
+                            guidance_scale_param = kwargs.get('guidance_scale', 5.0)
+                            guidance_scale_2_param = kwargs.get('guidance_scale_2', None)
+                            
+                            # Create a wrapper that will dynamically update guidance_scale during the loop
+                            def dynamic_guidance_wrapper():
+                                # This will be called inside the denoising loop
+                                if hasattr(pipe_self, '_guidance_scale'):
+                                    return pipe_self._guidance_scale
+                                return guidance_scale_param
+                            
+                            # Instead of patching the whole method, let's patch the guidance calculation
+                            # by replacing the guidance_scale parameter with a dynamic getter
+                            
+                            # Store the dynamic guidance on the pipeline for access during CFG calculation
+                            pipe_self._dynamic_guidance_scale = guidance_scale_param
+                            pipe_self._dynamic_guidance_scale_2 = guidance_scale_2_param
+                            
+                            # Call the original method
+                            result = original_call(*args, **kwargs)
+                            
+                            return result
+                        
+                        # Replace the method
+                        self.pipe.__call__ = types.MethodType(patched_call, self.pipe)
+                        self.pipe._dynamic_guidance_patched = True
+                        logging.info("🔧 Applied dynamic guidance patch to WAN pipeline")
+                    
                 except Exception as e:
-                    logging.warning(f"Failed to override do_classifier_free_guidance property: {e}")
+                    logging.warning(f"Failed to patch pipeline for dynamic guidance: {e}")
+                    import traceback
+                    logging.warning(traceback.format_exc())
             
             # Generate video with memory optimization
             with torch.no_grad():
+                # Determine which guidance scale to use: dynamic or static
+                effective_guidance_scale = dynamic_guidance_scale if dynamic_guidance_scale is not None else guidance_scale
+                
+                # Ensure CFG path is enabled initially for DynamicScale to work
+                if dynamic_guidance_scale is not None:
+                    self.pipe._guidance_scale = 5.1  # ensure CFG path is enabled initially
+                    logging.info(f"🎯 Using DynamicScale for guidance scheduling, initial value: {float(dynamic_guidance_scale):.2f}")
+                else:
+                    logging.info(f"🎯 Using static guidance scale: {guidance_scale}")
+                
                 if use_weighted_embeddings:
                     try:
                         # Create weighted embeddings using configured method
@@ -982,7 +1019,7 @@ class WanVideoGenerator:
                             height=height,
                             num_frames=num_frames,
                             num_inference_steps=num_inference_steps,
-                            guidance_scale=guidance_scale,
+                            guidance_scale=effective_guidance_scale,
                             generator=generator,
                             callback_on_step_end=callback_fn,
                             callback_on_step_end_tensor_inputs=callback_tensor_inputs if callback_fn else None
@@ -1002,7 +1039,7 @@ class WanVideoGenerator:
                             height=height,
                             num_frames=num_frames,
                             num_inference_steps=num_inference_steps,
-                            guidance_scale=guidance_scale,
+                            guidance_scale=effective_guidance_scale,
                             generator=generator,
                             callback_on_step_end=callback_fn,
                             callback_on_step_end_tensor_inputs=callback_tensor_inputs if callback_fn else None
@@ -1016,7 +1053,7 @@ class WanVideoGenerator:
                         height=height,
                         num_frames=num_frames,
                         num_inference_steps=num_inference_steps,
-                        guidance_scale=guidance_scale,
+                        guidance_scale=effective_guidance_scale,
                         generator=generator,
                         callback_on_step_end=callback_fn,
                         callback_on_step_end_tensor_inputs=callback_tensor_inputs if callback_fn else None

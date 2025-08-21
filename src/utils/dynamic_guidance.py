@@ -123,11 +123,34 @@ class GuidanceScheduler:
         return full_schedule
 
 
+class DynamicScale:
+    """Number-like object whose value you can update on the fly."""
+    def __init__(self, get_value):
+        self._get_value = get_value  # callable returning the current float
+
+    # arithmetic: used in `current_guidance_scale * (tensor)`
+    def __mul__(self, other):
+        # left operand is self; right is a torch.Tensor
+        return other * float(self)  # lets torch handle tensor * float
+
+    def __rmul__(self, other):
+        # handle float_or_tensor * self, just in case
+        return other * float(self)
+
+    # comparisons: used for `self._guidance_scale > 1.0`
+    def __gt__(self, other):
+        return float(self) > float(other)
+
+    def __float__(self):
+        return float(self._get_value())
+
+
 class DynamicGuidanceCallback:
     """Callback that dynamically adjusts guidance scale during generation."""
     
     def __init__(self, 
                  guidance_scheduler: GuidanceScheduler,
+                 schedule_state: Dict[str, float],
                  apply_to_guidance_2: bool = True,
                  verbose: bool = False):
         """
@@ -135,71 +158,46 @@ class DynamicGuidanceCallback:
         
         Args:
             guidance_scheduler: GuidanceScheduler instance
+            schedule_state: Mutable dict like {"value": 5.0} that gets updated each step
             apply_to_guidance_2: Whether to also apply schedule to guidance_scale_2 (for dual-model WAN)
             verbose: Whether to log guidance scale changes
         """
         self.guidance_scheduler = guidance_scheduler
+        self.schedule_state = schedule_state
         self.apply_to_guidance_2 = apply_to_guidance_2
         self.verbose = verbose
         self.logger = logging.getLogger(__name__)
-        
-        # Track original values for restoration
-        self.original_guidance_scale = None
-        self.original_guidance_scale_2 = None
 
 
     def __call__(self, pipe, step: int, timestep: torch.Tensor, callback_kwargs: dict):
-        """Apply the guidance schedule at this step."""
+        """Update the mutable schedule state for the next step."""
         try:
-            # Store original values on first call
-            if self.original_guidance_scale is None:
-                if hasattr(pipe, '_guidance_scale'):
-                    self.original_guidance_scale = pipe._guidance_scale
-                    
-                if hasattr(pipe, '_guidance_scale_2'):
-                    self.original_guidance_scale_2 = pipe._guidance_scale_2
+            # Calculate the guidance value for the NEXT step (since callback runs AFTER current step)
+            next_step = step + 1
+            next_guidance_scale = self.guidance_scheduler.get_guidance_scale(next_step)
             
-            # Calculate the guidance value for this step
-            guidance_value = self.guidance_scheduler.get_guidance_scale(step)
+            # Update the mutable schedule state for the next iteration
+            old_value = self.schedule_state.get("value", 0.0)
+            self.schedule_state["value"] = next_guidance_scale
             
-            # Apply to WAN pipeline - it stores guidance in _guidance_scale and _guidance_scale_2
-            if hasattr(pipe, '_guidance_scale'):
-                pipe._guidance_scale = guidance_value
-                logging.debug(f"Step {step}: Set _guidance_scale to {guidance_value}")
-                
-                # Also set _guidance_scale_2 if it exists (for dual-stage WAN models)
-                if hasattr(pipe, '_guidance_scale_2'):
-                    pipe._guidance_scale_2 = guidance_value
-                    logging.debug(f"Step {step}: Set _guidance_scale_2 to {guidance_value}")
-                    
-            elif hasattr(pipe, 'guidance_scale'):
-                pipe.guidance_scale = guidance_value
-                logging.debug(f"Step {step}: Set guidance_scale to {guidance_value}")
-            else:
-                logging.warning(f"Pipeline {type(pipe)} doesn't have a known guidance_scale attribute")
+            # Log the guidance scale change with step details
+            if self.verbose or old_value != next_guidance_scale:
+                logging.info(f"🎯 After step {step}: updated guidance_scale for next step ({next_step}): {old_value:.2f} → {next_guidance_scale:.2f}")
                 
         except Exception as e:
-            logging.error(f"Error in dynamic guidance callback: {e}")
+            logging.error(f"❌ Error in dynamic guidance callback: {e}")
             logging.error(traceback.format_exc())
             
         return callback_kwargs
-    
-    def restore_original_guidance(self, pipe):
-        """Restore original guidance scale values after generation."""
-        if self.original_guidance_scale is not None:
-            pipe._guidance_scale = self.original_guidance_scale
-            
-        if self.original_guidance_scale_2 is not None and hasattr(pipe, '_guidance_scale_2'):
-            pipe._guidance_scale_2 = self.original_guidance_scale_2
 
 
 def create_guidance_callback(schedule: Dict[int, float], 
                            interpolation: str = "linear",
                            total_steps: Optional[int] = None,
                            apply_to_guidance_2: bool = True,
-                           verbose: bool = False) -> DynamicGuidanceCallback:
+                           verbose: bool = False) -> tuple:
     """
-    Factory function to create a dynamic guidance callback.
+    Factory function to create dynamic guidance scale and callback.
     
     Args:
         schedule: Dictionary mapping step numbers to guidance scale values
@@ -209,17 +207,29 @@ def create_guidance_callback(schedule: Dict[int, float],
         verbose: Whether to log guidance changes
         
     Returns:
-        DynamicGuidanceCallback instance
+        Tuple of (DynamicScale, DynamicGuidanceCallback)
     """
     scheduler = GuidanceScheduler(schedule, interpolation, total_steps)
-    return DynamicGuidanceCallback(
-        guidance_scheduler=scheduler, 
-        apply_to_guidance_2=apply_to_guidance_2, 
+    
+    # Create mutable state for the guidance scale, starting with the value for step 0
+    initial_value = scheduler.get_guidance_scale(0)
+    schedule_state = {"value": initial_value}
+    
+    # Create DynamicScale that reads from the mutable state
+    dynamic_scale = DynamicScale(lambda: schedule_state["value"])
+    
+    # Create callback that updates the mutable state
+    callback = DynamicGuidanceCallback(
+        guidance_scheduler=scheduler,
+        schedule_state=schedule_state,
+        apply_to_guidance_2=apply_to_guidance_2,
         verbose=verbose
     )
+    
+    return dynamic_scale, callback
 
 
-def parse_guidance_schedule_config(config_dict: Dict) -> Optional[DynamicGuidanceCallback]:
+def parse_guidance_schedule_config(config_dict: Dict) -> Optional[tuple]:
     """
     Parse guidance schedule configuration from config dictionary.
     
@@ -227,7 +237,7 @@ def parse_guidance_schedule_config(config_dict: Dict) -> Optional[DynamicGuidanc
         config_dict: Configuration dictionary containing cfg_schedule_settings
         
     Returns:
-        DynamicGuidanceCallback if schedule is configured, None otherwise
+        Tuple of (DynamicScale, DynamicGuidanceCallback) if schedule is configured, None otherwise
     """
     cfg_schedule = config_dict.get('cfg_schedule_settings')
     if not cfg_schedule:
