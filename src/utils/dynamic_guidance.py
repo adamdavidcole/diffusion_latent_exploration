@@ -41,9 +41,9 @@ class GuidanceScheduler:
                 raise ValueError(f"Schedule step must be non-negative integer, got: {step}")
                 
         # Check that all values are non-negative floats
-        for step, value in self.schedule.items():
-            if not isinstance(value, (int, float)) or value < 0:
-                raise ValueError(f"Guidance scale must be non-negative number, got: {value} at step {step}")
+        # for step, value in self.schedule.items():
+        #     if not isinstance(value, (int, float)) or value < 0:
+        #         raise ValueError(f"Guidance scale must be non-negative number, got: {value} at step {step}")
                 
         # Warn if total_steps is known and schedule extends beyond it
         if self.total_steps is not None:

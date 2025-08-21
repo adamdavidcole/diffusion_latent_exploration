@@ -10,14 +10,6 @@ model_settings:
   clip_skip: 1                 # CLIP skip layers
   model_id: "Wan-AI/Wan2.1-T2V-14B-Diffusers"  # 14B model
 
-# Aggressive memory optimization settings for 14B model
-memory_settings:
-  enable_memory_optimization: true    # Enable all memory optimizations
-  clear_cache_between_videos: true    # Aggressively clear GPU cache between videos
-  reload_model_for_large_models: true # Reload model between videos to prevent memory accumulation
-  use_gradient_checkpointing: true    # Enable gradient checkpointing (saves ~30% memory)
-  enable_memory_efficient_attention: false  # Enable memory efficient attention if available
-
 # Video generation parameters (conservative settings for memory)
 video_settings:
   width: 848                 # Video width (must be divisible by 8)
@@ -25,6 +17,16 @@ video_settings:
   fps: 12                    # Frames per second
   duration: null             # Video duration in seconds
   frames: 53                 # Total frames (calculated from fps * duration if null)
+
+# Dynamic Classifier-Free Guidance Scheduling
+cfg_schedule_settings: 
+  enabled: true
+  schedule:
+    0: 6.5   # zero guidance at start for no prompt following
+    5: 0
+  interpolation: "step"  # Options: "linear", "step", "cosine"
+  apply_to_guidance_2: true  # Apply to both transformer and transformer_2 (if using dual-model WAN)
+  verbose: true  # Log guidance scale changes during generation
 
 
 # Batch settings (smaller batches for memory management)
@@ -88,3 +90,12 @@ attention_analysis_settings:
     interpolation_steps: 2    # Smoothing between diffusion steps
     include_colorbar: true
     video_format: "mp4"
+
+
+# Aggressive memory optimization settings for 14B model
+memory_settings:
+  enable_memory_optimization: true    # Enable all memory optimizations
+  clear_cache_between_videos: true    # Aggressively clear GPU cache between videos
+  reload_model_for_large_models: true # Reload model between videos to prevent memory accumulation
+  use_gradient_checkpointing: true    # Enable gradient checkpointing (saves ~30% memory)
+  enable_memory_efficient_attention: false  # Enable memory efficient attention if available
