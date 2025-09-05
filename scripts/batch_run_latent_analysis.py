@@ -188,21 +188,23 @@ def validate_experiment_folder_detailed(folder_path: Path) -> Tuple[bool, str]:
         if not vid_folders:
             return False, f"No vid_* folders found in latents/{prompt_folder}/"
         
-        # Check that at least one vid folder contains .npz files
-        has_npz_data = False
-        total_npz_files = 0
+        # Check that at least one vid folder contains .npz or .npy.gz files
+        has_data = False
+        total_data_files = 0
         for vid_folder in vid_folders:
             npz_files = list(vid_folder.glob("*.npz"))
-            total_npz_files += len(npz_files)
-            if npz_files:
-                has_npz_data = True
+            npy_gz_files = list(vid_folder.glob("*.npy.gz"))
+            data_files = npz_files + npy_gz_files
+            total_data_files += len(data_files)
+            if data_files:
+                has_data = True
         
-        if not has_npz_data:
-            return False, f"No .npz files found in any vid_* folders under latents/{prompt_folder}/"
+        if not has_data:
+            return False, f"No .npz or .npy.gz files found in any vid_* folders under latents/{prompt_folder}/"
         
         # Additional check: ensure we have a reasonable amount of data
-        if total_npz_files < 10:  # Arbitrary threshold
-            return False, f"Too few .npz files ({total_npz_files}) in latents/{prompt_folder}/ - may be incomplete"
+        if total_data_files < 10:  # Arbitrary threshold
+            return False, f"Too few data files ({total_data_files}) in latents/{prompt_folder}/ - may be incomplete"
     
     return True, "Valid experiment folder"
 
@@ -219,39 +221,45 @@ def discover_missing_analyses(search_dir: Path, verbose: bool = False) -> List[P
     """
     logger = logging.getLogger(__name__)
     missing_analyses = []
-    
+
     logger.info(f"🔍 Searching for experiment folders in: {search_dir}")
-    
+
     if not search_dir.exists():
         logger.error(f"❌ Search directory does not exist: {search_dir}")
         return missing_analyses
-    
-    # Recursively find all directories
-    for item in search_dir.rglob("*"):
-        if item.is_dir():
-            # Check if it's a complete experiment folder with detailed validation
-            is_valid, reason = validate_experiment_folder_detailed(item)
-            if is_valid:
-                # Check if it's missing analysis
-                if not has_latent_analysis(item):
-                    missing_analyses.append(item)
-                    logger.info(f"📋 Found experiment needing analysis: {item}")
-                else:
-                    logger.debug(f"✅ Already has analysis: {item}")
-            else:
-                # Log rejection for folders that look like they might be experiments, or if verbose
-                if (verbose or 
-                    (item / "videos").exists() or (item / "latents").exists() or 
-                    any(subdir.name.startswith("prompt_") for subdir in item.iterdir() if subdir.is_dir())):
-                    if verbose:
-                        logger.info(f"❌ Rejected {item}: {reason}")
+
+    # Search for experiment folders at reasonable depths (1-3 levels)
+    # to avoid checking every subdirectory
+    for depth in range(1, 4):  # Search 1-3 levels deep
+        pattern = "/".join(["*"] * depth)
+        for item in search_dir.glob(pattern):
+            if item.is_dir():
+                # Skip if this is clearly not an experiment folder (e.g., internal directories)
+                if any(skip_name in item.name.lower() for skip_name in 
+                       ['attention_maps', 'attention_videos', 'prompt_', 'vid_', 'token_', 
+                        'visualizations', 'spatial_coherence', 'latent_trajectory_analysis']):
+                    continue
+                
+                # Check if it's a complete experiment folder with detailed validation
+                is_valid, reason = validate_experiment_folder_detailed(item)
+                if is_valid:
+                    # Check if it's missing analysis
+                    if not has_latent_analysis(item):
+                        missing_analyses.append(item)
+                        logger.info(f"📋 Found experiment needing analysis: {item}")
                     else:
-                        logger.debug(f"❌ Rejected {item}: {reason}")
-    
+                        logger.debug(f"✅ Already has analysis: {item}")
+                else:
+                    # Log rejection for folders that look like they might be experiments, or if verbose
+                    if (verbose or 
+                        (item / "videos").exists() or (item / "latents").exists()):
+                        if verbose:
+                            logger.info(f"❌ Rejected {item}: {reason}")
+                        else:
+                            logger.debug(f"❌ Rejected {item}: {reason}")
+
     logger.info(f"🎯 Found {len(missing_analyses)} experiments needing analysis")
     return missing_analyses
-
-
 def validate_batch_paths(batch_paths: List[str]) -> List[Path]:
     """
     Validate that all provided batch paths exist and are experiment folders.

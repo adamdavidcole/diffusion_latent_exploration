@@ -140,37 +140,55 @@ def analyze_temporal_coherence(
             }
         
         # 6. Temporal Frequency Signatures
-        frequency_analysis = {}
-        if n_steps >= 8:
-            # FFT analysis on trajectory norms
-            fft_results = torch.fft.fft(trajectory_norms, dim=1)
-            power_spectra = torch.abs(fft_results) ** 2
-            mean_power_spectrum = torch.mean(power_spectra, dim=0)  # [steps]
-            
-            # Find dominant frequencies (skip DC component)
-            if len(mean_power_spectrum) > 4:
-                freq_slice = mean_power_spectrum[1:n_steps//2]
-                freq_indices = torch.argsort(freq_slice, descending=True)[:3] + 1
-                dominant_freqs = freq_indices.cpu().numpy().tolist()
-                # Fix: Use norm for multi-dimensional tensors
-                if mean_power_spectrum.dim() > 1:
-                    dominant_powers = [float(torch.norm(mean_power_spectrum[idx]).item()) for idx in freq_indices]
-                else:
-                    dominant_powers = [float(mean_power_spectrum[idx].item()) for idx in freq_indices]
-                
-                frequency_analysis = {
-                    'dominant_frequencies': dominant_freqs,
-                    'dominant_powers': dominant_powers,
-                    'spectral_centroid': float(torch.sum(torch.arange(len(mean_power_spectrum)).float().to(device) * (torch.norm(mean_power_spectrum, dim=-1) if mean_power_spectrum.dim() > 1 else mean_power_spectrum)) / torch.sum(torch.norm(mean_power_spectrum, dim=-1) if mean_power_spectrum.dim() > 1 else mean_power_spectrum)),
-                    'spectral_entropy': float(compute_spectral_entropy(torch.norm(mean_power_spectrum, dim=-1) if mean_power_spectrum.dim() > 1 else mean_power_spectrum))
-                }
-            else:
-                frequency_analysis = {
-                    'dominant_frequencies': [],
-                    'dominant_powers': [],
-                    'spectral_centroid': 0.0,
-                    'spectral_entropy': 0.0
-                }
+        # TEMPORARILY DISABLED due to CUDA 12.9/PyTorch compatibility issues
+        # TODO: Re-enable after fixing tensor dimension issues in FFT analysis
+        frequency_analysis = {
+            'dominant_frequencies': [],
+            'dominant_powers': [],
+            'spectral_centroid': 0.0,
+            'spectral_entropy': 0.0,
+            'status': 'disabled_cuda_12.9_compatibility'
+        }
+        
+        # Original code commented out due to tensor dimension issues:
+        # if n_steps >= 8:
+        #     # FFT analysis on trajectory norms
+        #     fft_results = torch.fft.fft(trajectory_norms, dim=1)  # [n_videos, steps] -> [n_videos, steps]
+        #     power_spectra = torch.abs(fft_results) ** 2  # [n_videos, steps]
+        #     mean_power_spectrum = torch.mean(power_spectra, dim=0)  # [steps]
+        #     
+        #     # Find dominant frequencies (skip DC component)
+        #     spectrum_length = mean_power_spectrum.shape[0]  # Use shape[0] instead of len()
+        #     if spectrum_length > 4:
+        #         freq_slice = mean_power_spectrum[1:spectrum_length//2]
+        #         if freq_slice.shape[0] > 0:
+        #             # Get indices relative to freq_slice, then adjust for the original spectrum
+        #             relative_indices = torch.argsort(freq_slice, descending=True)[:min(3, freq_slice.shape[0])]
+        #             freq_indices = relative_indices + 1  # Adjust for skipping DC component
+        #             
+        #             # Ensure indices are within bounds
+        #             freq_indices = freq_indices[freq_indices < spectrum_length]
+        #             
+        #             dominant_freqs = freq_indices.cpu().numpy().tolist()
+        #             # mean_power_spectrum is 1D, so direct indexing should work
+        #             dominant_powers = [float(mean_power_spectrum[idx].item()) for idx in freq_indices]
+        #         else:
+        #             dominant_freqs = []
+        #             dominant_powers = []
+        #         
+        #         frequency_analysis = {
+        #             'dominant_frequencies': dominant_freqs,
+        #             'dominant_powers': dominant_powers,
+        #             'spectral_centroid': float(torch.sum(torch.arange(spectrum_length).float().to(device) * mean_power_spectrum) / torch.sum(mean_power_spectrum)),
+        #             'spectral_entropy': float(compute_spectral_entropy(mean_power_spectrum))
+        #         }
+        #     else:
+        #         frequency_analysis = {
+        #             'dominant_frequencies': [],
+        #             'dominant_powers': [],
+        #             'spectral_centroid': 0.0,
+        #             'spectral_entropy': 0.0
+        #         }
         
         # 7. Enhanced Trajectory Progression Patterns
         magnitude_evolutions = []

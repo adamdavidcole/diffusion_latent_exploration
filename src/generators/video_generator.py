@@ -757,15 +757,28 @@ class WanVideoGenerator:
                             # Generate the full schedule using the guidance scheduler
                             full_schedule = guidance_callback.guidance_scheduler.generate_full_schedule(num_inference_steps)
                             
+                            # Create timestep-based schedule mapping
+                            full_schedule_timestep = {}
+                            if current_timesteps is not None and len(current_timesteps) == num_inference_steps:
+                                # Map each timestep to its corresponding CFG value
+                                for step, timestep in enumerate(current_timesteps):
+                                    cfg_value = full_schedule[step]
+                                    full_schedule_timestep[float(timestep)] = cfg_value
+                                logging.info(f"📍 Created timestep-based CFG mapping: {len(full_schedule_timestep)} timesteps")
+                            else:
+                                logging.warning(f"⚠️ Could not create timestep mapping: current_timesteps={current_timesteps is not None}, length mismatch")
+                            
                             # Create the complete CFG schedule metadata
                             cfg_schedule_data = {
                                 "full_schedule": full_schedule,
+                                "full_schedule_timestep": full_schedule_timestep,
                                 "schedule_definition": dict(cfg_schedule_settings.schedule),
                                 "interpolation": cfg_schedule_settings.interpolation,
                                 "enabled": cfg_schedule_settings.enabled,
                                 "apply_to_guidance_2": cfg_schedule_settings.apply_to_guidance_2,
                                 "verbose": cfg_schedule_settings.verbose,
                                 "total_steps": num_inference_steps,
+                                "timesteps": current_timesteps,  # Include the raw timestep list for reference
                                 "generation_timestamp": time.time()
                             }
                             
