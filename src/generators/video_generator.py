@@ -748,9 +748,9 @@ class WanVideoGenerator:
                     try:
                         # Determine if we're in a batch by checking if output_path contains prompt_000
                         output_path_obj = Path(output_path)
-                        if 'prompt_000' in str(output_path_obj) and 'video_001' in str(output_path_obj):
+                        if 'prompt_000' in str(output_path_obj) and 'vid001' in str(output_path_obj):
                             # This is the first video of the first prompt, save the CFG schedule
-                            root_output_dir = output_path_obj.parent.parent.parent  # video_001.mp4 -> prompt_000 -> videos -> root
+                            root_output_dir = output_path_obj.parent.parent.parent  # vid001.mp4 -> prompt_000 -> videos -> root
                             configs_dir = root_output_dir / "configs"
                             cfg_schedule_file = configs_dir / "cfg_schedule.json"
                             
