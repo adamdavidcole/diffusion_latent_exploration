@@ -69,7 +69,7 @@ def main():
     parser.add_argument(
         "--output-dir",
         type=Path,
-        help="Output directory for decoded videos (default: experiment_dir/decoded_latents/)"
+        help="Output directory for decoded videos (default: experiment_dir/latents_videos/)"
     )
     
     parser.add_argument(
@@ -201,7 +201,7 @@ def main():
         total_time = time.time() - start_time
         
         # Generate summary report
-        output_dir = args.output_dir or (args.experiment_dir / "decoded_latents")
+        output_dir = args.output_dir or (args.experiment_dir / "latents_videos")
         report_path = output_dir / "decode_summary.json"
         
         summary = create_decode_summary_report(results, report_path)

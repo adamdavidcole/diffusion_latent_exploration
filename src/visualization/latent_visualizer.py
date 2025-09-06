@@ -16,6 +16,7 @@ from dataclasses import dataclass
 try:
     from diffusers import AutoencoderKLWan
     from diffusers.utils import export_to_video
+    from diffusers.video_processor import VideoProcessor
     DIFFUSERS_AVAILABLE = True
 except ImportError as e:
     logging.warning(f"Diffusers not available: {e}")
@@ -49,6 +50,7 @@ class LatentDecoder:
         """
         self.model_id = model_id
         self.vae = None
+        self.video_processor = None
         self._setup_device(device)
         
     def _setup_device(self, device: str):
@@ -66,7 +68,7 @@ class LatentDecoder:
             torch.cuda.set_device(device_id)
     
     def load_vae(self):
-        """Load the VAE model."""
+        """Load the VAE model and video processor."""
         if not DIFFUSERS_AVAILABLE:
             raise RuntimeError("Diffusers not available - cannot load VAE")
             
@@ -86,27 +88,35 @@ class LatentDecoder:
                 low_cpu_mem_usage=True
             )
             
+            # Load video processor for postprocessing
+            self.vae_scale_factor_spatial = 8
+            self.video_processor = VideoProcessor(vae_scale_factor=self.vae_scale_factor_spatial)
+            
             # Move to device
             self.vae.to(self.device)
             self.vae.eval()  # Set to evaluation mode
             
             load_time = time.time() - start_time
-            logging.info(f"VAE loaded successfully in {load_time:.2f}s")
+            logging.info(f"VAE and video processor loaded successfully in {load_time:.2f}s")
             
         except Exception as e:
             logging.error(f"Failed to load VAE: {e}")
             raise
     
     def unload_vae(self):
-        """Unload VAE to free memory."""
+        """Unload VAE and video processor to free memory."""
         if self.vae is not None:
             del self.vae
             self.vae = None
             
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+        if self.video_processor is not None:
+            del self.video_processor
+            self.video_processor = None
             
-            logging.info("VAE unloaded and memory cleared")
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        
+        logging.info("VAE and video processor unloaded and memory cleared")
     
     def cleanup(self):
         """Clean up resources (alias for unload_vae)."""
@@ -143,7 +153,7 @@ class LatentDecoder:
     
     def decode_latent_to_frames(self, latent_tensor: torch.Tensor) -> torch.Tensor:
         """
-        Decode a latent tensor to video frames using VAE.
+        Decode a latent tensor to video frames using VAE with proper WAN pipeline normalization.
         
         Args:
             latent_tensor: Latent tensor to decode [B, C, T, H, W]
@@ -154,40 +164,50 @@ class LatentDecoder:
         if self.vae is None:
             raise RuntimeError("VAE not loaded. Call load_vae() first.")
         
+        if self.video_processor is None:
+            raise RuntimeError("Video processor not loaded. Call load_vae() first.")
+        
         # Move latent to device and ensure proper dtype
-        # VAE typically expects float32, but latents may be stored as float16
         latent_tensor = latent_tensor.to(self.device)
         
-        # Convert to float32 if needed to match VAE expectations
-        if latent_tensor.dtype != torch.float32:
-            logging.debug(f"Converting latent from {latent_tensor.dtype} to float32")
-            latent_tensor = latent_tensor.to(torch.float32)
+        # Convert to VAE dtype (typically float32)
+        latent_tensor = latent_tensor.to(self.vae.dtype)
         
         logging.debug(f"Decoding latent tensor: {latent_tensor.shape}, dtype: {latent_tensor.dtype}")
         
-        # assumes `latent_tensor` is [B, C, T, H, W] on the same device as the VAE
-with torch.no_grad():
-    # 1) unscale for VAE
-    latent_tensor = latent_tensor.to(self.vae.dtype)
-    z_clean = latent_tensor / getattr(self.vae.config, "scaling_factor", 1.0)
-
-    # 2) decode
-    video = self.vae.decode(z_clean, return_dict=False)[0]   # [B, 3, T, H, W]
-
+        # Apply WAN pipeline normalization before VAE decode
+        with torch.no_grad():
+            # Apply latents normalization from WAN pipeline
+            latents_mean = (
+                torch.tensor(self.vae.config.latents_mean)
+                .view(1, self.vae.config.z_dim, 1, 1, 1)
+                .to(latent_tensor.device, latent_tensor.dtype)
+            )
+            latents_std = 1.0 / torch.tensor(self.vae.config.latents_std).view(1, self.vae.config.z_dim, 1, 1, 1).to(
+                latent_tensor.device, latent_tensor.dtype
+            )
+            
+            # Normalize latents: latents = latents / latents_std + latents_mean
+            normalized_latents = latent_tensor / latents_std + latents_mean
+            
+            logging.debug(f"Applied latents normalization: mean={latents_mean.flatten()[:3].tolist()}, std_factor={latents_std.flatten()[:3].tolist()}")
+            
+            # VAE decode expects [B, C, T, H, W] format
+            video = self.vae.decode(normalized_latents, return_dict=False)[0]
+            
+            # Apply video postprocessing from WAN pipeline
+            video = self.video_processor.postprocess_video(video, output_type="np")
         
-        # Move back to CPU for further processing
-        decoded_frames = decoded_frames.cpu()
+        logging.debug(f"Decoded video shape after postprocessing: {video.shape}")
         
-        logging.debug(f"Decoded frames shape: {decoded_frames.shape}")
-        
-        return decoded_frames
+        return video
     
-    def frames_to_video(self, frames: torch.Tensor, output_path: Path, fps: int = 12) -> bool:
+    def frames_to_video(self, frames: Union[torch.Tensor, np.ndarray], output_path: Path, fps: int = 12) -> bool:
         """
-        Export decoded frames to video file.
+        Export decoded frames to video file using diffusers export_to_video.
         
         Args:
-            frames: Decoded video frames [B, C, T, H, W]
+            frames: Postprocessed video frames from decode_latent_to_frames()
             output_path: Output video file path
             fps: Frames per second
             
@@ -198,27 +218,16 @@ with torch.no_grad():
             # Ensure output directory exists
             output_path.parent.mkdir(parents=True, exist_ok=True)
             
-            # Convert tensor format for export_to_video
-            # export_to_video expects [T, H, W, C] format
-            if len(frames.shape) == 5:  # [B, C, T, H, W]
-                frames = frames.squeeze(0)  # Remove batch dimension -> [C, T, H, W]
+            # VideoProcessor.postprocess_video returns [B, T, H, W, C] format
+            # Remove batch dimension for export_to_video which expects [T, H, W, C]
+            if isinstance(frames, np.ndarray) and len(frames.shape) == 5:  # [B, T, H, W, C]
+                frames = frames.squeeze(0)  # Remove batch dimension -> [T, H, W, C]
+            elif hasattr(frames, 'squeeze') and len(frames.shape) == 5:  # torch tensor [B, T, H, W, C]
+                frames = frames.squeeze(0).cpu().numpy()  # -> [T, H, W, C] numpy
             
-            if len(frames.shape) == 4:  # [C, T, H, W]
-                frames = frames.permute(1, 2, 3, 0)  # -> [T, H, W, C]
+            logging.debug(f"Exporting video: shape={frames.shape}, dtype={frames.dtype}")
             
-            # Ensure values are in [0, 1] range
-            frames = torch.clamp(frames, 0, 1)
-            
-            # Convert to numpy for export_to_video
-            frames_np = frames.detach().cpu().numpy()
-            
-            # Convert to uint8 format expected by video export
-            frames_np = (frames_np * 255).astype(np.uint8)
-            
-            logging.debug(f"Exporting frames: shape={frames_np.shape}, dtype={frames_np.dtype}")
-            
-            # Export to video
-            export_to_video(frames_np, str(output_path), fps=fps)
+            export_to_video(frames, str(output_path), fps=fps)
             
             logging.debug(f"Video exported to: {output_path}")
             return True
