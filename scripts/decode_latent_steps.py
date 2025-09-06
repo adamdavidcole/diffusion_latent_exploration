@@ -28,6 +28,14 @@ import sys
 import time
 from pathlib import Path
 
+# Add progress bar support
+try:
+    from tqdm import tqdm
+    TQDM_AVAILABLE = True
+except ImportError:
+    TQDM_AVAILABLE = False
+    print("Warning: tqdm not available. Install with 'pip install tqdm' for progress bars.")
+
 # Add src to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
@@ -44,6 +52,144 @@ def setup_logging(verbose: bool = False):
             logging.StreamHandler(sys.stdout)
         ]
     )
+
+
+def decode_experiment_with_progress(decoder, output_dir=None, prompt_filter=None, 
+                                   video_filter=None, step_filter=None):
+    """
+    Decode experiment with progress tracking.
+    
+    Args:
+        decoder: ExperimentLatentDecoder instance
+        output_dir: Output directory for decoded videos
+        prompt_filter: Filter for prompt directories
+        video_filter: Filter for video directories  
+        step_filter: Filter for step files
+        
+    Returns:
+        Nested dictionary: {video_path: {step_name: result}}
+    """
+    if decoder.decoder is None:
+        decoder.initialize_decoder()
+    
+    video_dirs = decoder.find_latent_directories()
+    
+    # Apply filters
+    if prompt_filter:
+        video_dirs = [d for d in video_dirs if prompt_filter in str(d)]
+    if video_filter:
+        video_dirs = [d for d in video_dirs if video_filter in str(d)]
+    
+    if not video_dirs:
+        logging.warning("No video directories found after filtering")
+        return {}
+    
+    # Count total steps for overall progress
+    total_steps = 0
+    video_step_counts = {}
+    for video_dir in video_dirs:
+        step_files = decoder.find_latent_steps(video_dir)
+        
+        if step_filter:
+            step_filters = [f.strip() for f in step_filter.split(',')]
+            step_files = [f for f in step_files 
+                         if any(f.stem.replace('.npy', '') == sf for sf in step_filters)]
+        
+        video_step_counts[str(video_dir)] = len(step_files)
+        total_steps += len(step_files)
+    
+    logging.info(f"Decoding {len(video_dirs)} video directories with {total_steps} total steps")
+    
+    all_results = {}
+    
+    # Create overall progress bar if tqdm is available
+    if TQDM_AVAILABLE:
+        video_pbar = tqdm(video_dirs, desc="Videos", unit="video")
+        step_pbar = tqdm(total=total_steps, desc="Steps", unit="step", leave=False)
+    else:
+        video_pbar = video_dirs
+        step_pbar = None
+    
+    try:
+        for video_idx, video_dir in enumerate(video_pbar):
+            # Update video progress description
+            if TQDM_AVAILABLE:
+                video_name = f"{video_dir.parent.name}/{video_dir.name}"
+                video_pbar.set_description(f"Processing {video_name}")
+            else:
+                logging.info(f"Processing video directory ({video_idx + 1}/{len(video_dirs)}): {video_dir}")
+            
+            try:
+                # Get steps for this video
+                step_files = decoder.find_latent_steps(video_dir)
+                
+                if step_filter:
+                    step_filters = [f.strip() for f in step_filter.split(',')]
+                    step_files = [f for f in step_files 
+                                 if any(f.stem.replace('.npy', '') == sf for sf in step_filters)]
+                
+                # Setup output directory for this video
+                if output_dir is None:
+                    output_base = decoder.experiment_dir / "latents_videos"
+                else:
+                    output_base = output_dir
+                
+                relative_path = video_dir.relative_to(decoder.experiment_dir / "latents")
+                video_output_dir = output_base / relative_path
+                video_output_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Get FPS from config
+                fps = decoder.get_video_settings().get('fps', 12)
+                
+                results = {}
+                
+                for step_file in step_files:
+                    step_name = step_file.stem.replace('.npy', '')  # e.g., "step_000"
+                    output_path = video_output_dir / f"{step_name}.mp4"
+                    
+                    # Update step progress description
+                    if TQDM_AVAILABLE:
+                        step_pbar.set_description(f"Decoding {step_name}")
+                    
+                    result = decoder.decoder.decode_latent_step_to_video(
+                        latent_path=step_file,
+                        output_path=output_path,
+                        fps=fps
+                    )
+                    
+                    results[step_name] = result
+                    
+                    if result.success:
+                        if not TQDM_AVAILABLE:
+                            print(f"✅ Decoded {video_dir.parent.name}/{video_dir.name}/{step_name} in {result.decode_time:.2f}s")
+                    else:
+                        if not TQDM_AVAILABLE:
+                            print(f"❌ Failed {video_dir.parent.name}/{video_dir.name}/{step_name}: {result.error_message}")
+                        else:
+                            logging.error(f"❌ Failed to decode {step_name}: {result.error_message}")
+                    
+                    # Update step progress
+                    if TQDM_AVAILABLE:
+                        step_pbar.update(1)
+                
+                all_results[str(video_dir)] = results
+                
+            except Exception as e:
+                logging.error(f"Failed to process {video_dir}: {e}")
+                all_results[str(video_dir)] = {}
+                
+                # Still update progress for skipped steps
+                if TQDM_AVAILABLE:
+                    step_pbar.update(video_step_counts[str(video_dir)])
+    
+    finally:
+        # Close progress bars
+        if TQDM_AVAILABLE:
+            video_pbar.close()
+            if step_pbar:
+                step_pbar.close()
+    
+    return all_results
 
 
 def parse_filter_list(filter_str: str) -> list:
@@ -188,10 +334,11 @@ def main():
             logging.warning("No steps found to decode")
             return 1
         
-        # Perform decoding
+        # Perform decoding with progress tracking
         start_time = time.time()
         
-        results = decoder.decode_experiment(
+        results = decode_experiment_with_progress(
+            decoder,
             output_dir=args.output_dir,
             prompt_filter=args.prompt_filter,
             video_filter=args.video_filter,
