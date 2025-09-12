@@ -545,6 +545,296 @@ class AttentionVisualizer:
         self.logger.info(f"Generated attention video: {output_path} ({target_frames} frames, {target_height}×{target_width})")
         return str(output_path)
     
+    def _generate_attention_video_from_data(self, 
+                                           spatial_attention: torch.Tensor,
+                                           video_id: str, 
+                                           token_word: str,
+                                           step: Optional[int] = None,
+                                           video_config: VideoConfig = VideoConfig(),
+                                           overlay_config: OverlayConfig = OverlayConfig(),
+                                           output_filename: Optional[str] = None,
+                                           source_video_path: Optional[str] = None,
+                                           metadata: Optional[Dict[str, Any]] = None) -> str:
+        """
+        Generate attention video from pre-loaded attention data.
+        
+        This is a simplified version of generate_attention_video that works with
+        already loaded attention data instead of loading from the analyzer.
+        
+        Args:
+            spatial_attention: Pre-loaded attention tensor
+            video_id: Video identifier 
+            token_word: Token name
+            step: Step number (if specific step)
+            video_config: Video generation settings
+            overlay_config: Overlay settings
+            output_filename: Output filename
+            source_video_path: Optional source video for overlay
+            metadata: Optional metadata dict with video dimensions
+            
+        Returns:
+            Path to generated video file
+        """
+        # Convert to numpy if needed
+        if isinstance(spatial_attention, torch.Tensor):
+            attention_np = spatial_attention.cpu().numpy()
+        else:
+            attention_np = spatial_attention
+        
+        # Get target dimensions from metadata if available
+        if metadata:
+            target_frames = metadata.get('video_frames', 25)
+            target_height = metadata.get('video_height', 480)
+            target_width = metadata.get('video_width', 848)
+            
+            # Calculate latent dimensions based on VAE downsampling (typical 16x spatial, 4x temporal)
+            latent_frames = (target_frames - 1) // 4 + 1
+            latent_height = target_height // 16
+            latent_width = target_width // 16
+            
+            self.logger.info(f"Using metadata dimensions: target={target_frames}×{target_height}×{target_width}, latent={latent_frames}×{latent_height}×{latent_width}")
+        else:
+            # No metadata - will determine dimensions from tensor factorization
+            latent_frames = None
+            latent_height = None 
+            latent_width = None
+            target_height = 480
+            target_width = 848
+            target_frames = 25
+            self.logger.warning("No metadata provided, will determine dimensions from tensor")
+        
+        # Handle different dimensionalities
+        if attention_np.ndim == 1:
+            spatial_size = attention_np.shape[0]
+            
+            if metadata and latent_frames and latent_height and latent_width:
+                # Try to use metadata dimensions first
+                expected_latent_size = latent_frames * latent_height * latent_width
+                if spatial_size == expected_latent_size:
+                    attention_np = attention_np.reshape(latent_frames, latent_height, latent_width)
+                    self.logger.info(f"Reshaped 1D attention {spatial_size} -> {latent_frames}×{latent_height}×{latent_width} (metadata match)")
+                else:
+                    self.logger.warning(f"Metadata size mismatch: tensor={spatial_size}, expected={expected_latent_size}")
+                    # Fall back to factorization
+                    factors = []
+                    for i in range(1, int(np.sqrt(spatial_size)) + 1):
+                        if spatial_size % i == 0:
+                            factors.append((i, spatial_size // i))
+                    
+                    if factors:
+                        best_factor = min(factors, key=lambda x: abs(x[0] - x[1]))
+                        h, w = best_factor
+                        attention_np = attention_np.reshape(h, w)
+                        self.logger.info(f"Reshaped 1D attention {spatial_size} -> {h}×{w} (spatial fallback)")
+                    else:
+                        raise ValueError(f"Cannot factorize attention size {spatial_size}")
+            else:
+                # No metadata - find best factorization
+                factors = []
+                for i in range(1, int(np.sqrt(spatial_size)) + 1):
+                    if spatial_size % i == 0:
+                        factors.append((i, spatial_size // i))
+                
+                if factors:
+                    best_factor = min(factors, key=lambda x: abs(x[0] - x[1]))
+                    h, w = best_factor
+                    attention_np = attention_np.reshape(h, w)
+                    self.logger.info(f"Reshaped 1D attention {spatial_size} -> {h}×{w} (no metadata)")
+                else:
+                    raise ValueError(f"Cannot factorize attention size {spatial_size}")
+                
+        elif attention_np.ndim == 2:
+            # Already in 2D format (height, width)
+            self.logger.info(f"Using 2D attention as-is: {attention_np.shape}")
+            
+        elif attention_np.ndim == 3:
+            # 3D format (frames, height, width) - already in correct format
+            self.logger.info(f"Using 3D attention as-is: {attention_np.shape}")
+            
+        elif attention_np.ndim == 4:
+            # 4D format - squeeze out singleton dimensions and handle remaining
+            original_shape = attention_np.shape
+            attention_np = attention_np.squeeze()
+            self.logger.info(f"Squeezed 4D attention {original_shape} -> {attention_np.shape}")
+            
+            # Apply same logic as above for the squeezed result
+            if attention_np.ndim == 1:
+                spatial_size = attention_np.shape[0]
+                
+                if metadata and latent_frames and latent_height and latent_width:
+                    expected_latent_size = latent_frames * latent_height * latent_width
+                    if spatial_size == expected_latent_size:
+                        attention_np = attention_np.reshape(latent_frames, latent_height, latent_width)
+                        self.logger.info(f"Reshaped squeezed 1D attention {spatial_size} -> {latent_frames}×{latent_height}×{latent_width}")
+                    else:
+                        factors = []
+                        for i in range(1, int(np.sqrt(spatial_size)) + 1):
+                            if spatial_size % i == 0:
+                                factors.append((i, spatial_size // i))
+                        
+                        if factors:
+                            best_factor = min(factors, key=lambda x: abs(x[0] - x[1]))
+                            h, w = best_factor
+                            attention_np = attention_np.reshape(h, w)
+                            self.logger.info(f"Reshaped squeezed 1D attention {spatial_size} -> {h}×{w}")
+                else:
+                    factors = []
+                    for i in range(1, int(np.sqrt(spatial_size)) + 1):
+                        if spatial_size % i == 0:
+                            factors.append((i, spatial_size // i))
+                    
+                    if factors:
+                        best_factor = min(factors, key=lambda x: abs(x[0] - x[1]))
+                        h, w = best_factor
+                        attention_np = attention_np.reshape(h, w)
+                        self.logger.info(f"Reshaped squeezed 1D attention {spatial_size} -> {h}×{w}")
+        
+        # Ensure we have at least 2D data
+        if attention_np.ndim == 1:
+            raise ValueError(f"Unable to convert attention data to usable format. Final shape: {attention_np.shape}")
+        
+        # Add temporal dimension if needed (convert 2D to 3D)
+        if attention_np.ndim == 2:
+            attention_np = attention_np[np.newaxis, ...]
+            
+        # Now attention_np should be in format [frames, height, width]
+        if attention_np.ndim != 3:
+            raise ValueError(f"Unable to convert attention data to 3D format. Final shape: {attention_np.shape}")
+        
+        # Get actual dimensions from final tensor
+        actual_frames, actual_height, actual_width = attention_np.shape
+        self.logger.info(f"Final attention tensor: {actual_frames}×{actual_height}×{actual_width}")
+        
+        # Use metadata target dimensions if available, otherwise use defaults
+        if metadata:
+            target_frames = metadata.get('video_frames', actual_frames * 4)
+            target_height = metadata.get('video_height', actual_height * 16)
+            target_width = metadata.get('video_width', actual_width * 16)
+        else:
+            # Default upscaling
+            target_frames = max(actual_frames * 4, 25) if actual_frames > 1 else 25
+            target_height = actual_height * 16
+            target_width = actual_width * 16
+        
+        # If we have source video, get its dimensions
+        if source_video_path and Path(source_video_path).exists():
+            try:
+                import imageio
+                with imageio.get_reader(source_video_path) as reader:
+                    source_meta = reader.get_meta_data()
+                    if 'fps' in source_meta:
+                        video_config.fps = source_meta['fps']
+                    # Get actual frame count
+                    target_frames = reader.count_frames()
+                    # Get frame dimensions from first frame
+                    first_frame = reader.get_data(0)
+                    target_height, target_width = first_frame.shape[:2]
+            except Exception as e:
+                self.logger.warning(f"Could not get video metadata: {e}")
+        
+        # Create video frames by interpolating and upscaling attention data
+        attention_video_frames = np.zeros((target_frames, target_height, target_width), dtype=np.float32)
+        
+        # Interpolate attention frames to match target frame count
+        for frame_idx in range(target_frames):
+            # Map target frame to latent frame
+            if actual_frames > 1:
+                latent_frame_idx = frame_idx * (actual_frames - 1) / (target_frames - 1) if target_frames > 1 else 0
+                lower_idx = int(np.floor(latent_frame_idx))
+                upper_idx = min(lower_idx + 1, actual_frames - 1)
+                alpha = latent_frame_idx - lower_idx
+                
+                if lower_idx == upper_idx:
+                    latent_attention = attention_np[lower_idx]
+                else:
+                    latent_attention = (1 - alpha) * attention_np[lower_idx] + alpha * attention_np[upper_idx]
+            else:
+                # Single frame, replicate across all target frames
+                latent_attention = attention_np[0]
+            
+            # Resize from latent to target dimensions
+            resized_attention = cv2.resize(
+                latent_attention.astype(np.float32), 
+                (target_width, target_height), 
+                interpolation=cv2.INTER_LINEAR
+            )
+            
+            attention_video_frames[frame_idx] = resized_attention
+        
+        # Normalize attention values
+        attention_normalized = self._normalize_attention(
+            attention_video_frames,
+            normalize_per_frame=overlay_config.normalize_per_frame,
+            threshold=overlay_config.threshold,
+            invert_values=overlay_config.invert_values
+        )
+        
+        # Generate output filename
+        if output_filename is None:
+            if step is not None:
+                base_name = f"step_{step:03d}"
+            else:
+                base_name = "attention"
+            
+            if source_video_path:
+                output_filename = f"{base_name}_overlay.mp4"
+            else:
+                output_filename = f"{base_name}_attention.mp4"
+        
+        # Use the output directory directly
+        output_path = self.output_dir / output_filename
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Get colormap
+        cv_colormap = self._get_colormap(overlay_config.colormap)
+        
+        # Load source video if provided
+        source_frames = None
+        if source_video_path and Path(source_video_path).exists():
+            import imageio
+            source_reader = imageio.get_reader(source_video_path)
+            source_frames = []
+            try:
+                for frame in source_reader:
+                    source_frames.append(frame)
+            except Exception as e:
+                self.logger.warning(f"Could not read source video: {e}")
+                source_frames = None
+            finally:
+                source_reader.close()
+        
+        # Generate video
+        import imageio
+        with imageio.get_writer(str(output_path), fps=video_config.fps, 
+                              codec=video_config.codec, quality=video_config.quality) as writer:
+            
+            for frame_idx in range(target_frames):
+                # Apply colormap to attention
+                attention_colored = cv2.applyColorMap(attention_normalized[frame_idx], cv_colormap)
+                attention_colored = cv2.cvtColor(attention_colored, cv2.COLOR_BGR2RGB)
+                
+                # Overlay on source video if available
+                if source_frames and frame_idx < len(source_frames):
+                    source_frame = source_frames[frame_idx]
+                    
+                    # Ensure source frame matches attention frame dimensions
+                    if source_frame.shape[:2] != attention_colored.shape[:2]:
+                        source_frame = cv2.resize(source_frame, 
+                                                (attention_colored.shape[1], attention_colored.shape[0]))
+                    
+                    # Blend frames
+                    blended = cv2.addWeighted(
+                        attention_colored, overlay_config.alpha,
+                        source_frame, 1 - overlay_config.alpha,
+                        0
+                    )
+                    writer.append_data(blended)
+                else:
+                    writer.append_data(attention_colored)
+        
+        self.logger.info(f"Generated attention video from data: {output_path} ({target_frames} frames, {target_height}×{target_width})")
+        return str(output_path)
+    
     def generate_temporal_comparison(self, video_id: str, token_words: List[str],
                                    steps: Optional[List[int]] = None,
                                    fusion_method: FusionMethod = FusionMethod.MEAN,

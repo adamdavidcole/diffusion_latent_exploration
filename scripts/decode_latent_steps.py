@@ -3,7 +3,8 @@
 Latent Step Decoder Script
 
 This script decodes stored latent tensors back into video files using the model's VAE.
-It reads latent steps from experiment directories and generates corresponding video files.
+It reads latent steps from experiment directories and generates corresponding video files
+with accompanying thumbnail images (first frame as .jpg).
 
 Usage:
     python scripts/decode_latent_steps.py <experiment_dir> [options]
@@ -20,12 +21,16 @@ Examples:
     
     # Use specific device
     python scripts/decode_latent_steps.py outputs/MyExperiment_20250901_120000/ --device cuda:1
+
+Requirements:
+    - ffmpeg (for thumbnail generation) - optional but recommended
 """
 
 import argparse
 import logging
 import sys
 import time
+import subprocess
 from pathlib import Path
 
 # Add progress bar support
@@ -52,6 +57,68 @@ def setup_logging(verbose: bool = False):
             logging.StreamHandler(sys.stdout)
         ]
     )
+
+
+def generate_thumbnail_for_video(video_path: Path, thumbnail_path: Path = None) -> bool:
+    """
+    Generate a thumbnail from the first frame of a video using ffmpeg.
+    
+    Args:
+        video_path: Path to the video file
+        thumbnail_path: Path where thumbnail should be saved (default: video_path with .jpg extension)
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    # Skip if ffmpeg is not available
+    if not check_ffmpeg():
+        return False
+        
+    if thumbnail_path is None:
+        thumbnail_path = video_path.with_suffix('.jpg')
+    
+    try:
+        # Check if video exists
+        if not video_path.exists():
+            logging.warning(f"Video not found for thumbnail generation: {video_path}")
+            return False
+        
+        # Create thumbnail directory if it doesn't exist
+        thumbnail_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Use ffmpeg to extract first frame
+        cmd = [
+            'ffmpeg',
+            '-i', str(video_path),
+            '-vf', 'select=eq(n\\,0)',  # Select first frame
+            '-vframes', '1',            # Extract only 1 frame
+            '-q:v', '2',               # High quality
+            '-y',                      # Overwrite output file
+            str(thumbnail_path)
+        ]
+        
+        # Run ffmpeg command
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=30  # 30 second timeout
+        )
+        
+        if result.returncode == 0:
+            logging.debug(f"Generated thumbnail: {thumbnail_path}")
+            return True
+        else:
+            error_msg = result.stderr.strip()
+            logging.warning(f"FFmpeg error generating thumbnail for {video_path}: {error_msg}")
+            return False
+            
+    except subprocess.TimeoutExpired:
+        logging.warning(f"Timeout generating thumbnail for {video_path}")
+        return False
+    except Exception as e:
+        logging.warning(f"Error generating thumbnail for {video_path}: {e}")
+        return False
 
 
 def decode_experiment_with_progress(decoder, output_dir=None, prompt_filter=None, 
@@ -151,6 +218,7 @@ def decode_experiment_with_progress(decoder, output_dir=None, prompt_filter=None
                 for step_file in step_files:
                     step_name = step_file.stem.replace('.npy', '')  # e.g., "step_000"
                     output_path = video_output_dir / f"{step_name}.mp4"
+                    thumbnail_path = video_output_dir / f"{step_name}.jpg"
                     
                     # Update step progress description
                     if TQDM_AVAILABLE:
@@ -164,11 +232,21 @@ def decode_experiment_with_progress(decoder, output_dir=None, prompt_filter=None
                         scale_factor=scale_factor
                     )
                     
+                    # Generate thumbnail if video was successful
+                    thumbnail_success = False
+                    if result.success and output_path.exists():
+                        thumbnail_success = generate_thumbnail_for_video(output_path, thumbnail_path)
+                    
+                    # Store both video and thumbnail results
+                    result.thumbnail_generated = thumbnail_success
+                    result.thumbnail_path = str(thumbnail_path) if thumbnail_success else None
+                    
                     results[step_name] = result
                     
                     if result.success:
+                        thumbnail_status = "✅" if thumbnail_success else "⚠️"
                         if not TQDM_AVAILABLE:
-                            print(f"✅ Decoded {video_dir.parent.name}/{video_dir.name}/{step_name} in {result.decode_time:.2f}s")
+                            print(f"✅ Decoded {video_dir.parent.name}/{video_dir.name}/{step_name} in {result.decode_time:.2f}s {thumbnail_status}")
                     else:
                         if not TQDM_AVAILABLE:
                             print(f"❌ Failed {video_dir.parent.name}/{video_dir.name}/{step_name}: {result.error_message}")
@@ -204,6 +282,15 @@ def parse_filter_list(filter_str: str) -> list:
     if not filter_str:
         return []
     return [item.strip() for item in filter_str.split(',')]
+
+
+def check_ffmpeg() -> bool:
+    """Check if ffmpeg is available for thumbnail generation."""
+    try:
+        subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
 
 
 def main():
@@ -288,6 +375,16 @@ def main():
     
     # Setup logging
     setup_logging(args.verbose)
+    
+    # Check if ffmpeg is available for thumbnail generation
+    if not check_ffmpeg():
+        logging.warning("ffmpeg is not available. Thumbnails will not be generated.")
+        logging.warning("To enable thumbnail generation, install ffmpeg:")
+        logging.warning("  Ubuntu/Debian: sudo apt install ffmpeg")
+        logging.warning("  macOS: brew install ffmpeg")
+        logging.warning("  Windows: Download from https://ffmpeg.org/download.html")
+    else:
+        logging.info("ffmpeg found - thumbnails will be generated alongside videos")
     
     # Handle compression presets
     quality = args.quality
@@ -409,6 +506,23 @@ def main():
         logging.info(f"Successful: {summary['successful_steps']}")
         logging.info(f"Failed: {summary['failed_steps']}")
         logging.info(f"Success rate: {summary['success_rate']:.1%}")
+        
+        # Count thumbnail generation results
+        thumbnail_generated = 0
+        thumbnail_failed = 0
+        for video_path, video_results in results.items():
+            for step_name, result in video_results.items():
+                if result.success:
+                    if hasattr(result, 'thumbnail_generated') and result.thumbnail_generated:
+                        thumbnail_generated += 1
+                    else:
+                        thumbnail_failed += 1
+        
+        if thumbnail_generated > 0 or thumbnail_failed > 0:
+            logging.info(f"Thumbnails generated: {thumbnail_generated}")
+            if thumbnail_failed > 0:
+                logging.info(f"Thumbnail generation failed: {thumbnail_failed}")
+        
         logging.info(f"Total time: {total_time:.2f}s")
         logging.info(f"Average time per step: {summary['avg_decode_time']:.2f}s")
         logging.info(f"Output directory: {output_dir}")
