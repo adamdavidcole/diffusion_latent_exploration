@@ -12,10 +12,12 @@ const TabNavigation = ({ experimentPath }) => {
   // Determine active tab based on current path
   const isAnalysisTab = location.pathname.endsWith('/analysis');
   const isTrajectoryAnalysisTab = location.pathname.endsWith('/trajectory-analysis');
+  const isLatentVideosTab = location.pathname.endsWith('/latent-videos');
   
   let activeTab = 'videos';
   if (isAnalysisTab) activeTab = 'analysis';
   if (isTrajectoryAnalysisTab) activeTab = 'trajectory-analysis';
+  if (isLatentVideosTab) activeTab = 'latent-videos';
 
   const handleTabChange = (tab) => {
     if (tab === 'videos') {
@@ -24,6 +26,8 @@ const TabNavigation = ({ experimentPath }) => {
       navigate(`/experiment/${experimentPath}/analysis`);
     } else if (tab === 'trajectory-analysis') {
       navigate(`/experiment/${experimentPath}/trajectory-analysis`);
+    } else if (tab === 'latent-videos') {
+      navigate(`/experiment/${experimentPath}/latent-videos`);
     }
   };
 
@@ -73,6 +77,25 @@ const TabNavigation = ({ experimentPath }) => {
         >
           📈 Trajectory Analysis
           {!currentExperiment?.has_trajectory_analysis && (
+            <span className="disabled-indicator"> (unavailable)</span>
+          )}
+        </button>
+
+        <button
+          className={`tab-button ${activeTab === 'latent-videos' ? 'active' : ''} ${!currentExperiment?.has_latent_videos ? 'disabled' : ''
+            }`}
+          role="tab"
+          aria-selected={activeTab === 'latent-videos'}
+          onClick={() => currentExperiment?.has_latent_videos && handleTabChange('latent-videos')}
+          disabled={!currentExperiment?.has_latent_videos}
+          title={
+            !currentExperiment?.has_latent_videos
+              ? 'Latent videos not available for this experiment'
+              : 'View latent videos progression'
+          }
+        >
+          🎬 Latent Videos
+          {!currentExperiment?.has_latent_videos && (
             <span className="disabled-indicator"> (unavailable)</span>
           )}
         </button>

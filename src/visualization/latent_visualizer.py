@@ -22,6 +22,13 @@ except ImportError as e:
     logging.warning(f"Diffusers not available: {e}")
     DIFFUSERS_AVAILABLE = False
 
+# Optional import for video scaling
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    CV2_AVAILABLE = False
+
 
 @dataclass
 class LatentDecodeResult:
@@ -202,7 +209,7 @@ class LatentDecoder:
         
         return video
     
-    def frames_to_video(self, frames: Union[torch.Tensor, np.ndarray], output_path: Path, fps: int = 12) -> bool:
+    def frames_to_video(self, frames: Union[torch.Tensor, np.ndarray], output_path: Path, fps: int = 12, quality: float = 3.0, scale_factor: float = 1.0, frame_sample: int = 1) -> bool:
         """
         Export decoded frames to video file using diffusers export_to_video.
         
@@ -210,6 +217,9 @@ class LatentDecoder:
             frames: Postprocessed video frames from decode_latent_to_frames()
             output_path: Output video file path
             fps: Frames per second
+            quality: Video quality (0-10, lower = smaller file, default=3.0 for good compression)
+            scale_factor: Scale factor for resolution (0.5 = half size, 1.0 = full size)
+            frame_sample: Sample every N frames (2 = every other frame, 3 = every third frame)
             
         Returns:
             True if successful, False otherwise
@@ -225,9 +235,70 @@ class LatentDecoder:
             elif hasattr(frames, 'squeeze') and len(frames.shape) == 5:  # torch tensor [B, T, H, W, C]
                 frames = frames.squeeze(0).cpu().numpy()  # -> [T, H, W, C] numpy
             
-            logging.debug(f"Exporting video: shape={frames.shape}, dtype={frames.dtype}")
+            # Apply frame sampling if requested
+            if frame_sample > 1:
+                original_frames = frames.shape[0]
+                frames = frames[::frame_sample]  # Sample every N frames
+                new_fps = max(1, fps // frame_sample)  # Adjust FPS accordingly
+                logging.debug(f"Sampled frames from {original_frames} to {frames.shape[0]} (every {frame_sample}), adjusted FPS to {new_fps}")
+                fps = new_fps
             
-            export_to_video(frames, str(output_path), fps=fps)
+            # Apply scaling if requested
+            if scale_factor != 1.0:
+                if not CV2_AVAILABLE:
+                    logging.warning("cv2 not available, skipping video scaling. Install with 'pip install opencv-python'")
+                else:
+                    original_shape = frames.shape  # [T, H, W, C]
+                    original_height, original_width = original_shape[1], original_shape[2]
+                    
+                    # Calculate target dimensions maintaining aspect ratio
+                    target_height = int(original_height * scale_factor)
+                    target_width = int(original_width * scale_factor)
+                    
+                    # Align to macro block size (16) while preserving aspect ratio as closely as possible
+                    macro_block_size = 16
+                    
+                    # Round to nearest multiple of 16
+                    aligned_height = round(target_height / macro_block_size) * macro_block_size
+                    aligned_width = round(target_width / macro_block_size) * macro_block_size
+                    
+                    # Ensure minimum size
+                    aligned_height = max(aligned_height, macro_block_size)
+                    aligned_width = max(aligned_width, macro_block_size)
+                    
+                    # Calculate actual scale factors achieved
+                    actual_height_scale = aligned_height / original_height
+                    actual_width_scale = aligned_width / original_width
+                    
+                    new_height, new_width = aligned_height, aligned_width
+                    
+                    # Log the scaling information
+                    # print(f"Scaling: {original_height}×{original_width} → {new_height}×{new_width}")
+                    # print(f"Requested scale: {scale_factor:.2f}, Actual scales: H={actual_height_scale:.3f}, W={actual_width_scale:.3f}")
+                    
+                    scaled_frames = []
+                    for frame in frames:
+                        # Convert from float [0,1] to uint8 [0,255] for cv2
+                        if frame.dtype == np.float32:
+                            frame_uint8 = (frame * 255).astype(np.uint8)
+                        else:
+                            frame_uint8 = frame
+                        
+                        scaled_frame = cv2.resize(frame_uint8, (new_width, new_height), interpolation=cv2.INTER_AREA)
+                        
+                        # Convert back to float [0,1] if original was float
+                        if frames.dtype == np.float32:
+                            scaled_frame = scaled_frame.astype(np.float32) / 255.0
+                        
+                        scaled_frames.append(scaled_frame)
+                    
+                    frames = np.array(scaled_frames)
+                    logging.debug(f"Scaled video from {original_shape} to {frames.shape}")
+            
+            logging.debug(f"Exporting video: shape={frames.shape}, dtype={frames.dtype}, quality={quality}")
+            
+            # Use lower quality for better compression (default was ~5.0, using 3.0 for smaller files)
+            export_to_video(frames, str(output_path), fps=fps, quality=quality)
             
             logging.debug(f"Video exported to: {output_path}")
             return True
@@ -239,7 +310,9 @@ class LatentDecoder:
     def decode_latent_step_to_video(self, 
                                    latent_path: Path, 
                                    output_path: Path, 
-                                   fps: int = 12) -> LatentDecodeResult:
+                                   fps: int = 12,
+                                   quality: float = 3.0,
+                                   scale_factor: float = 1.0) -> LatentDecodeResult:
         """
         Decode a single latent step file to video.
         
@@ -247,6 +320,8 @@ class LatentDecoder:
             latent_path: Path to .npy.gz latent file
             output_path: Output video path
             fps: Video frames per second
+            quality: Video quality (0-10, lower = smaller file)
+            scale_factor: Scale factor for resolution (0.5 = half size)
             
         Returns:
             LatentDecodeResult with operation details
@@ -261,7 +336,7 @@ class LatentDecoder:
             decoded_frames = self.decode_latent_to_frames(latent_tensor)
             
             # Export to video
-            success = self.frames_to_video(decoded_frames, output_path, fps)
+            success = self.frames_to_video(decoded_frames, output_path, fps, quality, scale_factor)
             
             if not success:
                 return LatentDecodeResult(

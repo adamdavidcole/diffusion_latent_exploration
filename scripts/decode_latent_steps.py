@@ -55,7 +55,8 @@ def setup_logging(verbose: bool = False):
 
 
 def decode_experiment_with_progress(decoder, output_dir=None, prompt_filter=None, 
-                                   video_filter=None, step_filter=None):
+                                   video_filter=None, step_filter=None, fps=None,
+                                   quality=3.0, scale_factor=1.0):
     """
     Decode experiment with progress tracking.
     
@@ -65,6 +66,9 @@ def decode_experiment_with_progress(decoder, output_dir=None, prompt_filter=None
         prompt_filter: Filter for prompt directories
         video_filter: Filter for video directories  
         step_filter: Filter for step files
+        fps: Video FPS (None = use config default)
+        quality: Video quality (0-10, lower = smaller file)
+        scale_factor: Resolution scale factor (0.5 = half size)
         
     Returns:
         Nested dictionary: {video_path: {step_name: result}}
@@ -138,8 +142,9 @@ def decode_experiment_with_progress(decoder, output_dir=None, prompt_filter=None
                 video_output_dir = output_base / relative_path
                 video_output_dir.mkdir(parents=True, exist_ok=True)
                 
-                # Get FPS from config
-                fps = decoder.get_video_settings().get('fps', 12)
+                # Get FPS from config or parameter
+                if fps is None:
+                    fps = decoder.get_video_settings().get('fps', 12)
                 
                 results = {}
                 
@@ -154,7 +159,9 @@ def decode_experiment_with_progress(decoder, output_dir=None, prompt_filter=None
                     result = decoder.decoder.decode_latent_step_to_video(
                         latent_path=step_file,
                         output_path=output_path,
-                        fps=fps
+                        fps=fps,
+                        quality=quality,
+                        scale_factor=scale_factor
                     )
                     
                     results[step_name] = result
@@ -246,6 +253,26 @@ def main():
     )
     
     parser.add_argument(
+        "--quality",
+        type=float,
+        default=3.0,
+        help="Video quality (0-10, lower = smaller file) [default: 3.0]"
+    )
+    
+    parser.add_argument(
+        "--scale",
+        type=float,
+        default=1.0,
+        help="Resolution scale factor (0.5 = half size, 1.0 = full size) [default: 1.0]"
+    )
+    
+    parser.add_argument(
+        "--compress-preset",
+        choices=["high-quality", "balanced", "small-file", "tiny"],
+        help="Compression preset: high-quality (q=7.0,s=1.0), balanced (q=3.0,s=1.0), small-file (q=1.0,s=0.75), tiny (q=0.5,s=0.5)"
+    )
+    
+    parser.add_argument(
         "--verbose", "-v",
         action="store_true",
         help="Enable verbose logging"
@@ -261,6 +288,24 @@ def main():
     
     # Setup logging
     setup_logging(args.verbose)
+    
+    # Handle compression presets
+    quality = args.quality
+    scale = args.scale
+    
+    if args.compress_preset:
+        if args.compress_preset == "high-quality":
+            quality, scale = 7.0, 1.0
+        elif args.compress_preset == "balanced":
+            quality, scale = 3.0, 1.0
+        elif args.compress_preset == "small-file":
+            quality, scale = 1.0, 0.75
+        elif args.compress_preset == "tiny":
+            quality, scale = 0.5, 0.5
+        
+        logging.info(f"Using {args.compress_preset} preset: quality={quality}, scale={scale}")
+    else:
+        logging.info(f"Using custom settings: quality={quality}, scale={scale}")
     
     # Validate experiment directory
     if not args.experiment_dir.exists():
@@ -342,7 +387,10 @@ def main():
             output_dir=args.output_dir,
             prompt_filter=args.prompt_filter,
             video_filter=args.video_filter,
-            step_filter=args.step_filter
+            step_filter=args.step_filter,
+            fps=args.fps,
+            quality=quality,
+            scale_factor=scale
         )
         
         total_time = time.time() - start_time

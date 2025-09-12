@@ -105,6 +105,19 @@ export const api = {
     return trajectoryData;
   },
 
+  async getExperimentLatentVideos(experimentPath) {
+    console.log('API: Fetching experiment latent videos:', experimentPath);
+    const response = await fetch(`${API_BASE}/api/experiment/${experimentPath}/latent-videos`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch experiment latent videos: ${response.status}`);
+    }
+    const latentVideosData = await response.json();
+    if (latentVideosData.error) {
+      throw new Error(latentVideosData.error);
+    }
+    return latentVideosData;
+  },
+
   // Helper function to flatten tree into list for search/filtering
   flattenExperimentTree(tree) {
     const experiments = [];

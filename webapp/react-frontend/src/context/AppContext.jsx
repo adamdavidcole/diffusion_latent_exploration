@@ -48,6 +48,10 @@ const initialState = {
     // Analysis view preferences
     analysisViewBy: 'metric', // 'metric' or 'prompt'
     analysisChartSize: 300,
+    // Latent videos state
+    currentLatentVideos: null,
+    latentVideosLoading: false,
+    latentVideosError: null,
     // Analysis chart configuration
     analysisChartConfig: [
         {
@@ -178,7 +182,12 @@ const ActionTypes = {
     // Analysis view actions
     SET_ANALYSIS_VIEW_BY: 'SET_ANALYSIS_VIEW_BY',
     SET_ANALYSIS_CHART_SIZE: 'SET_ANALYSIS_CHART_SIZE',
-    SET_ANALYSIS_CHART_CONFIG: 'SET_ANALYSIS_CHART_CONFIG'
+    SET_ANALYSIS_CHART_CONFIG: 'SET_ANALYSIS_CHART_CONFIG',
+    // Latent videos actions
+    SET_CURRENT_LATENT_VIDEOS: 'SET_CURRENT_LATENT_VIDEOS',
+    SET_LATENT_VIDEOS_LOADING: 'SET_LATENT_VIDEOS_LOADING',
+    SET_LATENT_VIDEOS_ERROR: 'SET_LATENT_VIDEOS_ERROR',
+    CLEAR_LATENT_VIDEOS_ERROR: 'CLEAR_LATENT_VIDEOS_ERROR'
 };
 
 // Reducer
@@ -264,6 +273,18 @@ const appReducer = (state, action) => {
 
         case ActionTypes.SET_ANALYSIS_CHART_CONFIG:
             return { ...state, analysisChartConfig: action.payload };
+
+        case ActionTypes.SET_CURRENT_LATENT_VIDEOS:
+            return { ...state, currentLatentVideos: action.payload, latentVideosError: null };
+
+        case ActionTypes.SET_LATENT_VIDEOS_LOADING:
+            return { ...state, latentVideosLoading: action.payload };
+
+        case ActionTypes.SET_LATENT_VIDEOS_ERROR:
+            return { ...state, latentVideosError: action.payload, latentVideosLoading: false };
+
+        case ActionTypes.CLEAR_LATENT_VIDEOS_ERROR:
+            return { ...state, latentVideosError: null };
 
         default:
             return state;
@@ -354,7 +375,20 @@ export const AppProvider = ({ children }) => {
             dispatch({ type: ActionTypes.SET_ANALYSIS_CHART_SIZE, payload: size }), []),
 
         setAnalysisChartConfig: useCallback((config) =>
-            dispatch({ type: ActionTypes.SET_ANALYSIS_CHART_CONFIG, payload: config }), [])
+            dispatch({ type: ActionTypes.SET_ANALYSIS_CHART_CONFIG, payload: config }), []),
+
+        // Latent videos actions
+        setCurrentLatentVideos: useCallback((latentVideos) =>
+            dispatch({ type: ActionTypes.SET_CURRENT_LATENT_VIDEOS, payload: latentVideos }), []),
+
+        setLatentVideosLoading: useCallback((loading) =>
+            dispatch({ type: ActionTypes.SET_LATENT_VIDEOS_LOADING, payload: loading }), []),
+
+        setLatentVideosError: useCallback((error) =>
+            dispatch({ type: ActionTypes.SET_LATENT_VIDEOS_ERROR, payload: error }), []),
+
+        clearLatentVideosError: useCallback(() =>
+            dispatch({ type: ActionTypes.CLEAR_LATENT_VIDEOS_ERROR }), [])
     };
 
     // Load analysis schema on app initialization
