@@ -2,9 +2,11 @@
 """
 Attention Step Decoder Script
 
-This script decodes stored attention map tensors into video visualizations with overlays.
-It reads attention steps from experiment directories and generates corresponding video files
-with accompanying thumbnail images (first frame as .jpg).
+Decode attention map steps to videos with optional latent video overlays.
+
+This script processes attention map data from diffusion model experiments and generates
+video files showing attention patterns over time. Each step corresponds to a diffusion timestep,
+with accompanying thumbnail images (frame position configurable).
 
 The script processes attention maps from the attention_maps/ directory and overlays them
 on corresponding latent videos from latents_videos/ directory. If latent videos are not 
@@ -77,13 +79,14 @@ def check_ffmpeg() -> bool:
         return False
 
 
-def generate_thumbnail_for_video(video_path: Path, thumbnail_path: Path = None) -> bool:
+def generate_thumbnail_for_video(video_path: Path, thumbnail_path: Path = None, frame_position: float = 0.5) -> bool:
     """
-    Generate a thumbnail from the first frame of a video using ffmpeg.
+    Generate a thumbnail from a specific frame of a video using ffmpeg.
     
     Args:
         video_path: Path to the video file
         thumbnail_path: Path where thumbnail should be saved (default: video_path with .jpg extension)
+        frame_position: Position in video to extract frame from (0.0=start, 0.5=middle, 1.0=end)
     
     Returns:
         bool: True if successful, False otherwise
@@ -104,16 +107,70 @@ def generate_thumbnail_for_video(video_path: Path, thumbnail_path: Path = None) 
         # Create thumbnail directory if it doesn't exist
         thumbnail_path.parent.mkdir(parents=True, exist_ok=True)
         
-        # Use ffmpeg to extract first frame
-        cmd = [
-            'ffmpeg',
-            '-i', str(video_path),
-            '-vf', 'select=eq(n\\,0)',  # Select first frame
-            '-vframes', '1',            # Extract only 1 frame
-            '-q:v', '2',               # High quality
-            '-y',                      # Overwrite output file
-            str(thumbnail_path)
-        ]
+        # Clamp frame position to valid range [0.0, 1.0]
+        frame_position = max(0.0, min(1.0, frame_position))
+        
+        # Use ffmpeg to extract frame at specified position
+        if frame_position == 0.0:
+            # For first frame, use select filter for precise frame selection
+            cmd = [
+                'ffmpeg',
+                '-i', str(video_path),
+                '-vf', 'select=eq(n\\,0)',     # Select first frame
+                '-vframes', '1',               # Extract only 1 frame
+                '-q:v', '2',                   # High quality
+                '-y',                          # Overwrite output file
+                str(thumbnail_path)
+            ]
+        else:
+            # For other positions, first get video duration and calculate seek time in seconds
+            # Get video duration using ffprobe
+            try:
+                duration_cmd = [
+                    'ffprobe', '-v', 'quiet', '-print_format', 'json', 
+                    '-show_entries', 'format=duration', str(video_path)
+                ]
+                duration_result = subprocess.run(duration_cmd, capture_output=True, text=True, timeout=10)
+                
+                if duration_result.returncode == 0:
+                    import json
+                    duration_data = json.loads(duration_result.stdout)
+                    duration_seconds = float(duration_data['format']['duration'])
+                    seek_seconds = duration_seconds * frame_position
+                    
+                    cmd = [
+                        'ffmpeg',
+                        '-ss', str(seek_seconds),      # Seek to position in seconds
+                        '-i', str(video_path),
+                        '-vframes', '1',               # Extract only 1 frame
+                        '-q:v', '2',                   # High quality
+                        '-y',                          # Overwrite output file
+                        str(thumbnail_path)
+                    ]
+                else:
+                    # Fallback: use first frame if duration detection fails
+                    logging.warning(f"Could not determine video duration for {video_path}, using first frame")
+                    cmd = [
+                        'ffmpeg',
+                        '-i', str(video_path),
+                        '-vf', 'select=eq(n\\,0)',     # Select first frame
+                        '-vframes', '1',               # Extract only 1 frame
+                        '-q:v', '2',                   # High quality
+                        '-y',                          # Overwrite output file
+                        str(thumbnail_path)
+                    ]
+            except (subprocess.TimeoutExpired, json.JSONDecodeError, KeyError) as e:
+                # Fallback: use first frame if duration detection fails
+                logging.warning(f"Error determining video duration for {video_path}: {e}, using first frame")
+                cmd = [
+                    'ffmpeg',
+                    '-i', str(video_path),
+                    '-vf', 'select=eq(n\\,0)',         # Select first frame
+                    '-vframes', '1',                   # Extract only 1 frame
+                    '-q:v', '2',                       # High quality
+                    '-y',                              # Overwrite output file
+                    str(thumbnail_path)
+                ]
         
         # Run ffmpeg command
         result = subprocess.run(
@@ -387,7 +444,8 @@ def decode_experiment_with_progress(experiment_dir: Path,
                                   fps: int = 15,
                                   quality: float = 8.0,
                                   scale_factor: float = 1.0,
-                                  force: bool = False) -> Dict:
+                                  force: bool = False,
+                                  thumbnail_frame: float = 0.5) -> Dict:
     """
     Decode attention maps with progress tracking.
     
@@ -516,7 +574,7 @@ def decode_experiment_with_progress(experiment_dir: Path,
                     # Generate thumbnail if video was successful
                     thumbnail_success = False
                     if result.success and output_path.exists():
-                        thumbnail_success = generate_thumbnail_for_video(output_path, thumbnail_path)
+                        thumbnail_success = generate_thumbnail_for_video(output_path, thumbnail_path, thumbnail_frame)
                     
                     # Store thumbnail results
                     result.thumbnail_generated = thumbnail_success
@@ -694,9 +752,9 @@ def main():
     )
     
     parser.add_argument(
-        "--force", "-f",
+        "--no-overwrite",
         action="store_true",
-        help="Force regeneration of existing videos"
+        help="Skip existing videos instead of overwriting them (default: overwrite existing videos)"
     )
     
     parser.add_argument(
@@ -711,7 +769,18 @@ def main():
         help="Show what would be decoded without actually doing it"
     )
     
+    parser.add_argument(
+        "--thumbnail-frame",
+        type=float,
+        default=0.5,
+        help="Frame position for thumbnail generation (0.0=first frame, 0.5=middle frame, 1.0=last frame)"
+    )
+    
     args = parser.parse_args()
+    
+    # Validate thumbnail frame parameter
+    if not (0.0 <= args.thumbnail_frame <= 1.0):
+        parser.error("--thumbnail-frame must be between 0.0 and 1.0")
     
     # Setup logging
     setup_logging(args.verbose)
@@ -792,7 +861,8 @@ def main():
             fps=args.fps,
             quality=args.quality,
             scale_factor=args.scale,
-            force=args.force
+            force=not args.no_overwrite,  # Invert the logic - force by default
+            thumbnail_frame=args.thumbnail_frame
         )
         
         total_time = time.time() - start_time
