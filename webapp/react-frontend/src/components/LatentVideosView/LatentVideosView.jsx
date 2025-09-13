@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
 import LatentVideoCell from './LatentVideoCell';
+import LatentVideoLightbox from './LatentVideoLightbox';
 import { getVariationTextFromPromptKey } from '../../utils/variationText';
 import './LatentVideosView.css';
 
@@ -16,6 +17,7 @@ const LatentVideosView = ({ experimentPath }) => {
   const [cellSize, setCellSize] = useState(120); // Local cell size state
   const [selectedAttentionToken, setSelectedAttentionToken] = useState(null); // null = 'None' (latent videos)
   const [tooltip, setTooltip] = useState({ show: false, text: '', x: 0, y: 0 });
+  const [lightbox, setLightbox] = useState({ isOpen: false, position: null });
 
   // Load latent videos data when component mounts or experiment changes
   useEffect(() => {
@@ -191,9 +193,12 @@ const LatentVideosView = ({ experimentPath }) => {
     return { prompts, seeds, tokens };
   }, [currentLatentVideos]);
 
-  const handleCellClick = (cellData) => {
-    // Future: could open lightbox or detailed view
-    console.log('Clicked latent video cell:', cellData);
+  const handleCellClick = (cellData, rowIndex, stepIndex) => {
+    // Open lightbox at the clicked position
+    setLightbox({
+      isOpen: true,
+      position: { rowIndex, stepIndex }
+    });
   };
 
   const handleTooltipShow = (event, text) => {
@@ -208,6 +213,14 @@ const LatentVideosView = ({ experimentPath }) => {
 
   const handleTooltipHide = () => {
     setTooltip({ show: false, text: '', x: 0, y: 0 });
+  };
+
+  const handleLightboxClose = () => {
+    setLightbox({ isOpen: false, position: null });
+  };
+
+  const handleLightboxNavigate = (newPosition) => {
+    setLightbox({ isOpen: true, position: newPosition });
   };
 
   // Render loading state
@@ -384,7 +397,7 @@ const LatentVideosView = ({ experimentPath }) => {
 
         {/* Grid rows */}
         <div className="grid-rows">
-          {gridData.rows.map(row => (
+          {gridData.rows.map((row, rowIndex) => (
             <div key={row.id} className="grid-row">
               <div 
                 className="row-label" 
@@ -393,14 +406,14 @@ const LatentVideosView = ({ experimentPath }) => {
               >
                 {row.label}
               </div>
-              {row.steps.map(step => (
+              {row.steps.map((step, stepIndex) => (
                 <div key={step.stepId} className="grid-cell">
                   <LatentVideoCell
                     videoPath={step.videoPath}
                     imagePath={step.imagePath}
                     videoSize={cellSize}
                     stepNumber={step.stepNumber}
-                    onClick={handleCellClick}
+                    onClick={() => handleCellClick(step, rowIndex, stepIndex)}
                   />
                 </div>
               ))}
@@ -425,6 +438,21 @@ const LatentVideosView = ({ experimentPath }) => {
           {tooltip.text}
         </div>
       )}
+
+      {/* Lightbox */}
+      <LatentVideoLightbox
+        isOpen={lightbox.isOpen}
+        onClose={handleLightboxClose}
+        onNavigate={handleLightboxNavigate}
+        currentPosition={lightbox.position}
+        gridData={gridData}
+        currentLatentVideos={currentLatentVideos}
+        currentExperiment={currentExperiment}
+        selectedAttentionToken={selectedAttentionToken}
+        setSelectedAttentionToken={setSelectedAttentionToken}
+        availableTokens={availableOptions.tokens}
+        viewMode={viewMode}
+      />
     </div>
   );
 };

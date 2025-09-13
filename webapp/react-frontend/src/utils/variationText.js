@@ -5,6 +5,11 @@ export const getVariationTextFromPromptKey = (promptKey, currentExperiment) => {
   console.log('Getting variation text for:', promptKey, "from ", currentExperiment);
   console.log('Current experiment video_grid:', currentExperiment?.video_grid);
   
+  if (!promptKey) {
+    console.log('No prompt key provided, using fallback');
+    return 'Unknown Variation';
+  }
+  
   if (promptKey === 'combined') {
     return 'Combined';
   }

@@ -1,0 +1,234 @@
+/* Lightbox overlay */
+.latent-video-lightbox-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+}
+
+/* Main lightbox container */
+.latent-video-lightbox {
+  position: relative;
+  width: 80vw;
+  height: 80vh;
+  max-width: 1200px;
+  max-height: 800px;
+  background: var(--bg-primary);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* Close button */
+.lightbox-close-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  font-size: 24px;
+  cursor: pointer;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.lightbox-close-btn:hover {
+  background: rgba(0, 0, 0, 0.9);
+}
+
+/* Navigation buttons */
+.lightbox-nav-btn {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  border: none;
+  width: 50px;
+  height: 50px;
+  font-size: 24px;
+  cursor: pointer;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  border-radius: 4px;
+}
+
+.lightbox-nav-btn:hover {
+  background: rgba(0, 0, 0, 0.9);
+}
+
+.nav-left {
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.nav-right {
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.nav-up {
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%) rotate(90deg);
+}
+
+.nav-down {
+  bottom: 80px; /* Above metadata section */
+  left: 50%;
+  transform: translateX(-50%) rotate(-90deg);
+}
+
+/* Video container */
+.lightbox-video-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  min-height: 0; /* Allow flex shrinking */
+  position: relative;
+  background: #000;
+}
+
+/* Loading indicator */
+.lightbox-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  color: white;
+  font-size: 16px;
+  z-index: 10;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top: 3px solid #fff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Video element */
+.lightbox-video {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Metadata section */
+.lightbox-metadata {
+  background: var(--bg-secondary);
+  padding: 20px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.metadata-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 12px;
+}
+
+.metadata-row:last-child {
+  margin-bottom: 0;
+}
+
+.metadata-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 80px;
+  font-size: 14px;
+}
+
+.metadata-value {
+  color: var(--text-secondary);
+  font-size: 14px;
+  flex: 1;
+}
+
+.attention-dropdown {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  max-width: 200px;
+}
+
+.attention-dropdown:focus {
+  outline: none;
+  border-color: var(--accent-color, #007acc);
+  box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .latent-video-lightbox {
+    width: 95vw;
+    height: 95vh;
+  }
+  
+  .lightbox-metadata {
+    padding: 16px;
+  }
+  
+  .metadata-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  
+  .metadata-label {
+    min-width: auto;
+  }
+  
+  .nav-up,
+  .nav-down {
+    display: none; /* Hide vertical navigation on mobile */
+  }
+  
+  .nav-left {
+    left: 8px;
+  }
+  
+  .nav-right {
+    right: 8px;
+  }
+}
