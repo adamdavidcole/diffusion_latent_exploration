@@ -181,6 +181,11 @@
   text-overflow: ellipsis;
 }
 
+/* Allow tooltips to overflow */
+.row-label:hover {
+  overflow: visible;
+}
+
 .grid-row:hover .row-label {
   background: var(--bg-tertiary);
 }
@@ -311,4 +316,46 @@
   .grid-cell {
     min-width: 80px;
   }
+}
+
+/* Enhanced tooltip support with custom CSS tooltips */
+.row-label {
+  cursor: help;
+  position: relative;
+}
+
+.row-label:hover {
+  text-decoration: none;
+}
+
+/* Style for dropdown option tooltips */
+select option[title] {
+  white-space: normal;
+}
+
+/* Custom React tooltip */
+.custom-tooltip {
+  background: #1a1a1a;
+  color: #ffffff;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: normal;
+  white-space: nowrap;
+  max-width: 400px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.custom-tooltip::before {
+  content: '';
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-right: 6px solid #1a1a1a;
 }

@@ -2,11 +2,12 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
 import LatentVideoCell from './LatentVideoCell';
+import { getVariationTextFromPromptKey } from '../../utils/variationText';
 import './LatentVideosView.css';
 
 const LatentVideosView = ({ experimentPath }) => {
   const { state, actions } = useApp();
-  const { currentLatentVideos, latentVideosLoading, latentVideosError } = state;
+  const { currentLatentVideos, latentVideosLoading, latentVideosError, currentExperiment } = state;
   
   // View mode state
   const [viewMode, setViewMode] = useState('across-prompts'); // 'across-prompts' or 'by-prompt'
@@ -14,6 +15,7 @@ const LatentVideosView = ({ experimentPath }) => {
   const [selectedSeed, setSelectedSeed] = useState('vid_001');
   const [cellSize, setCellSize] = useState(120); // Local cell size state
   const [selectedAttentionToken, setSelectedAttentionToken] = useState(null); // null = 'None' (latent videos)
+  const [tooltip, setTooltip] = useState({ show: false, text: '', x: 0, y: 0 });
 
   // Load latent videos data when component mounts or experiment changes
   useEffect(() => {
@@ -51,6 +53,19 @@ const LatentVideosView = ({ experimentPath }) => {
 
     loadLatentVideos();
   }, [experimentPath]); // Removed actions from dependency array to prevent infinite loop
+
+  // Helper function to get display text for prompts with truncation
+  const getPromptDisplayText = (promptId, maxLength = 40) => {
+    const fullText = getVariationTextFromPromptKey(promptId, currentExperiment);
+    
+    if (fullText.length <= maxLength) {
+      return { display: fullText, full: fullText };
+    }
+    
+    // Truncate and add ellipsis
+    const truncated = fullText.substring(0, maxLength - 3) + '...';
+    return { display: truncated, full: fullText };
+  };
 
   // Organize data based on view mode
   const gridData = useMemo(() => {
@@ -97,9 +112,11 @@ const LatentVideosView = ({ experimentPath }) => {
     if (viewMode === 'across-prompts') {
       // Each row is a different prompt, all using the same seed
       const rows = allPrompts.map(promptId => {
+        const { display, full } = getPromptDisplayText(promptId);
         return {
           id: promptId,
-          label: promptId.replace('prompt_', 'Prompt '),
+          label: display,
+          fullLabel: full,
           steps: allSteps.map(stepId => {
             const { videoPath, imagePath } = getVideoData(promptId, selectedSeed, stepId);
             return {
@@ -124,6 +141,7 @@ const LatentVideosView = ({ experimentPath }) => {
         return {
           id: seedId,
           label: seedId.replace('vid_', 'Seed '),
+          fullLabel: seedId.replace('vid_', 'Seed '), // Seeds don't need truncation
           steps: allSteps.map(stepId => {
             const { videoPath, imagePath } = getVideoData(selectedPrompt, seedId, stepId);
             return {
@@ -136,11 +154,12 @@ const LatentVideosView = ({ experimentPath }) => {
         };
       });
 
+      const { display: selectedPromptDisplay } = getPromptDisplayText(selectedPrompt);
       return {
         rows,
         columnHeaders: allSteps.map(stepId => `Step ${stepId.replace('step_', '')}`),
         rowType: 'seed',
-        selectedItem: selectedPrompt.replace('prompt_', 'Prompt ')
+        selectedItem: selectedPromptDisplay
       };
     }
   }, [currentLatentVideos, viewMode, selectedPrompt, selectedSeed, selectedAttentionToken]);
@@ -175,6 +194,20 @@ const LatentVideosView = ({ experimentPath }) => {
   const handleCellClick = (cellData) => {
     // Future: could open lightbox or detailed view
     console.log('Clicked latent video cell:', cellData);
+  };
+
+  const handleTooltipShow = (event, text) => {
+    const rect = event.target.getBoundingClientRect();
+    setTooltip({
+      show: true,
+      text: text,
+      x: rect.right + 10,
+      y: rect.top + rect.height / 2
+    });
+  };
+
+  const handleTooltipHide = () => {
+    setTooltip({ show: false, text: '', x: 0, y: 0 });
   };
 
   // Render loading state
@@ -278,11 +311,14 @@ const LatentVideosView = ({ experimentPath }) => {
                   value={selectedPrompt} 
                   onChange={(e) => setSelectedPrompt(e.target.value)}
                 >
-                  {availableOptions.prompts.map(promptId => (
-                    <option key={promptId} value={promptId}>
-                      {promptId.replace('prompt_', 'Prompt ')}
-                    </option>
-                  ))}
+                  {availableOptions.prompts.map(promptId => {
+                    const { display, full } = getPromptDisplayText(promptId);
+                    return (
+                      <option key={promptId} value={promptId} title={full}>
+                        {display}
+                      </option>
+                    );
+                  })}
                 </select>
               </>
             )}
@@ -298,11 +334,16 @@ const LatentVideosView = ({ experimentPath }) => {
                 onChange={(e) => setSelectedAttentionToken(e.target.value || null)}
               >
                 <option value="">None (Latent Videos)</option>
-                {availableOptions.tokens.map(token => (
-                  <option key={token} value={token}>
-                    {token}
-                  </option>
-                ))}
+                {availableOptions.tokens.map(token => {
+                  // Token is already the clean text (without token_ prefix)
+                  // Truncate long token names for display
+                  const displayText = token.length > 20 ? `${token.substring(0, 20)}...` : token;
+                  return (
+                    <option key={token} value={token} title={token}>
+                      {displayText}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           )}
@@ -345,7 +386,11 @@ const LatentVideosView = ({ experimentPath }) => {
         <div className="grid-rows">
           {gridData.rows.map(row => (
             <div key={row.id} className="grid-row">
-              <div className="row-label" title={row.label}>
+              <div 
+                className="row-label" 
+                onMouseEnter={(e) => handleTooltipShow(e, row.fullLabel)}
+                onMouseLeave={handleTooltipHide}
+              >
                 {row.label}
               </div>
               {row.steps.map(step => (
@@ -363,6 +408,23 @@ const LatentVideosView = ({ experimentPath }) => {
           ))}
         </div>
       </div>
+      
+      {/* Custom tooltip */}
+      {tooltip.show && (
+        <div 
+          className="custom-tooltip"
+          style={{
+            position: 'fixed',
+            left: `${tooltip.x}px`,
+            top: `${tooltip.y}px`,
+            transform: 'translateY(-50%)',
+            zIndex: 10000,
+            pointerEvents: 'none'
+          }}
+        >
+          {tooltip.text}
+        </div>
+      )}
     </div>
   );
 };
