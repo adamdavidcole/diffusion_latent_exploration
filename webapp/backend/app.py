@@ -255,6 +255,9 @@ class VideoAnalyzer:
             # Check for latent videos
             has_latent_videos = self._validate_latent_videos(exp_dir)
             
+            # Check for attention videos
+            has_attention_videos = self._validate_attention_videos(exp_dir)
+            
             return {
                 'name': exp_dir.name,
                 'base_prompt': base_prompt,
@@ -276,7 +279,8 @@ class VideoAnalyzer:
                 'attention_videos': attention_videos,
                 'has_vlm_analysis': has_vlm_analysis,
                 'has_trajectory_analysis': has_trajectory_analysis,
-                'has_latent_videos': has_latent_videos
+                'has_latent_videos': has_latent_videos,
+                'has_attention_videos': has_attention_videos
             }
             
         except Exception as e:
@@ -421,16 +425,16 @@ class VideoAnalyzer:
         
         return attention_data
     
-    def _validate_latent_videos(self, exp_dir):
-        """Validate latents_videos folder structure and check for completeness"""
-        latent_videos_dir = exp_dir / 'latents_videos'  # Fixed: use 'latents_videos' (plural)
+    def _validate_attention_videos(self, exp_dir):
+        """Validate attention_videos folder structure and check for completeness"""
+        attention_videos_dir = exp_dir / 'attention_videos'
         
-        if not latent_videos_dir.exists():
+        if not attention_videos_dir.exists():
             return False
         
         try:
             # Check if there are prompt subdirectories
-            prompt_dirs = [d for d in latent_videos_dir.iterdir() if d.is_dir() and d.name.startswith('prompt_')]
+            prompt_dirs = [d for d in attention_videos_dir.iterdir() if d.is_dir() and d.name.startswith('prompt_')]
             
             if not prompt_dirs:
                 return False
@@ -438,30 +442,36 @@ class VideoAnalyzer:
             # For each prompt directory, validate structure
             for prompt_dir in prompt_dirs:
                 # Check for video subdirectories
-                video_dirs = [d for d in prompt_dir.iterdir() if d.is_dir() and d.name.startswith('vid_')]
+                video_dirs = [d for d in prompt_dir.iterdir() if d.is_dir() and d.name.startswith('vid')]
                 
                 if not video_dirs:
                     continue  # Skip prompts with no videos
                 
-                # For each video directory, check for step files
+                # For each video directory, check for token directories
                 for video_dir in video_dirs:
-                    # Look for step files (both .mp4 and .jpg)
-                    step_files = list(video_dir.glob('step_*.mp4'))
+                    token_dirs = [d for d in video_dir.iterdir() if d.is_dir() and d.name.startswith('token_')]
                     
-                    if not step_files:
-                        continue  # Skip videos with no step files
+                    if not token_dirs:
+                        continue  # Skip videos with no tokens
                     
-                    # Check that each mp4 has a corresponding jpg
-                    for mp4_file in step_files:
-                        jpg_file = mp4_file.with_suffix('.jpg')
-                        if not jpg_file.exists():
-                            return False  # Missing corresponding image
+                    # For each token directory, check for step files
+                    for token_dir in token_dirs:
+                        step_files = list(token_dir.glob('step_*.mp4'))
+                        
+                        if not step_files:
+                            continue  # Skip tokens with no step files
+                        
+                        # Check that each mp4 has a corresponding jpg
+                        for mp4_file in step_files:
+                            jpg_file = mp4_file.with_suffix('.jpg')
+                            if not jpg_file.exists():
+                                return False  # Missing corresponding image
             
             # If we made it here, structure is valid
             return True
             
         except Exception as e:
-            print(f"Error validating latent videos for {exp_dir.name}: {e}")
+            print(f"Error validating attention videos for {exp_dir.name}: {e}")
             return False
     
     def _load_vlm_analysis(self, exp_dir):
@@ -547,6 +557,75 @@ class VideoAnalyzer:
             return {
                 'has_trajectory_analysis': False,
                 'trajectory_analysis': None
+            }
+
+    def _load_attention_videos(self, exp_dir):
+        """Load attention videos data for an experiment"""
+        attention_videos_dir = exp_dir / 'attention_videos'
+        
+        if not attention_videos_dir.exists():
+            return {
+                'has_attention_videos': False,
+                'attention_videos': None
+            }
+        
+        try:
+            attention_videos_data = {}
+            
+            # Process each prompt directory
+            for prompt_dir in sorted(attention_videos_dir.iterdir()):
+                if not prompt_dir.is_dir() or not prompt_dir.name.startswith('prompt_'):
+                    continue
+                
+                prompt_id = prompt_dir.name
+                attention_videos_data[prompt_id] = {}
+                
+                # Process each video directory within this prompt
+                for video_dir in sorted(prompt_dir.iterdir()):
+                    if not video_dir.is_dir() or not video_dir.name.startswith('vid'):
+                        continue
+                    
+                    video_id = video_dir.name
+                    attention_videos_data[prompt_id][video_id] = {}
+                    
+                    # Process each token directory within this video
+                    for token_dir in sorted(video_dir.iterdir()):
+                        if not token_dir.is_dir() or not token_dir.name.startswith('token_'):
+                            continue
+                        
+                        # Extract token name (remove 'token_' prefix)
+                        token_name = token_dir.name.replace('token_', '')
+                        attention_videos_data[prompt_id][video_id][token_name] = {}
+                        
+                        # Process each step file within this token
+                        step_files = sorted(token_dir.glob('step_*.mp4'))
+                        for mp4_file in step_files:
+                            step_name = mp4_file.stem  # Gets "step_000" from "step_000.mp4"
+                            
+                            # Create relative path from outputs directory for video serving
+                            rel_video_path = mp4_file.relative_to(self.outputs_dir)
+                            
+                            # Check for corresponding image file
+                            jpg_file = mp4_file.with_suffix('.jpg')
+                            rel_image_path = None
+                            if jpg_file.exists():
+                                rel_image_path = jpg_file.relative_to(self.outputs_dir)
+                            
+                            attention_videos_data[prompt_id][video_id][token_name][step_name] = {
+                                'video_path': str(rel_video_path),
+                                'image_path': str(rel_image_path) if rel_image_path else None
+                            }
+            
+            return {
+                'has_attention_videos': bool(attention_videos_data),
+                'attention_videos': attention_videos_data if attention_videos_data else None
+            }
+            
+        except Exception as e:
+            print(f"Error loading attention videos for {exp_dir.name}: {e}")
+            return {
+                'has_attention_videos': False,
+                'attention_videos': None
             }
 
     def _load_latent_videos(self, exp_dir):
@@ -731,7 +810,7 @@ def create_app():
     
     @app.route('/api/experiment/<path:experiment_path>/latent-videos')
     def get_experiment_latent_videos(experiment_path):
-        """Get latent videos data for a specific experiment"""
+        """Get latent videos and attention videos data for a specific experiment"""
         try:
             # Find the experiment directory
             full_experiment_path = Path(app.config['VIDEO_OUTPUTS_DIR']) / experiment_path
@@ -742,7 +821,16 @@ def create_app():
             # Load latent videos data
             latent_videos_data = analyzer._load_latent_videos(full_experiment_path)
             
-            return jsonify(latent_videos_data)
+            # Load attention videos data
+            attention_videos_data = analyzer._load_attention_videos(full_experiment_path)
+            
+            # Combine the data
+            combined_data = {
+                **latent_videos_data,
+                **attention_videos_data
+            }
+            
+            return jsonify(combined_data)
             
         except Exception as e:
             return jsonify({'error': str(e)}), 500
