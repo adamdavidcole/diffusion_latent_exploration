@@ -474,6 +474,48 @@ class VideoAnalyzer:
             print(f"Error validating attention videos for {exp_dir.name}: {e}")
             return False
     
+    def _validate_latent_videos(self, exp_dir):
+        """Validate latents_videos folder structure and check for completeness"""
+        latent_videos_dir = exp_dir / 'latents_videos'  # Note: using 'latents_videos' (plural)
+        
+        if not latent_videos_dir.exists():
+            return False
+        
+        try:
+            # Check if there are prompt subdirectories
+            prompt_dirs = [d for d in latent_videos_dir.iterdir() if d.is_dir() and d.name.startswith('prompt_')]
+            
+            if not prompt_dirs:
+                return False
+            
+            # For each prompt directory, validate structure
+            for prompt_dir in prompt_dirs:
+                # Check for video subdirectories
+                video_dirs = [d for d in prompt_dir.iterdir() if d.is_dir() and d.name.startswith('vid_')]
+                
+                if not video_dirs:
+                    continue  # Skip prompts with no videos
+                
+                # For each video directory, check for step files
+                for video_dir in video_dirs:
+                    step_files = list(video_dir.glob('step_*.mp4'))
+                    
+                    if not step_files:
+                        continue  # Skip videos with no step files
+                    
+                    # Check that each mp4 has a corresponding jpg
+                    for mp4_file in step_files:
+                        jpg_file = mp4_file.with_suffix('.jpg')
+                        if not jpg_file.exists():
+                            return False  # Missing corresponding image
+            
+            # If we made it here, structure is valid
+            return True
+            
+        except Exception as e:
+            print(f"Error validating latent videos for {exp_dir.name}: {e}")
+            return False
+    
     def _load_vlm_analysis(self, exp_dir):
         """Load VLM analysis data for an experiment"""
         vlm_analysis_dir = exp_dir / 'vlm_analysis'
