@@ -149,6 +149,12 @@ const VideoGrid = () => {
                 const startIndex = beforeIndex + beforePlaceholder.length;
                 const variation = fullPrompt.substring(startIndex, afterIndex).trim();
                 console.log('Extracted variation:', variation);
+                
+                // Handle empty variation case
+                if (variation === '') {
+                    return '[empty]';
+                }
+                
                 return variation || fullPrompt;
             }
         }
@@ -178,7 +184,8 @@ const VideoGrid = () => {
         // Extract just the variation part
         const variationOnly = extractVariationFromPrompt(fullText, basePrompt);
         
-        if (variationOnly.length <= maxLength) {
+        // Handle special cases
+        if (variationOnly === '[empty]' || variationOnly.length <= maxLength) {
             return { display: variationOnly, full: fullText };
         }
         

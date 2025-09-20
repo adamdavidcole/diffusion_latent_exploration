@@ -5,6 +5,7 @@ Supports both single video and batch processing using conversation-based analysi
 """
 
 import argparse
+import json
 import logging
 import time
 from pathlib import Path
@@ -42,7 +43,35 @@ def find_videos_in_batch(batch_path: Path) -> List[Path]:
                 
     return videos
 
-def process_batch_videos(processor: ConversationVLMProcessor, batch_path: Path) -> Dict[str, Any]:
+def is_vlm_analysis_complete(video_path: Path, batch_path: Path) -> bool:
+    """Check if VLM analysis is already complete for a video."""
+    # Determine the expected output path
+    rel_path = video_path.relative_to(batch_path / "videos")
+    output_path = batch_path / "vlm_analysis" / rel_path.with_suffix('.json')
+    
+    if not output_path.exists():
+        return False
+    
+    try:
+        # Check if the JSON file contains valid analysis results
+        with open(output_path, 'r') as f:
+            data = json.loads(f.read())
+        
+        # Check for success indicators
+        # Look for either "ok": true (new format) or "analysis_success": true (old format)
+        is_successful = (
+            data.get("ok", False) or 
+            data.get("analysis_success", False) or
+            (data.get("stages_completed") and len(data.get("stages_completed", [])) > 0)
+        )
+        
+        return is_successful
+        
+    except (json.JSONDecodeError, KeyError, IOError):
+        # If we can't read/parse the file, assume incomplete
+        return False
+
+def process_batch_videos(processor: ConversationVLMProcessor, batch_path: Path, resume: bool = False) -> Dict[str, Any]:
     """Process all videos in a batch directory."""
     
     videos = find_videos_in_batch(batch_path)
@@ -53,17 +82,47 @@ def process_batch_videos(processor: ConversationVLMProcessor, batch_path: Path) 
     
     logger.info(f"Found {len(videos)} videos to process")
     
+    # Filter out completed videos if resuming
+    skipped_videos = []
+    if resume:
+        pending_videos = []
+        for video_path in videos:
+            if is_vlm_analysis_complete(video_path, batch_path):
+                skipped_videos.append(video_path)
+                logger.info(f"⏭️  Skipping already completed: {video_path.relative_to(batch_path / 'videos')}")
+            else:
+                pending_videos.append(video_path)
+        videos = pending_videos
+        
+        if skipped_videos:
+            logger.info(f"📋 Resume mode: Skipping {len(skipped_videos)} completed videos, processing {len(videos)} remaining")
+        
+        if not videos:
+            logger.info("✅ All videos already completed - nothing to process")
+            return {
+                "success": True, 
+                "total_videos": len(skipped_videos),
+                "successful": len(skipped_videos),
+                "failed": 0,
+                "errors": [],
+                "processed_videos": [],
+                "skipped_videos": len(skipped_videos),
+                "resumed": True
+            }
+    
     # Create output directory structure
     output_base = batch_path / "vlm_analysis"
     output_base.mkdir(exist_ok=True)
     
     results = {
         "success": True,
-        "total_videos": len(videos),
-        "successful": 0,
+        "total_videos": len(videos) + len(skipped_videos),
+        "successful": len(skipped_videos),  # Count already completed as successful
         "failed": 0,
         "errors": [],
-        "processed_videos": []
+        "processed_videos": [],
+        "skipped_videos": len(skipped_videos),
+        "resumed": resume
     }
     
     for video_path in videos:
@@ -166,6 +225,12 @@ def main():
         action='store_true',
         help='Enable verbose logging'
     )
+    
+    parser.add_argument(
+        '--resume',
+        action='store_true',
+        help='Resume batch processing by skipping videos that already have completed VLM analysis'
+    )
 
     args = parser.parse_args()
     
@@ -267,7 +332,7 @@ def main():
             # Batch processing
             logger.info(f"🚀 Starting batch processing...")
             
-            batch_results = process_batch_videos(processor, batch_path)
+            batch_results = process_batch_videos(processor, batch_path, resume=args.resume)
             
             elapsed_time = time.time() - start_time
             
@@ -276,6 +341,12 @@ def main():
                 logger.info(f"   Total videos: {batch_results['total_videos']}")
                 logger.info(f"   Successful: {batch_results['successful']}")
                 logger.info(f"   Failed: {batch_results['failed']}")
+                
+                # Add resume-specific logging
+                if batch_results.get('resumed', False):
+                    skipped = batch_results.get('skipped_videos', 0)
+                    newly_processed = batch_results['successful'] - skipped
+                    logger.info(f"   📋 Resume mode: {skipped} previously completed, {newly_processed} newly processed")
                 
                 if batch_results["failed"] > 0:
                     logger.warning("Some videos failed processing:")
