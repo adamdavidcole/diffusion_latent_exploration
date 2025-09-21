@@ -31,13 +31,76 @@ const VideoGrid = () => {
     // Use video cache hook
     const { cancelInflightRequests, getCacheStats } = useVideoCache();
 
-    // Get the video grid to render (reordered or original)
-    const videoGridToRender = reorderedVideoGrid || currentExperiment?.video_grid || [];
+    // Calculate similarity-sorted grid based on user selection
+    const getSimilaritySortedGrid = useCallback(() => {
+        if (!currentExperiment?.video_grid || !state.similarityAnalysis || state.similaritySortBy === 'default') {
+            return currentExperiment?.video_grid || [];
+        }
+
+        const { rankings, baseline_prompt } = state.similarityAnalysis;
+        const originalGrid = currentExperiment.video_grid;
+
+        // Find baseline row and separate it from others
+        let baselineRow = null;
+        let otherRows = [];
+
+        originalGrid.forEach(row => {
+            // Match row to prompt using variation number or prompt key
+            const promptKey = row.prompt_key || `prompt_${String(row.variation_num).padStart(3, '0')}`;
+            
+            if (promptKey === baseline_prompt) {
+                baselineRow = row;
+            } else {
+                otherRows.push(row);
+            }
+        });
+
+        // Sort other rows based on selected similarity metric
+        if (rankings && rankings.final_scores) {
+            otherRows.sort((a, b) => {
+                const aPromptKey = a.prompt_key || `prompt_${String(a.variation_num).padStart(3, '0')}`;
+                const bPromptKey = b.prompt_key || `prompt_${String(b.variation_num).padStart(3, '0')}`;
+                
+                const aScore = rankings.final_scores[aPromptKey];
+                const bScore = rankings.final_scores[bPromptKey];
+
+                if (!aScore || !bScore) return 0;
+
+                let aValue, bValue;
+
+                if (state.similaritySortBy === 'weighted_similarity_distance') {
+                    aValue = aScore.weighted_similarity_distance;
+                    bValue = bScore.weighted_similarity_distance;
+                } else {
+                    // Individual metric - use z-score
+                    const metricKey = `${state.similaritySortBy}_distance`;
+                    aValue = aScore.individual_z_scores[metricKey];
+                    bValue = bScore.individual_z_scores[metricKey];
+                }
+
+                if (aValue === undefined || bValue === undefined) return 0;
+
+                // Sort ascending (most similar first - lowest distance values)
+                return aValue - bValue;
+            });
+        }
+
+        // Return grid with baseline first, then sorted others
+        return baselineRow ? [baselineRow, ...otherRows] : otherRows;
+    }, [currentExperiment?.video_grid, state.similarityAnalysis, state.similaritySortBy]);
+
+    // Get the video grid to render (manual reorder takes precedence, then similarity sort, then original)
+    const videoGridToRender = reorderedVideoGrid || getSimilaritySortedGrid();
 
     // Reset reordered grid when experiment changes
     const resetRowOrder = useCallback(() => {
         setReorderedVideoGrid(null);
     }, []);
+
+    // Reset manual reordering when similarity sort changes
+    useEffect(() => {
+        setReorderedVideoGrid(null);
+    }, [state.similaritySortBy]);
 
     // Handle drag and drop
     const handleReorderRows = useCallback((startIndex, finishIndex) => {

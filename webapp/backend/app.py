@@ -252,13 +252,16 @@ class VideoAnalyzer:
             trajectory_analysis_dir = exp_dir / 'latent_trajectory_analysis'
             has_trajectory_analysis = trajectory_analysis_dir.exists()
 
+            # Check for similarity analysis
+            has_similarity_analysis, similarity_analysis_data = self._load_similarity_analysis(exp_dir)
+
             # Check for latent videos
             has_latent_videos = self._validate_latent_videos(exp_dir)
             
             # Check for attention videos
             has_attention_videos = self._validate_attention_videos(exp_dir)
             
-            return {
+            result = {
                 'name': exp_dir.name,
                 'base_prompt': base_prompt,
                 'model_id': model_id,
@@ -279,9 +282,16 @@ class VideoAnalyzer:
                 'attention_videos': attention_videos,
                 'has_vlm_analysis': has_vlm_analysis,
                 'has_trajectory_analysis': has_trajectory_analysis,
+                'has_similarity_analysis': has_similarity_analysis,
                 'has_latent_videos': has_latent_videos,
                 'has_attention_videos': has_attention_videos
             }
+            
+            # Add similarity analysis data if available
+            if has_similarity_analysis and similarity_analysis_data:
+                result['similarity_analysis'] = similarity_analysis_data
+            
+            return result
             
         except Exception as e:
             print(f"Error analyzing experiment {exp_dir.name}: {e}")
@@ -600,6 +610,49 @@ class VideoAnalyzer:
                 'has_trajectory_analysis': False,
                 'trajectory_analysis': None
             }
+
+    def _load_similarity_analysis(self, exp_dir):
+        """Load similarity analysis data for an experiment"""
+        similarity_analysis_dir = exp_dir / 'similarity_analysis'
+        
+        if not similarity_analysis_dir.exists():
+            return False, None
+        
+        try:
+            # Find all similarity analysis JSON files
+            json_files = list(similarity_analysis_dir.glob('similarity_analysis_*.json'))
+            
+            if not json_files:
+                return False, None
+            
+            # Use most recent file by modification time
+            most_recent_file = max(json_files, key=lambda f: f.stat().st_mtime)
+            
+            with open(most_recent_file, 'r') as f:
+                similarity_data = json.load(f)
+            
+            # Validate required fields
+            required_fields = ['rankings', 'analysis_config', 'baseline_prompt']
+            for field in required_fields:
+                if field not in similarity_data:
+                    print(f"Error: Similarity analysis missing required field '{field}' in {most_recent_file}")
+                    return False, None
+            
+            # Extract just the data we need for frontend
+            frontend_data = {
+                'rankings': similarity_data['rankings'],
+                'analysis_config': similarity_data['analysis_config'],
+                'baseline_prompt': similarity_data['baseline_prompt'],
+                'metrics_used': similarity_data['analysis_config'].get('metrics', []),
+                'weights_used': similarity_data['analysis_config'].get('weights', {}),
+                'analysis_file': most_recent_file.name
+            }
+            
+            return True, frontend_data
+            
+        except Exception as e:
+            print(f"Error loading similarity analysis for {exp_dir.name}: {e}")
+            return False, None
 
     def _load_attention_videos(self, exp_dir):
         """Load attention videos data for an experiment"""

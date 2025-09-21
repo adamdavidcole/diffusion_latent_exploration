@@ -13,6 +13,7 @@ import TabNavigation from './components/TabNavigation/TabNavigation';
 import AnalysisDashboard from './components/AnalysisDashboard/AnalysisDashboard';
 import TrajectoryAnalysis from './components/TrajectoryAnalysis/TrajectoryAnalysis';
 import LatentVideosView from './components/LatentVideosView/LatentVideosView';
+import SimilarityMetricsModal from './components/SimilarityMetricsModal/SimilarityMetricsModal';
 import './styles.css';
 
 // Experiment Route Handler
@@ -358,6 +359,9 @@ const AppContent = ({ experimentPath, isAnalysisRoute, isTrajectoryAnalysisRoute
           {!isAnalysisRoute && !isTrajectoryAnalysisRoute && !isLatentVideosRoute && <SyncControls />}
         </div>
       </div>
+
+      {/* Similarity Metrics Modal */}
+      <SimilarityMetricsModal />
     </div>
   );
 };

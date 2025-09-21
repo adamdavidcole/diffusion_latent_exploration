@@ -1365,6 +1365,42 @@ p#base-prompt:hover {
     opacity: 0.8;
 }
 
+/* Similarity row */
+.similarity-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.similarity-row label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    min-width: 80px;
+    opacity: 0.9;
+}
+
+.similarity-sort-select {
+    flex: 1;
+    padding: 0.3rem 0.5rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 0.8rem;
+    outline: none;
+    cursor: pointer;
+}
+
+.similarity-sort-select:hover {
+    border-color: var(--accent);
+}
+
+.similarity-sort-select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+}
+
 #mute-btn {
     display: none;
 }

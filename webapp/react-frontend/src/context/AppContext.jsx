@@ -52,6 +52,10 @@ const initialState = {
     currentLatentVideos: null,
     latentVideosLoading: false,
     latentVideosError: null,
+    // Similarity analysis state
+    similarityAnalysis: null,
+    similaritySortBy: 'default', // 'default', 'weighted_similarity', or specific metric name
+    showSimilarityMetrics: false,
     // Analysis chart configuration
     analysisChartConfig: [
         {
@@ -187,7 +191,11 @@ const ActionTypes = {
     SET_CURRENT_LATENT_VIDEOS: 'SET_CURRENT_LATENT_VIDEOS',
     SET_LATENT_VIDEOS_LOADING: 'SET_LATENT_VIDEOS_LOADING',
     SET_LATENT_VIDEOS_ERROR: 'SET_LATENT_VIDEOS_ERROR',
-    CLEAR_LATENT_VIDEOS_ERROR: 'CLEAR_LATENT_VIDEOS_ERROR'
+    CLEAR_LATENT_VIDEOS_ERROR: 'CLEAR_LATENT_VIDEOS_ERROR',
+    // Similarity analysis actions
+    SET_SIMILARITY_ANALYSIS: 'SET_SIMILARITY_ANALYSIS',
+    SET_SIMILARITY_SORT_BY: 'SET_SIMILARITY_SORT_BY',
+    TOGGLE_SIMILARITY_METRICS: 'TOGGLE_SIMILARITY_METRICS'
 };
 
 // Reducer
@@ -208,7 +216,10 @@ const appReducer = (state, action) => {
                 // Reset attention mode state when switching experiments
                 selectedToken: null,
                 availableTokens: action.payload?.attention_videos?.available ?
-                    getAvailableTokensFromAttentionVideos(action.payload.attention_videos) : []
+                    getAvailableTokensFromAttentionVideos(action.payload.attention_videos) : [],
+                // Update similarity analysis data
+                similarityAnalysis: action.payload?.similarity_analysis || null,
+                similaritySortBy: 'default' // Reset to default when switching experiments
             };
 
         case ActionTypes.SET_VIDEO_SIZE:
@@ -285,6 +296,15 @@ const appReducer = (state, action) => {
 
         case ActionTypes.CLEAR_LATENT_VIDEOS_ERROR:
             return { ...state, latentVideosError: null };
+
+        case ActionTypes.SET_SIMILARITY_ANALYSIS:
+            return { ...state, similarityAnalysis: action.payload };
+
+        case ActionTypes.SET_SIMILARITY_SORT_BY:
+            return { ...state, similaritySortBy: action.payload };
+
+        case ActionTypes.TOGGLE_SIMILARITY_METRICS:
+            return { ...state, showSimilarityMetrics: !state.showSimilarityMetrics };
 
         default:
             return state;
@@ -388,7 +408,17 @@ export const AppProvider = ({ children }) => {
             dispatch({ type: ActionTypes.SET_LATENT_VIDEOS_ERROR, payload: error }), []),
 
         clearLatentVideosError: useCallback(() =>
-            dispatch({ type: ActionTypes.CLEAR_LATENT_VIDEOS_ERROR }), [])
+            dispatch({ type: ActionTypes.CLEAR_LATENT_VIDEOS_ERROR }), []),
+
+        // Similarity analysis actions
+        setSimilarityAnalysis: useCallback((similarityAnalysis) =>
+            dispatch({ type: ActionTypes.SET_SIMILARITY_ANALYSIS, payload: similarityAnalysis }), []),
+
+        setSimilaritySortBy: useCallback((sortBy) =>
+            dispatch({ type: ActionTypes.SET_SIMILARITY_SORT_BY, payload: sortBy }), []),
+
+        toggleSimilarityMetrics: useCallback(() =>
+            dispatch({ type: ActionTypes.TOGGLE_SIMILARITY_METRICS }), [])
     };
 
     // Load analysis schema on app initialization

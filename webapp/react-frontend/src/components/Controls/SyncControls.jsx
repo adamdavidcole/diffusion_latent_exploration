@@ -126,6 +126,15 @@ const SyncControls = () => {
                 >
                     {state.showLabels ? '🏷️ Hide Labels' : '🏷️ Show Labels'}
                 </button>
+
+                {state.similarityAnalysis && (
+                    <button
+                        className="control-btn"
+                        onClick={actions.toggleSimilarityMetrics}
+                    >
+                        📊 Show Metrics
+                    </button>
+                )}
             </div>
 
             {/* Second row: Video Scrubber */}
@@ -160,6 +169,32 @@ const SyncControls = () => {
                 />
                 <span className="size-value">{state.videoSize}px</span>
             </div>
+
+            {/* Fourth row: Similarity Ranking */}
+            {state.similarityAnalysis && (
+                <div className="similarity-row">
+                    <label htmlFor="similarity-sort">Rank by:</label>
+                    <select
+                        id="similarity-sort"
+                        value={state.similaritySortBy}
+                        onChange={(e) => actions.setSimilaritySortBy(e.target.value)}
+                        className="similarity-sort-select"
+                    >
+                        <option value="default">Default (generation order)</option>
+                        <option value="weighted_similarity_distance">Most Different (weighted)</option>
+                        {state.similarityAnalysis.metrics_used?.map(metric => (
+                            <option key={metric} value={metric}>
+                                {metric === 'clip' ? 'CLIP Similarity' :
+                                 metric === 'lpips' ? 'LPIPS Similarity' :
+                                 metric === 'ssim' ? 'SSIM Similarity' :
+                                 metric === 'mse' ? 'MSE Similarity' :
+                                 metric === 'phash' ? 'Perceptual Hash' :
+                                 metric.toUpperCase() + ' Similarity'}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+            )}
         </div>
     );
 };
