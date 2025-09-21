@@ -641,6 +641,7 @@ class VideoAnalyzer:
             # Extract just the data we need for frontend
             frontend_data = {
                 'rankings': similarity_data['rankings'],
+                'detailed_similarities': similarity_data.get('detailed_similarities', {}),
                 'analysis_config': similarity_data['analysis_config'],
                 'baseline_prompt': similarity_data['baseline_prompt'],
                 'metrics_used': similarity_data['analysis_config'].get('metrics', []),

@@ -5,7 +5,7 @@ import './SimilarityMetricsModal.css';
 
 const SimilarityMetricsModal = () => {
     const { state, actions } = useApp();
-    const [selectedMetric, setSelectedMetric] = useState('weighted_similarity_distance');
+    const [selectedMetric, setSelectedMetric] = useState('clip');
     const [useZScore, setUseZScore] = useState(false);
 
     // Helper to extract variation from full prompt (same as VideoGrid)
@@ -30,9 +30,18 @@ const SimilarityMetricsModal = () => {
 
     // Helper to get display text for variation with intelligent truncation (same as VideoGrid)
     const getVariationDisplayText = (promptKey, maxLength = 30) => {
-        // Find the prompt that matches this key
-        const matchingPrompt = state.currentExperiment?.prompts?.find(p => p.id === promptKey);
-        const fullText = matchingPrompt?.variation || promptKey;
+        // Convert prompt_XXX to XXX format for matching with variation_num
+        const variationNum = promptKey.replace('prompt_', '');
+        
+        // Find the matching video_grid row - video_grid contains the variation text
+        const matchingRow = state.currentExperiment?.video_grid?.find(row => row.variation_num === variationNum);
+        
+        if (!matchingRow) {
+            console.warn(`No matching row found for promptKey: ${promptKey}, variationNum: ${variationNum}`);
+            return promptKey; // fallback to prompt key
+        }
+        
+        const fullText = matchingRow.variation || promptKey;
         const basePrompt = state.currentExperiment?.base_prompt || '';
         
         // Extract just the variation part
@@ -48,52 +57,42 @@ const SimilarityMetricsModal = () => {
     };
 
     const chartData = useMemo(() => {
-        console.log('SimilarityMetricsModal - Debug data:', {
-            similarityAnalysis: state.similarityAnalysis,
-            currentExperiment: state.currentExperiment,
-            selectedMetric,
-            useZScore
-        });
-
         if (!state.similarityAnalysis?.rankings?.final_scores || !state.currentExperiment) {
-            console.log('SimilarityMetricsModal - Missing data, returning empty');
             return { counts: {} };
         }
 
         const promptEntries = [];
         
         Object.entries(state.similarityAnalysis.rankings.final_scores).forEach(([promptKey, scoreData]) => {
-            console.log('SimilarityMetricsModal - Processing prompt:', promptKey, scoreData);
-            
             let value;
+            
             if (selectedMetric === 'weighted_similarity_distance') {
+                // Weighted similarity distance is always available in rankings
                 value = scoreData.weighted_similarity_distance;
-                console.log('SimilarityMetricsModal - Using weighted distance:', value);
-            } else if (useZScore && scoreData.individual_z_scores) {
-                const metricKey = `${selectedMetric}_distance`;
-                value = scoreData.individual_z_scores[metricKey];
-                console.log('SimilarityMetricsModal - Using z-score:', metricKey, value);
-            } else {
-                // For individual metrics without z-score, we can also use the individual_z_scores
-                // since that's what's available in the data structure
+            } else if (useZScore) {
+                // Use Z-score normalized values from rankings
                 const metricKey = `${selectedMetric}_distance`;
                 value = scoreData.individual_z_scores?.[metricKey];
-                console.log('SimilarityMetricsModal - Using individual z-score as fallback:', metricKey, value);
+            } else {
+                // Use raw similarity values from detailed_similarities
+                const detailedData = state.similarityAnalysis.detailed_similarities?.[promptKey];
+                const metricKey = `${selectedMetric}_distance`;
+                value = detailedData?.aggregated_similarities?.[metricKey]?.mean;
+                
+                // Fallback to z-score if raw data not available
+                if (value === undefined) {
+                    value = scoreData.individual_z_scores?.[metricKey];
+                }
             }
 
             if (value !== undefined) {
-                // Use the same variation text logic as VideoGrid
-                const displayText = getVariationDisplayText(promptKey, 30);
-                console.log('SimilarityMetricsModal - Adding entry:', { label: displayText, value });
-
+                // For now, just use prompt key to keep chart working
                 promptEntries.push({
-                    label: displayText,
+                    label: promptKey,
                     value: parseFloat(value.toFixed(4))
                 });
             }
         });
-
-        console.log('SimilarityMetricsModal - All prompt entries:', promptEntries);
 
         // Sort by increasing values (most similar to least similar)
         promptEntries.sort((a, b) => a.value - b.value);
@@ -104,7 +103,6 @@ const SimilarityMetricsModal = () => {
             data.counts[entry.label] = entry.value;
         });
 
-        console.log('SimilarityMetricsModal - Final chart data:', data);
         return data;
     }, [state.similarityAnalysis, state.currentExperiment, selectedMetric, useZScore]);
 
@@ -118,7 +116,11 @@ const SimilarityMetricsModal = () => {
             return 'Weighted Similarity Distance from Baseline';
         }
         const metricName = selectedMetric.toUpperCase();
-        return `${metricName} Distance from Baseline${useZScore ? ' (Z-Score)' : ''}`;
+        if (useZScore) {
+            return `${metricName} Distance from Baseline (Z-Score Normalized)`;
+        } else {
+            return `${metricName} Distance from Baseline (Raw Values)`;
+        }
     };
 
     const availableMetrics = state.similarityAnalysis.metrics_used || [];
