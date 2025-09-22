@@ -14,6 +14,7 @@ import AnalysisDashboard from './components/AnalysisDashboard/AnalysisDashboard'
 import TrajectoryAnalysis from './components/TrajectoryAnalysis/TrajectoryAnalysis';
 import LatentVideosView from './components/LatentVideosView/LatentVideosView';
 import SimilarityMetricsModal from './components/SimilarityMetricsModal/SimilarityMetricsModal';
+import FullSearchModal from './components/FullSearchModal/FullSearchModal';
 import './styles.css';
 
 // Experiment Route Handler
@@ -362,6 +363,9 @@ const AppContent = ({ experimentPath, isAnalysisRoute, isTrajectoryAnalysisRoute
 
       {/* Similarity Metrics Modal */}
       <SimilarityMetricsModal />
+      
+      {/* Full Search Modal */}
+      <FullSearchModal />
     </div>
   );
 };

@@ -56,6 +56,9 @@ const initialState = {
     similarityAnalysis: null,
     similaritySortBy: 'default', // 'default', 'weighted_similarity', or specific metric name
     showSimilarityMetrics: false,
+    // Full search state
+    showFullSearch: false,
+    fullSearchQuery: '',
     // Analysis chart configuration
     analysisChartConfig: [
         {
@@ -195,7 +198,10 @@ const ActionTypes = {
     // Similarity analysis actions
     SET_SIMILARITY_ANALYSIS: 'SET_SIMILARITY_ANALYSIS',
     SET_SIMILARITY_SORT_BY: 'SET_SIMILARITY_SORT_BY',
-    TOGGLE_SIMILARITY_METRICS: 'TOGGLE_SIMILARITY_METRICS'
+    TOGGLE_SIMILARITY_METRICS: 'TOGGLE_SIMILARITY_METRICS',
+    // Full search actions
+    TOGGLE_FULL_SEARCH: 'TOGGLE_FULL_SEARCH',
+    SET_FULL_SEARCH_QUERY: 'SET_FULL_SEARCH_QUERY'
 };
 
 // Reducer
@@ -305,6 +311,12 @@ const appReducer = (state, action) => {
 
         case ActionTypes.TOGGLE_SIMILARITY_METRICS:
             return { ...state, showSimilarityMetrics: !state.showSimilarityMetrics };
+
+        case ActionTypes.TOGGLE_FULL_SEARCH:
+            return { ...state, showFullSearch: !state.showFullSearch };
+
+        case ActionTypes.SET_FULL_SEARCH_QUERY:
+            return { ...state, fullSearchQuery: action.payload };
 
         default:
             return state;
@@ -418,7 +430,14 @@ export const AppProvider = ({ children }) => {
             dispatch({ type: ActionTypes.SET_SIMILARITY_SORT_BY, payload: sortBy }), []),
 
         toggleSimilarityMetrics: useCallback(() =>
-            dispatch({ type: ActionTypes.TOGGLE_SIMILARITY_METRICS }), [])
+            dispatch({ type: ActionTypes.TOGGLE_SIMILARITY_METRICS }), []),
+
+        // Full search actions
+        toggleFullSearch: useCallback(() =>
+            dispatch({ type: ActionTypes.TOGGLE_FULL_SEARCH }), []),
+
+        setFullSearchQuery: useCallback((query) =>
+            dispatch({ type: ActionTypes.SET_FULL_SEARCH_QUERY, payload: query }), [])
     };
 
     // Load analysis schema on app initialization

@@ -120,7 +120,7 @@ body {
 .search-input {
     width: 100%;
     padding: 8px 12px;
-    padding-right: 32px;
+    padding-right: 64px; /* Increased to accommodate both buttons */
     background: var(--bg-tertiary);
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -140,7 +140,7 @@ body {
 
 .clear-search-btn {
     position: absolute;
-    right: 8px;
+    right: 36px; /* Moved left to make room for full search button */
     background: none;
     border: none;
     color: var(--text-muted);
@@ -154,6 +154,28 @@ body {
 .clear-search-btn:hover {
     background: var(--bg-secondary);
     color: var(--text-primary);
+}
+
+.full-search-btn {
+    position: absolute;
+    right: 8px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 3px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.full-search-btn:hover {
+    background: var(--accent);
+    color: var(--text-primary);
+    transform: scale(1.1);
 }
 
 .search-results-info {
@@ -389,12 +411,18 @@ body {
 .sidebar.collapsed .search-input {
     font-size: 12px;
     padding: 6px 8px;
-    padding-right: 28px;
+    padding-right: 56px; /* Increased to accommodate both buttons */
 }
 
 .sidebar.collapsed .clear-search-btn {
-    right: 6px;
+    right: 32px; /* Moved left to make room for full search button */
     font-size: 16px;
+}
+
+.sidebar.collapsed .full-search-btn {
+    right: 6px;
+    font-size: 12px;
+    padding: 2px 4px;
 }
 
 .sidebar.collapsed .search-results-info {
