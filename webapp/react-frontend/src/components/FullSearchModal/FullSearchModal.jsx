@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import VideoCell from '../VideoGrid/VideoCell';
 import './FullSearchModal.css';
 
 const FullSearchModal = () => {
     const { state, actions } = useApp();
+    const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -93,7 +95,12 @@ const FullSearchModal = () => {
     const handleExperimentClick = (experimentPath) => {
         // Close the modal and navigate to the experiment
         actions.toggleFullSearch();
-        actions.setCurrentExperiment(experimentPath);
+        
+        // Clean the path to remove 'outputs/' prefix if present
+        const cleanPath = experimentPath.replace(/^outputs\//, '');
+        
+        // Navigate using React Router
+        navigate(`/experiment/${cleanPath}`);
     };
 
     return (
@@ -141,7 +148,7 @@ const FullSearchModal = () => {
                             <input
                                 type="range"
                                 min="120"
-                                max="300"
+                                max="500"
                                 step="20"
                                 value={videoSize}
                                 onChange={(e) => setVideoSize(parseInt(e.target.value))}

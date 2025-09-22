@@ -93,8 +93,8 @@ const SyncControls = () => {
         };
     }, []);
 
-    // Don't show controls if no experiment is loaded
-    if (!currentExperiment) {
+    // Don't show controls if no experiment is loaded or if video_grid is not available yet
+    if (!currentExperiment || !currentExperiment.video_grid) {
         return null;
     }
 
