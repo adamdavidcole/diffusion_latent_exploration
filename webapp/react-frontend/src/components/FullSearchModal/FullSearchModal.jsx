@@ -8,6 +8,7 @@ const FullSearchModal = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [videoSize, setVideoSize] = useState(220); // Increased default from 180 to 220
 
     // Search across all experiments for matching rows
     const performSearch = useMemo(() => {
@@ -32,57 +33,25 @@ const FullSearchModal = () => {
         };
 
         const allExperiments = state.experimentsTree ? getAllExperiments(state.experimentsTree) : [];
-        
-        console.log('🔍 Full Search Debug:');
-        console.log('Query:', query);
-        console.log('Total experiments found in tree:', allExperiments.length);
-        console.log('Experiments tree structure:', state.experimentsTree);
 
         // Search through each experiment's video grid
-        allExperiments.forEach((experiment, expIndex) => {
-            console.log(`\n--- Experiment ${expIndex + 1}/${allExperiments.length}: ${experiment.name} ---`);
-            console.log('Experiment object keys:', Object.keys(experiment));
-            console.log('Has video_grid?', !!experiment.video_grid);
-            console.log('Has experiment_data?', !!experiment.experiment_data);
-            
+        allExperiments.forEach((experiment) => {
             // Try to access video_grid from both locations
             let videoGrid = experiment.video_grid;
             if (!videoGrid && experiment.experiment_data) {
-                console.log('Checking experiment_data for video_grid...');
-                console.log('experiment_data keys:', Object.keys(experiment.experiment_data));
                 videoGrid = experiment.experiment_data.video_grid;
             }
             
-            console.log('Video grid found:', !!videoGrid);
-            if (videoGrid) {
-                console.log('Video grid length:', videoGrid.length);
-                console.log('First row structure:', videoGrid[0] ? Object.keys(videoGrid[0]) : 'No rows');
-                
-                videoGrid.forEach((row, rowIndex) => {
-                    console.log(`Row ${rowIndex + 1}:`, {
-                        variation: row.variation,
-                        prompt: row.prompt,
-                        full_prompt: row.full_prompt,
-                        hasVariation: !!row.variation,
-                        hasPrompt: !!row.prompt,
-                        hasFullPrompt: !!row.full_prompt
-                    });
-                    
+            if (videoGrid && videoGrid.length > 0) {
+                videoGrid.forEach((row) => {
                     // Search in multiple possible text fields
                     const variation = row.variation || '';
                     const prompt = row.prompt || '';
                     const fullPrompt = row.full_prompt || '';
                     
-                    console.log(`Searching in row ${rowIndex + 1}:`, {
-                        variation: variation.substring(0, 50) + '...',
-                        prompt: prompt.substring(0, 50) + '...',
-                        fullPrompt: fullPrompt.substring(0, 50) + '...'
-                    });
-                    
                     if (variation.toLowerCase().includes(query) || 
                         prompt.toLowerCase().includes(query) || 
                         fullPrompt.toLowerCase().includes(query)) {
-                        console.log(`✅ MATCH found in row ${rowIndex + 1}!`);
                         results.push({
                             ...row,
                             experimentName: experiment.name || experiment.experiment_data?.name,
@@ -90,17 +59,10 @@ const FullSearchModal = () => {
                             basePrompt: experiment.base_prompt || experiment.experiment_data?.base_prompt,
                             seeds: experiment.seeds || experiment.experiment_data?.seeds || []
                         });
-                    } else {
-                        console.log(`❌ No match in row ${rowIndex + 1}`);
                     }
                 });
-            } else {
-                console.log('❌ No video_grid found for this experiment');
             }
         });
-
-        console.log(`\n🎯 Search completed. Found ${results.length} total matches.`);
-        console.log('First few results:', results.slice(0, 3));
 
         // Limit to 120 results
         return results.slice(0, 120);
@@ -158,18 +120,35 @@ const FullSearchModal = () => {
                         onChange={handleSearchChange}
                         autoFocus
                     />
-                    <div className="search-info">
-                        {searchQuery.length < 3 && searchQuery.length > 0 && (
-                            <span className="search-hint">Enter at least 3 characters to search</span>
-                        )}
-                        {searchResults.length > 0 && (
-                            <span className="results-count">
-                                Found {searchResults.length} results{searchResults.length === 120 ? ' (limited to 120)' : ''}
-                            </span>
-                        )}
-                        {searchQuery.length >= 3 && searchResults.length === 0 && (
-                            <span className="no-results">No matching prompts found</span>
-                        )}
+                    <div className="search-controls">
+                        <div className="search-info">
+                            {searchQuery.length < 3 && searchQuery.length > 0 && (
+                                <span className="search-hint">Enter at least 3 characters to search</span>
+                            )}
+                            {searchResults.length > 0 && (
+                                <span className="results-count">
+                                    Found {searchResults.length} results{searchResults.length === 120 ? ' (limited to 120)' : ''}
+                                </span>
+                            )}
+                            {searchQuery.length >= 3 && searchResults.length === 0 && (
+                                <span className="no-results">No matching prompts found</span>
+                            )}
+                        </div>
+                        <div className="video-size-control">
+                            <label className="video-size-label">
+                                Video Size: {videoSize}px
+                            </label>
+                            <input
+                                type="range"
+                                min="120"
+                                max="300"
+                                step="20"
+                                value={videoSize}
+                                onChange={(e) => setVideoSize(parseInt(e.target.value))}
+                                className="video-size-slider"
+                                title={`Video size: ${videoSize}px`}
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -177,15 +156,14 @@ const FullSearchModal = () => {
                     {searchResults.map((row, index) => (
                         <div key={`${row.experimentPath}-${row.variation_num}-${index}`} className="result-row">
                             <div className="row-header">
-                                <div className="experiment-info">
-                                    <button 
-                                        className="experiment-link"
-                                        onClick={() => handleExperimentClick(row.experimentPath)}
-                                        title={`Go to experiment: ${row.experimentName}`}
-                                    >
-                                        {row.experimentName}
-                                    </button>
-                                </div>
+                                <button 
+                                    className="experiment-link"
+                                    onClick={() => handleExperimentClick(row.experimentPath)}
+                                    title={`Go to experiment: ${row.experimentName}`}
+                                >
+                                    {row.experimentName}
+                                </button>
+                                <span className="prompt-separator">—</span>
                                 <div className="prompt-text" title={row.variation}>
                                     {row.variation}
                                 </div>
@@ -195,7 +173,7 @@ const FullSearchModal = () => {
                                     <VideoCell
                                         key={`${row.experimentPath}-${row.variation_num}-${video.seed}-${videoIndex}`}
                                         video={video}
-                                        videoSize={120} // Fixed size for search results
+                                        videoSize={videoSize} // Use dynamic video size
                                         onVideoLoaded={() => {}} // No-op for now
                                         onMetadataLoaded={() => {}} // No-op for now
                                         onOpenLightbox={() => {}} // Disabled for now
