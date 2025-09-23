@@ -5,9 +5,13 @@ const TrajectoryInfoTooltip = ({ metricKey, title }) => {
     const [showTooltip, setShowTooltip] = useState(false);
     const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
 
-    const description = TrajectoryAnalysisDescriptions[metricKey];
+    const metricData = TrajectoryAnalysisDescriptions[metricKey];
 
-    if (!description) return null;
+    if (!metricData) return null;
+
+    // Use short_description for tooltip, fallback to old format if needed
+    const description = metricData.short_description || metricData;
+    const formula = metricData.formula;
 
     const handleMouseEnter = (e) => {
         const rect = e.target.getBoundingClientRect();
@@ -78,15 +82,30 @@ const TrajectoryInfoTooltip = ({ metricKey, title }) => {
                         borderRadius: '8px',
                         boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
                         zIndex: 1000,
-                        maxWidth: '400px',
+                        maxWidth: '450px',
                         fontSize: '14px',
-                        lineHeight: '1.3',
+                        lineHeight: '1.4',
                         border: '1px solid #4A90E2',
                         textTransform: 'none',
                         fontWeight: '300'
                     }}
-                    dangerouslySetInnerHTML={{ __html: description }}
-                />
+                >
+                    <div style={{ marginBottom: formula ? '12px' : '0' }}>
+                        {description}
+                    </div>
+                    {formula && (
+                        <div style={{
+                            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                            padding: '8px 12px',
+                            borderRadius: '4px',
+                            fontFamily: 'monospace',
+                            fontSize: '13px',
+                            borderLeft: '3px solid #4A90E2'
+                        }}>
+                            <strong>Formula:</strong> {formula}
+                        </div>
+                    )}
+                </div>
             )}
         </>
     );

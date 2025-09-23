@@ -281,3 +281,89 @@
 .trajectory-chart-modal::-webkit-scrollbar-thumb:hover {
     background: #555;
 }
+
+/* Enhanced description section styling */
+.trajectory-chart-modal-description {
+    margin-bottom: 32px;
+}
+
+.trajectory-chart-modal-description h4 {
+    margin-bottom: 20px;
+    color: #2c3e50;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 8px;
+}
+
+.trajectory-chart-modal-description h5 {
+    margin: 20px 0 10px 0;
+    color: #34495e;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.metric-short-description {
+    margin-bottom: 16px;
+}
+
+.metric-short-description p {
+    margin: 0;
+    color: #555;
+    font-size: 1rem;
+    line-height: 1.5;
+}
+
+.metric-formula {
+    margin-bottom: 20px;
+}
+
+.formula-display {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 8px 0;
+}
+
+.formula-display code {
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+    font-size: 1rem;
+    color: #e74c3c;
+    font-weight: 500;
+    background: none;
+    padding: 0;
+}
+
+.metric-code {
+    margin-bottom: 20px;
+}
+
+.code-block {
+    background: #2d3748;
+    color: #e2e8f0;
+    border-radius: 8px;
+    padding: 16px;
+    margin: 8px 0;
+    overflow-x: auto;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    border: 1px solid #4a5568;
+}
+
+.code-block code {
+    background: none;
+    color: inherit;
+    padding: 0;
+    font-family: inherit;
+}
+
+.metric-detailed-description {
+    margin-bottom: 16px;
+}
+
+.metric-detailed-description p {
+    margin: 0;
+    color: #555;
+    font-size: 1rem;
+    line-height: 1.6;
+}

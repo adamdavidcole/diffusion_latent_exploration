@@ -174,7 +174,7 @@ const TrajectoryChartModal = ({
 
     const individualValues = getIndividualValuesData();
     const errorBarData = getErrorBarData();
-    const description = TrajectoryAnalysisDescriptions[metricKey] || '';
+    const metricData = TrajectoryAnalysisDescriptions[metricKey] || {};
     const hasIndividualValues = Object.keys(individualValues).some(key => individualValues[key].length > 0);
 
     // Get consistent colors for all charts
@@ -397,10 +397,49 @@ const TrajectoryChartModal = ({
                     </div>
 
                     {/* Description */}
-                    {description && (
+                    {metricData && Object.keys(metricData).length > 0 && (
                         <div className="trajectory-chart-modal-description">
                             <h4>About This Metric</h4>
-                            <div dangerouslySetInnerHTML={{ __html: description }} />
+                            
+                            {/* Short Description */}
+                            {metricData.short_description && (
+                                <div className="metric-short-description">
+                                    <p><strong>Overview:</strong> {metricData.short_description}</p>
+                                </div>
+                            )}
+                            
+                            {/* Mathematical Formula */}
+                            {metricData.formula && (
+                                <div className="metric-formula">
+                                    <h5>Mathematical Formula</h5>
+                                    <div className="formula-display">
+                                        <code>{metricData.formula}</code>
+                                    </div>
+                                </div>
+                            )}
+                            
+                            {/* Implementation Code */}
+                            {metricData.formula_code && (
+                                <div className="metric-code">
+                                    <h5>Implementation</h5>
+                                    <pre className="code-block">
+                                        <code>{metricData.formula_code}</code>
+                                    </pre>
+                                </div>
+                            )}
+                            
+                            {/* Detailed Description */}
+                            {metricData.description && (
+                                <div className="metric-detailed-description">
+                                    <h5>Interpretation</h5>
+                                    <p>{metricData.description}</p>
+                                </div>
+                            )}
+                            
+                            {/* Fallback for old format */}
+                            {!metricData.short_description && typeof metricData === 'string' && (
+                                <div dangerouslySetInnerHTML={{ __html: metricData }} />
+                            )}
                         </div>
                     )}
 
