@@ -975,6 +975,83 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                         </div>
                     </div>
                 </div>
+
+                {/* CORRIDOR METRICS */}
+                <div className="metrics-section">
+                    <h5 className="metrics-section-header">Corridor Metrics</h5>
+                    <div className="metrics-grid" style={{ '--chart-size': `${chartSize}px` }}>
+                        <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                            <h5>
+                                Corridor Width by Step
+                                <TrajectoryInfoTooltip metricKey="width_by_step" title="Corridor Width by Step" />
+                            </h5>
+                            <div
+                                className="clickable-chart"
+                                onClick={() => openChartModal(chartData.widthByStep, 'width_by_step', 'Corridor Width by Step')}
+                                style={{ cursor: 'pointer' }}
+                                title="Click for detailed view"
+                            >
+                                <LineChart
+                                    data={chartData.widthByStep}
+                                    title="Corridor Width by Step"
+                                    size={chartSize}
+                                    xLabel="Diffusion Step"
+                                    yLabel="Corridor Width"
+                                    currentExperiment={currentExperiment}
+                                    beginAtZero={beginAtZero}
+                                    showFullVariationText={showFullVariationText}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                            <h5>
+                                Branch Divergence by Step
+                                <TrajectoryInfoTooltip metricKey="branch_divergence" title="Branch Divergence by Step" />
+                            </h5>
+                            <div
+                                className="clickable-chart"
+                                onClick={() => openChartModal(chartData.branchDivergence, 'branch_divergence', 'Branch Divergence by Step')}
+                                style={{ cursor: 'pointer' }}
+                                title="Click for detailed view"
+                            >
+                                <LineChart
+                                    data={chartData.branchDivergence}
+                                    title="Branch Divergence by Step"
+                                    size={chartSize}
+                                    xLabel="Diffusion Step"
+                                    yLabel="Divergence Distance"
+                                    currentExperiment={currentExperiment}
+                                    beginAtZero={beginAtZero}
+                                    showFullVariationText={showFullVariationText}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                            <h5>
+                                Exit Distance
+                                <TrajectoryInfoTooltip metricKey="exit_distance" title="Exit Distance" />
+                            </h5>
+                            <div
+                                className="clickable-chart"
+                                onClick={() => openChartModal(chartData.exitDistance, 'exit_distance', 'Exit Distance')}
+                                style={{ cursor: 'pointer' }}
+                                title="Click for detailed view"
+                            >
+                                <MetricComparisonChart
+                                    data={chartData.exitDistance}
+                                    title="Exit Distance"
+                                    size={chartSize}
+                                    yLabel="Cumulative Divergence"
+                                    currentExperiment={currentExperiment}
+                                    beginAtZero={beginAtZero}
+                                    showFullVariationText={showFullVariationText}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         );
     };

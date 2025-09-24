@@ -127,6 +127,19 @@ export const extractChartData = (trajectoryData, currentNormalization) => {
         return result;
     };
 
+    const extractCorridorMetric = (metricKey) => {
+        const result = {};
+        if (data.corridor_metrics) {
+            Object.keys(data.corridor_metrics[metricKey] || {}).forEach(promptGroup => {
+                const metric = data.corridor_metrics[metricKey][promptGroup];
+                if (metric !== undefined) {
+                    result[promptGroup] = metric;
+                }
+            });
+        }
+        return result;
+    };
+
     return {
         // Temporal metrics
         trajectoryLength: extractTemporalMetric('trajectory_length', 'mean_length'),
@@ -183,7 +196,12 @@ export const extractChartData = (trajectoryData, currentNormalization) => {
         curvaturePeakMean: extractGeometryDerivativeMetric('curvature_peak_mean'),
         curvaturePeakStepMean: extractGeometryDerivativeMetric('curvature_peak_step_mean'),
         jerkPeakMean: extractGeometryDerivativeMetric('jerk_peak_mean'),
-        jerkPeakStepMean: extractGeometryDerivativeMetric('jerk_peak_step_mean')
+        jerkPeakStepMean: extractGeometryDerivativeMetric('jerk_peak_step_mean'),
+
+        // Corridor Metrics
+        widthByStep: extractCorridorMetric('width_by_step'),
+        branchDivergence: extractCorridorMetric('branch_divergence'),
+        exitDistance: extractCorridorMetric('exit_distance')
     };
 };
 

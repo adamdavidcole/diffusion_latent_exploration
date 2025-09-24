@@ -254,5 +254,30 @@ export const TrajectoryAnalysisDescriptions = {
         "formula": "Scatter plot: (velocity, circuitousness - 1)",
         "formula_code": "# Combined from individual trajectory analysis\n# Each point: (mean_speed, circuitousness - 1.0)\nvelocity_per_traj = [np.mean(step_sizes) for trajectory in trajectories]\ncircuitousness_per_traj = [path_length/endpoint_dist - 1.0 for trajectory in trajectories]",
         "description": "Each point represents a single trajectory, with circuitousness adjusted by subtracting 1.0 (so 0 represents a straight line). This plot reveals whether high-velocity trajectories tend to follow direct or winding paths through latent space."
+    },
+
+    // CORRIDOR METRICS
+    width_by_step: {
+        "short_description": "Width of trajectory 'corridor' at each diffusion step.",
+        "formula": "width_t = ||std_t||₂ where std_t is per-dimension standard deviation across trajectories",
+        "formula_code": "mu = X.mean(dim=0)  # [T,D] centroid path\nstd = (X - mu.unsqueeze(0)).pow(2).mean(dim=0).sqrt()  # [T,D] per-dim std\nwidth = std.norm(dim=1)  # [T] L2 norm of std vector",
+        "description": "Measures how tightly clustered trajectories are at each step. Lower values indicate trajectories follow similar paths (narrow corridor), while higher values show diverse paths (wide corridor). Evolution of width reveals whether generation becomes more or less deterministic over time.",
+        "source_url": "https://git.arts.ac.uk/acole/diffusion_latent_exploration/blob/main/src/analysis/latent_trajectory_analysis/analyze_corridor_metrics.py#L35-L37"
+    },
+
+    branch_divergence: {
+        "short_description": "Distance between each group's centroid and the baseline centroid at each step.",
+        "formula": "divergence_t = ||μ_group,t - μ_baseline,t||₂",
+        "formula_code": "base_centroid = flat[base].mean(dim=0)  # [T,D] baseline path\nmu = X.mean(dim=0)  # [T,D] group centroid path\nbranch = (mu - base_centroid).norm(dim=1)  # [T] distance per step",
+        "description": "Tracks how far each experimental group deviates from the baseline condition throughout the diffusion process. Shows when and how much different conditions cause trajectories to diverge. Early divergence suggests prompt effects dominate early generation, while late divergence indicates refinement differences.",
+        "source_url": "https://git.arts.ac.uk/acole/diffusion_latent_exploration/blob/main/src/analysis/latent_trajectory_analysis/analyze_corridor_metrics.py#L38-L39"
+    },
+
+    exit_distance: {
+        "short_description": "Total cumulative divergence from baseline across all diffusion steps.",
+        "formula": "exit_distance = Σₜ ||μ_group,t - μ_baseline,t||₂",
+        "formula_code": "branch = (mu - base_centroid).norm(dim=1)  # [T] per-step divergence\nexit_distance = float(branch.sum().item())  # scalar total",
+        "description": "Single scalar metric summarizing overall separation from baseline condition. Higher values indicate experimental conditions that consistently push trajectories away from baseline behavior. Useful for ranking conditions by their overall impact on latent space exploration patterns.",
+        "source_url": "https://git.arts.ac.uk/acole/diffusion_latent_exploration/blob/main/src/analysis/latent_trajectory_analysis/analyze_corridor_metrics.py#L42"
     }
 };
