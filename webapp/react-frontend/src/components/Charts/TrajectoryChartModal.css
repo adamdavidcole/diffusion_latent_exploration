@@ -367,3 +367,31 @@
     font-size: 1rem;
     line-height: 1.6;
 }
+
+.metric-source {
+    margin-bottom: 16px;
+    padding-top: 12px;
+    border-top: 1px solid #e9ecef;
+}
+
+.source-link {
+    display: inline-flex;
+    align-items: center;
+    color: #0066cc;
+    text-decoration: none;
+    font-weight: 500;
+    padding: 8px 12px;
+    border: 1px solid #0066cc;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    background: #f8f9fa;
+}
+
+.source-link:hover {
+    background: #0066cc;
+    color: white;
+    text-decoration: none;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 102, 204, 0.3);
+}

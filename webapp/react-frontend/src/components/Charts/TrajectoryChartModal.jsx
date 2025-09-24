@@ -436,6 +436,21 @@ const TrajectoryChartModal = ({
                                 </div>
                             )}
                             
+                            {/* Source Code Link */}
+                            {metricData.source_url && (
+                                <div className="metric-source">
+                                    <h5>Source Code</h5>
+                                    <a 
+                                        href={metricData.source_url} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="source-link"
+                                    >
+                                        View implementation in repository →
+                                    </a>
+                                </div>
+                            )}
+                            
                             {/* Fallback for old format */}
                             {!metricData.short_description && typeof metricData === 'string' && (
                                 <div dangerouslySetInnerHTML={{ __html: metricData }} />

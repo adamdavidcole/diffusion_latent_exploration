@@ -4,42 +4,48 @@ export const TrajectoryAnalysisDescriptions = {
         "short_description": "Total distance traveled in latent space during diffusion.",
         "formula": "Length = Σₜ ||xₜ₊₁ - xₜ||",
         "formula_code": "step_differences = flat_trajectories[:, 1:] - flat_trajectories[:, :-1]\nstep_norms = torch.linalg.norm(step_differences, dim=2)\ntrajectory_lengths = torch.sum(step_norms, dim=1)",
-        "description": "Longer trajectories indicate more complex latent space exploration during generation. This metric reveals how much the latent representation changes throughout the diffusion process, with longer paths suggesting more extensive refinement and detail addition."
+        "description": "Longer trajectories indicate more complex latent space exploration during generation. This metric reveals how much the latent representation changes throughout the diffusion process, with longer paths suggesting more extensive refinement and detail addition.",
+        "source_url": "https://git.arts.ac.uk/acole/diffusion_latent_exploration/blob/main/src/analysis/latent_trajectory_analysis/analyze_temporal_trajectories.py#L14-L19"
     },
 
     velocity_analysis: {
         "short_description": "Speed of movement through latent space per diffusion step.",
-        "formula": "vₜ = ||xₜ₊₁ - xₜ||",
+        "formula": "vₜ = ||xₜ₊₁ - xₜ||, mean_velocity = Σvₜ/T",
         "formula_code": "step_differences = flat_trajectories[:, 1:] - flat_trajectories[:, :-1]\nvelocities = torch.linalg.norm(step_differences, dim=2)\nmean_velocity = torch.mean(velocities, dim=1)\nvelocity_variance = torch.var(velocities, dim=1)",
-        "description": "We compute mean velocity and velocity variance for each trajectory, then aggregate across videos in each prompt group. High velocity indicates rapid latent changes; velocity variance shows whether speed is steady or varies throughout the trajectory. Consistent velocities suggest smooth generation while high variance indicates episodic changes."
+        "description": "Mean velocity indicates average latent change rate; velocity variance reveals whether speed is steady or episodic. High variance suggests phase transitions - periods of rapid change followed by stability. Consistent velocities indicate smooth generation while variable speeds mark critical generation moments.",
+        "source_url": "https://git.arts.ac.uk/acole/diffusion_latent_exploration/blob/main/src/analysis/latent_trajectory_analysis/analyze_temporal_trajectories.py#L22-L30"
     },
 
     acceleration_analysis: {
         "short_description": "Rate of change of velocity between steps.",
-        "formula": "aₜ = ||vₜ₊₁ - vₜ||",
+        "formula": "aₜ = ||vₜ₊₁ - vₜ||, mean_acceleration = Σaₜ/T",
         "formula_code": "velocities = torch.linalg.norm(step_differences, dim=2)\naccel_differences = velocities[:, 1:] - velocities[:, :-1]\naccel_norms = torch.linalg.norm(accel_differences, dim=2)\nmean_acceleration = torch.mean(accel_norms, dim=1)",
-        "description": "High acceleration indicates rapid changes in movement speed, potentially corresponding to phase transitions in the generation process. Acceleration spikes often mark moments where the model shifts from one type of processing to another, such as from global structure to fine details."
+        "description": "High acceleration indicates 'jolts' in the generative process - moments where the model rapidly changes its rate of latent evolution. Acceleration spikes often correspond to phase transitions where the model shifts between different types of processing (e.g., from removing noise to adding fine details).",
+        "source_url": "https://git.arts.ac.uk/acole/diffusion_latent_exploration/blob/main/src/analysis/latent_trajectory_analysis/analyze_temporal_trajectories.py#L32-L40"
     },
 
     tortuosity: {
         "short_description": "Measures path indirectness - how winding the trajectory is.",
-        "formula": "tortuosity = trajectory_length / (endpoint_distance + 1e-8)",
+        "formula": "circuitousness = trajectory_length / endpoint_distance",
         "formula_code": "trajectory_lengths = torch.sum(step_norms, dim=1)\nendpoint_distances = torch.linalg.norm(flat_trajectories[:, -1] - flat_trajectories[:, 0], dim=1)\ntortuosity = trajectory_lengths / (endpoint_distances + 1e-8)",
-        "description": "A value of 1.0 indicates a straight line; larger values indicate winding paths. This metric reveals how efficiently the model navigates latent space - direct paths suggest focused generation while meandering paths indicate exploration or uncertainty in the generation process."
+        "description": "A value of 1.0 indicates a perfectly straight trajectory from start to finish. Higher values indicate meandering paths. This reveals generation efficiency - direct paths suggest focused generation toward a clear goal, while winding paths indicate exploration, uncertainty, or complex multi-stage refinement processes.",
+        "source_url": "https://git.arts.ac.uk/acole/diffusion_latent_exploration/blob/main/src/analysis/latent_trajectory_analysis/analyze_individual_trajectory_geometry.py#L64-L65"
     },
 
     endpoint_distance: {
         "short_description": "Straight-line distance between initial and final latent states.",
         "formula": "||x_final - x_initial||",
         "formula_code": "endpoint_distances = torch.linalg.norm(flat_trajectories[:, -1] - flat_trajectories[:, 0], dim=1)",
-        "description": "This measures the total displacement in latent space, independent of the path taken. Always ≤ trajectory length, with their ratio defining tortuosity. Large endpoint distances indicate the final output is very different from the initial noise, while small distances suggest the generation process made minimal changes."
+        "description": "This measures total displacement in latent space, independent of path taken. Always ≤ trajectory length, with their ratio defining circuitousness. Large endpoint distances indicate the final output differs significantly from initial noise, while small distances suggest minimal semantic transformation during generation.",
+        "source_url": "https://git.arts.ac.uk/acole/diffusion_latent_exploration/blob/main/src/analysis/latent_trajectory_analysis/analyze_temporal_trajectories.py#L42-L45"
     },
 
     semantic_convergence: {
         "short_description": "Step at which trajectory reaches half the initial distance to final state.",
-        "formula": "Find step where ||xₜ - x_final|| ≤ 0.5 * ||x₀ - x_final||",
+        "formula": "half_life = argmin(t) where ||xₜ - x_final|| ≤ 0.5 * ||x₀ - x_final||",
         "formula_code": "final_latents = flat_trajectories[:, -1, :].unsqueeze(1)\ndistances_to_end = torch.linalg.norm(flat_trajectories - final_latents, dim=2)\nhalf_distance = distances_to_end[:, 0] / 2.0\nhalf_life_step = torch.argmax(half_life_mask.int(), dim=1)",
-        "description": "Lower values indicate faster convergence to the final semantic representation. This metric reveals when the trajectory has 'committed' to its final form - early convergence suggests rapid decision-making, while late convergence indicates prolonged refinement."
+        "description": "This half-life indicates when trajectories are 'halfway' to their final semantic state. Smaller values mean most change happens early (remaining steps are refinements), while larger values indicate significant changes continue into later steps. Reveals the temporal structure of the generation process.",
+        "source_url": "https://git.arts.ac.uk/acole/diffusion_latent_exploration/blob/main/src/analysis/latent_trajectory_analysis/analyze_temporal_trajectories.py#L69-L85"
     },
 
     // GEOMETRIC ANALYSIS
@@ -53,7 +59,7 @@ export const TrajectoryAnalysisDescriptions = {
     log_volume_stats: {
         "short_description": "Logarithm of trajectory bounding box volume in latent space.",
         "formula": "log_volume = Σᵢ log(maxᵢ - minᵢ)",
-        "formula_code": "mins = np.min(trajectory, axis=0)\nmaxs = np.max(trajectory, axis=0)\nranges = np.clip(maxs - mins, 1e-12, None)\nlog_bbox_vol = np.sum(np.log(ranges))",
+        "formula_code": "mins = np.min(trajectory, axis=0)\nmaxs = np.max(trajectory, axis=0)\nranges = np.clip(maxs - mins, 1e-12, None)\nlog_bbox_vol = np.sum(np.log(ranges))\neff_side = float(np.exp(log_bbox_vol / ranges.size))",
         "description": "This measures the geometric extent of the trajectory's exploration through high-dimensional latent space. Larger values indicate trajectories that span greater ranges across latent dimensions, suggesting more diverse or exploratory generation processes."
     },
 
@@ -102,16 +108,18 @@ export const TrajectoryAnalysisDescriptions = {
     // GEOMETRY DERIVATIVES
     curvature_peak_mean: {
         "short_description": "Maximum curvature along trajectory paths.",
-        "formula": "curvature_t = ||Δv_t|| / (||v_t|| + ε)",
+        "formula": "curvatureₜ = ||Δvₜ|| / (||vₜ|| + ε)",
         "formula_code": "v = X[:, 1:, :] - X[:, :-1, :]\ndv = v[:, 2:, :] - v[:, 1:-1, :]\ncurv = dv.norm(dim=2) / (v[:, 2:, :].norm(dim=2) + eps)\nkmax, kidx = curv.max(dim=1)",
-        "description": "Curvature measures how sharply the trajectory turns at each step. High peak curvature indicates abrupt directional changes, often corresponding to phase transitions where the model shifts focus to specific details during generation. The peak timing can reveal when these critical transitions occur."
+        "description": "Curvature quantifies how much the trajectory direction changes relative to distance traveled - essentially detecting sharp turns. High peak curvature often aligns with phase transitions where the model shifts focus (e.g., from broad structure to specific details). More complex prompts typically show higher peak curvature and later timing.",
+        "source_url": "https://git.arts.ac.uk/acole/diffusion_latent_exploration/blob/main/src/analysis/latent_trajectory_analysis/analyze_geometry_derivatives.py#L20-L31"
     },
 
     jerk_peak_mean: {
         "short_description": "Maximum jerk (third derivative) along trajectory paths.",
-        "formula": "jerk_t = ||Δa_t||",
+        "formula": "jerkₜ = ||Δaₜ|| (change in acceleration)",
         "formula_code": "a = v[:, 1:, :] - v[:, :-1, :]\nj = a[:, 1:, :] - a[:, :-1, :]\njerk = j.norm(dim=2)\njmax, jidx = jerk.max(dim=1)",
-        "description": "Jerk measures sudden changes in acceleration. High peak jerk indicates abrupt transitions in the rate of latent evolution, potentially marking moments when the model's generative focus shifts dramatically during the diffusion process. This can identify critical decision points in generation."
+        "description": "Jerk measures sudden changes in acceleration - moments when the model abruptly shifts from slowing down to speeding up (or vice versa). High jerk indicates dramatic transitions in generation rate, potentially marking critical decision points where the model's attention shifts between different aspects of the output.",
+        "source_url": "https://git.arts.ac.uk/acole/diffusion_latent_exploration/blob/main/src/analysis/latent_trajectory_analysis/analyze_geometry_derivatives.py#L25-L40"
     },
 
     // SPATIAL ANALYSIS
@@ -119,14 +127,16 @@ export const TrajectoryAnalysisDescriptions = {
         "short_description": "Evolution of spatial variance over diffusion steps.",
         "formula": "spatial_pattern = mean(var(trajectories, dim=spatial))",
         "formula_code": "spatial_vars_per_step = torch.var(trajectories, dim=(-2, -1))\nspatial_vars_mean_per_step = torch.mean(spatial_vars_per_step, dim=(2, 3))\ngroup_spatial_trajectory = torch.mean(spatial_vars_mean_per_step, dim=0)",
-        "description": "This tracks how spatial detail/contrast evolves during generation. Typically shows a U-shaped curve: spatial variance drops early (noise removal) then increases late (detail addition), revealing the coarse-to-fine generation process characteristic of diffusion models."
+        "description": "This tracks how spatial detail evolves throughout diffusion, often showing a U-shaped curve where spatial variance first decreases (noise removal) then increases (detail emergence). The trajectory pattern reveals the temporal dynamics of spatial structure development during generation.",
+        "source_url": "https://git.arts.ac.uk/acole/diffusion_latent_exploration/blob/main/src/analysis/latent_trajectory_analysis/analyze_spatial_patterns.py#L32-L39"
     },
 
     evolution_ratio: {
         "short_description": "Late-stage to early-stage spatial variance ratio.",
         "formula": "ratio = late_spatial_mean / early_spatial_mean",
         "formula_code": "early_steps = spatial_vars_mean_per_step[:, :n_steps//3]\nlate_steps = spatial_vars_mean_per_step[:, -n_steps//3:]\nearly_spatial_mean = torch.mean(early_steps)\nlate_spatial_mean = torch.mean(late_steps)\nspatial_evolution_ratio = late_spatial_mean / (early_spatial_mean + 1e-8)",
-        "description": "Ratios > 1 indicate detail recovery in late stages; higher ratios suggest more complex generation processes with significant late-stage detail addition. This metric quantifies the strength of the coarse-to-fine generation pattern."
+        "description": "Ratios > 1 indicate detail recovery/emergence in late stages following the classic coarse-to-fine generation pattern. Higher ratios (often seen with complex prompts) suggest the latent first loses spatial variance (noise removal) then gains variance as structured details appear. This captures the U-shaped spatial evolution curve.",
+        "source_url": "https://git.arts.ac.uk/acole/diffusion_latent_exploration/blob/main/src/analysis/latent_trajectory_analysis/analyze_spatial_patterns.py#L50-L56"
     },
 
     early_vs_late_significance: {
@@ -144,10 +154,11 @@ export const TrajectoryAnalysisDescriptions = {
     },
 
     phase_transition_strength: {
-        "short_description": "Variability in spatial variance trajectory.",
+        "short_description": "Variability in spatial variance trajectory indicating phase transition intensity.",
         "formula": "strength = std(spatial_trajectory)",
         "formula_code": "group_spatial_trajectory = torch.mean(spatial_vars_mean_per_step, dim=0)\nphase_transition_strength = torch.std(group_spatial_trajectory)",
-        "description": "High values indicate strong phase transitions with dramatic changes in spatial detail; low values suggest gradual, smooth evolution throughout the diffusion process. This identifies the presence and intensity of critical generation phases."
+        "description": "High values indicate strong phase transitions with abrupt changes where the model shifts from removing noise to adding structured details. Low values suggest gradual, smooth spatial evolution. This metric identifies whether spatial detail emerges suddenly (sharp phase transition) or gradually throughout diffusion.",
+        "source_url": "https://git.arts.ac.uk/acole/diffusion_latent_exploration/blob/main/src/analysis/latent_trajectory_analysis/analyze_spatial_patterns.py#L39-L40"
     },
 
     step_deltas_mean: {
@@ -165,17 +176,33 @@ export const TrajectoryAnalysisDescriptions = {
     },
 
     progression_consistency: {
-        "short_description": "Cross-video consistency of spatial patterns at each step.",
-        "formula": "consistency = mean(std(spatial_patterns, dim=videos))",
+        "short_description": "Cross-video spatial consistency at each step.",
+        "formula": "consistency = mean(std(spatial_variance_across_videos))",
         "formula_code": "step_consistency = torch.std(spatial_vars_mean_per_step, dim=0)\nprogression_consistency = torch.mean(step_consistency)",
-        "description": "Low values indicate all videos follow similar spatial evolution; high values suggest divergent spatial development patterns across different generation runs. This measures the determinism of the spatial generation process."
+        "description": "Measures how consistently different videos (seeds) develop spatially at each step. Low values indicate all videos follow similar spatial evolution patterns; high values suggest divergent spatial development. Reveals whether the prompt produces deterministic or variable spatial generation paths."
     },
 
     progression_variability: {
-        "short_description": "Variability in progression consistency across steps.",
+        "short_description": "How much cross-video consistency varies across diffusion steps.",
         "formula": "variability = std(consistency_across_steps)",
         "formula_code": "step_consistency = torch.std(spatial_vars_mean_per_step, dim=0)\nprogression_variability = torch.std(step_consistency)",
-        "description": "This measures how much the cross-video consistency varies across diffusion steps, indicating whether the generation process maintains uniform consistency or has phases of convergent vs divergent behavior."
+        "description": "This captures whether the generation process maintains uniform consistency throughout or has phases of convergent vs divergent behavior. High variability suggests some steps produce very similar outputs across videos while others produce highly variable results."
+    },
+
+    inter_video_diversity_mean: {
+        "short_description": "Mean spatial variability within individual videos over time.",
+        "formula": "diversity_mean = mean(std(spatial_variance_per_video, dim=time))",
+        "formula_code": "video_spatial_diversity = torch.std(spatial_vars_mean_per_step, dim=1)\ninter_video_diversity_mean = torch.mean(video_spatial_diversity)",
+        "description": "This measures how much spatial detail fluctuates within each individual video throughout the diffusion process. Higher values indicate videos where spatial patterns vary dramatically over time, while lower values suggest more stable spatial evolution within each video generation.",
+        "source_url": "https://git.arts.ac.uk/acole/diffusion_latent_exploration/blob/main/src/analysis/latent_trajectory_analysis/analyze_spatial_patterns.py#L44-L45"
+    },
+
+    inter_video_diversity_std: {
+        "short_description": "Consistency of spatial variability patterns across different videos.",
+        "formula": "diversity_std = std(std(spatial_variance_per_video, dim=time))",
+        "formula_code": "video_spatial_diversity = torch.std(spatial_vars_mean_per_step, dim=1)\ninter_video_diversity_std = torch.std(video_spatial_diversity)",
+        "description": "This measures how consistently different videos exhibit spatial variability. Low values indicate all videos have similar levels of internal spatial variation; high values suggest some videos are much more spatially dynamic than others. Reveals the consistency of the generation process across different seeds.",
+        "source_url": "https://git.arts.ac.uk/acole/diffusion_latent_exploration/blob/main/src/analysis/latent_trajectory_analysis/analyze_spatial_patterns.py#L44-L45"
     },
 
     // STRUCTURAL VARIANCE METRICS

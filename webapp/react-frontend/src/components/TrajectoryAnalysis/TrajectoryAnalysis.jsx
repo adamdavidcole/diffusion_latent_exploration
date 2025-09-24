@@ -6,6 +6,7 @@ import MetricComparisonChart from '../Charts/MetricComparisonChart';
 import ScatterChart from '../Charts/ScatterChart';
 import LineChart from '../Charts/LineChart';
 import VarianceComparisonChart from '../Charts/VarianceComparisonChart';
+import VideoDiversityChart from '../Charts/VideoDiversityChart';
 import BarChartWithLabels from '../Charts/BarChartWithLabels';
 import TrajectoryChartModal from '../Charts/TrajectoryChartModal';
 import { getVariationTextFromPromptKey } from '../../utils/variationText';
@@ -939,6 +940,33 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                                     title="Variance Comparison"
                                     size={chartSize}
                                     yLabel="Variance"
+                                    currentExperiment={currentExperiment}
+                                    beginAtZero={beginAtZero}
+                                    showFullVariationText={showFullVariationText}
+                                />
+                            </div>
+                        </div>
+                        
+                        <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                            <h5>
+                                Video Diversity Metrics
+                                <TrajectoryInfoTooltip metricKey="inter_video_diversity_mean" title="Video Diversity Metrics" />
+                            </h5>
+                            <div
+                                className="clickable-chart"
+                                onClick={() => openChartModal({
+                                    mean: chartData.interVideoDiversityMean,
+                                    std: chartData.interVideoDiversityStd
+                                }, 'video_diversity_metrics', 'Video Diversity Metrics')}
+                                style={{ cursor: 'pointer' }}
+                                title="Click for detailed view"
+                            >
+                                <VideoDiversityChart
+                                    diversityMeanData={chartData.interVideoDiversityMean}
+                                    diversityStdData={chartData.interVideoDiversityStd}
+                                    title="Inter-Video Diversity"
+                                    size={chartSize}
+                                    yLabel="Diversity Value"
                                     currentExperiment={currentExperiment}
                                     beginAtZero={beginAtZero}
                                     showFullVariationText={showFullVariationText}

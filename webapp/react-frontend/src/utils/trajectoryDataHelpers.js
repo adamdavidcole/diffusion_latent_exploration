@@ -101,6 +101,19 @@ export const extractChartData = (trajectoryData, currentNormalization) => {
         return result;
     };
 
+    const extractVideoDiversityMetric = (metricKey, valueKey = 'mean') => {
+        const result = {};
+        if (data.spatial_patterns?.video_spatial_diversity) {
+            Object.keys(data.spatial_patterns.video_spatial_diversity).forEach(promptGroup => {
+                const metric = data.spatial_patterns.video_spatial_diversity[promptGroup]?.[metricKey];
+                if (metric !== undefined) {
+                    result[promptGroup] = metric[valueKey] !== undefined ? metric[valueKey] : metric;
+                }
+            });
+        }
+        return result;
+    };
+
     const extractGeometryDerivativeMetric = (metricKey) => {
         const result = {};
         if (data.geometry_derivatives) {
@@ -161,6 +174,10 @@ export const extractChartData = (trajectoryData, currentNormalization) => {
         // Spatial Progression Patterns - individual values
         progressionConsistency: extractSpatialProgressionMetric('progression_consistency'),
         progressionVariability: extractSpatialProgressionMetric('progression_variability'),
+
+        // Video Spatial Diversity Metrics
+        interVideoDiversityMean: extractVideoDiversityMetric('inter_video_diversity_mean'),
+        interVideoDiversityStd: extractVideoDiversityMetric('inter_video_diversity_std'),
 
         // Geometry Derivatives
         curvaturePeakMean: extractGeometryDerivativeMetric('curvature_peak_mean'),
