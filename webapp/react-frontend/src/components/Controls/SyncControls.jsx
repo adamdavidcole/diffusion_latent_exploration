@@ -104,6 +104,8 @@ const SyncControls = () => {
         <div className={`sync-controls ${hasVideos ? 'visible' : ''}`}>
             {/* First row: Play/Pause and Labels buttons */}
             <div className="controls-row">
+                <label>Playback:</label>
+
                 <button
                     className={`control-btn ${isPlayAllLoading ? 'loading' : ''}`}
                     onClick={handlePlayAll}
@@ -120,21 +122,14 @@ const SyncControls = () => {
                     ⏸️ Pause All
                 </button>
 
-                <button
+                {/* <button
                     className="control-btn"
                     onClick={actions.toggleLabels}
                 >
                     {state.showLabels ? '🏷️ Hide Labels' : '🏷️ Show Labels'}
-                </button>
+                </button> */}
 
-                {state.similarityAnalysis && (
-                    <button
-                        className="control-btn"
-                        onClick={actions.toggleSimilarityMetrics}
-                    >
-                        📊 Show Metrics
-                    </button>
-                )}
+
             </div>
 
             {/* Second row: Video Scrubber */}
@@ -185,14 +180,20 @@ const SyncControls = () => {
                         {state.similarityAnalysis.metrics_used?.map(metric => (
                             <option key={metric} value={metric}>
                                 {metric === 'clip' ? 'CLIP Similarity' :
-                                 metric === 'lpips' ? 'LPIPS Similarity' :
-                                 metric === 'ssim' ? 'SSIM Similarity' :
-                                 metric === 'mse' ? 'MSE Similarity' :
-                                 metric === 'phash' ? 'Perceptual Hash' :
-                                 metric.toUpperCase() + ' Similarity'}
+                                    metric === 'lpips' ? 'LPIPS Similarity' :
+                                        metric === 'ssim' ? 'SSIM Similarity' :
+                                            metric === 'mse' ? 'MSE Similarity' :
+                                                metric === 'phash' ? 'Perceptual Hash' :
+                                                    metric.toUpperCase() + ' Similarity'}
                             </option>
                         ))}
                     </select>
+                    <button
+                        className="control-btn"
+                        onClick={actions.toggleSimilarityMetrics}
+                    >
+                        📊
+                    </button>
                 </div>
             )}
         </div>

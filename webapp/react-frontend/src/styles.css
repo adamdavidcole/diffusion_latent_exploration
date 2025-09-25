@@ -120,7 +120,8 @@ body {
 .search-input {
     width: 100%;
     padding: 8px 12px;
-    padding-right: 64px; /* Increased to accommodate both buttons */
+    padding-right: 64px;
+    /* Increased to accommodate both buttons */
     background: var(--bg-tertiary);
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -140,7 +141,8 @@ body {
 
 .clear-search-btn {
     position: absolute;
-    right: 36px; /* Moved left to make room for full search button */
+    right: 36px;
+    /* Moved left to make room for full search button */
     background: none;
     border: none;
     color: var(--text-muted);
@@ -411,11 +413,13 @@ body {
 .sidebar.collapsed .search-input {
     font-size: 12px;
     padding: 6px 8px;
-    padding-right: 56px; /* Increased to accommodate both buttons */
+    padding-right: 56px;
+    /* Increased to accommodate both buttons */
 }
 
 .sidebar.collapsed .clear-search-btn {
-    right: 32px; /* Moved left to make room for full search button */
+    right: 32px;
+    /* Moved left to make room for full search button */
     font-size: 16px;
 }
 
@@ -1335,7 +1339,8 @@ p#base-prompt:hover {
 
 /* Labels for sliders */
 .scrubber-row label,
-.size-row label {
+.size-row label,
+.controls-row label {
     font-size: 0.8rem;
     color: var(--text-secondary);
     min-width: 80px;
@@ -1406,6 +1411,10 @@ p#base-prompt:hover {
     color: var(--text-secondary);
     min-width: 80px;
     opacity: 0.9;
+}
+
+.similarity-sort {
+    width: 100px;
 }
 
 .similarity-sort-select {
@@ -2060,4 +2069,5 @@ p#base-prompt:hover {
     flex-direction: column;
     gap: 1rem;
     z-index: 50;
+    width: 350px;
 }

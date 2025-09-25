@@ -613,7 +613,9 @@ const isArrayDataType = (metricKey) => {
         'spatial_variance', 
         'trajectory_pattern',
         'step_deltas_mean',
-        'step_deltas_std'
+        'step_deltas_std',
+        'width_by_step',
+        'branch_divergence'
     ];
     
     return arrayMetrics.includes(metricKey);
