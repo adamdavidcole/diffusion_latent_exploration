@@ -1,0 +1,1541 @@
+INFO - Batch setup complete. Output directory: outputs/sterotypes_20250919_210152
+INFO - Processing prompt template: [Two (queer:2.5) characters bump into each other in a coffee shop, making eye contact and smiling; playful, romantic, charming tension | Two (queer:2.5) lovers in bed gazing into each other’s eyes, soft warm lamplight; gentle touch, romantic, sensual mood, | A (queer:2.5) person weeps during a dramatic confrontation in a rainstorm, looking directly at their lover; heightened emotion, close-up | Long shot of a (queer:2.5) person with their loved one in a hospital bed; two people, emotional, dramatic, tearful moment | Tracking close-up of a (queer:2.5) hero running through a city street as an explosion erupts behind them; dynamic action, fast motion, | Medium shot of a (queer:2.5) person walking alone down a dark flickering hallway, shadows on the walls; suspenseful dread, mysterious, eerie| A (queer:2.5) person screams, blood drips down their face as they escape a killer, flickering light, gruesome and terrifying horror atmosphere | A (queer:2.5) suspect is interrogated under a single hanging light in a smoky room; tense atmosphere | A (queer:2.5) scientist in a futuristic lab gazes in awe at a glowing alien artifact; neon lights reflect across their face; wonder and tension | Close-up shot of a (queer:2.5) leader being crowned in front of a vast crowd in a grand palace hall; majestic, climactic mood ],  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Generated 10 prompt variations
+INFO - Saving original template to: outputs/sterotypes_20250919_210152/configs/prompt_template.txt
+INFO - Starting video generation: 10 variations × 3 videos = 30 total videos
+INFO - Latent storage enabled: outputs/sterotypes_20250919_210152/latents
+INFO - Storage format: numpy, compress: True, interval: 1
+INFO - Storage dtype: float16
+INFO - Attention storage enabled: outputs/sterotypes_20250919_210152/attention_maps
+INFO - Storage format: numpy, compress: True, interval: 1
+INFO - Storage dtype: float16
+INFO - Per-head: False, Per-block: False
+INFO - Found parenthetical tokens in prompts: ['queer:2.5']
+INFO - Using weighted prompts for generation
+Loading configuration from: /home/adam/dev/diffusion_latent_exploration/configs/wan_1-3b_optimized_long.yaml
+Starting batch generation with template: [Two (queer:2.5) characters bump into each other in a coffee shop, making eye contact and smiling; playful, romantic, charming tension | Two (queer:2.5) lovers in bed gazing into each other’s eyes, soft warm lamplight; gentle touch, romantic, sensual mood, | A (queer:2.5) person weeps during a dramatic confrontation in a rainstorm, looking directly at their lover; heightened emotion, close-up | Long shot of a (queer:2.5) person with their loved one in a hospital bed; two people, emotional, dramatic, tearful moment | Tracking close-up of a (queer:2.5) hero running through a city street as an explosion erupts behind them; dynamic action, fast motion, | Medium shot of a (queer:2.5) person walking alone down a dark flickering hallway, shadows on the walls; suspenseful dread, mysterious, eerie| A (queer:2.5) person screams, blood drips down their face as they escape a killer, flickering light, gruesome and terrifying horror atmosphere | A (queer:2.5) suspect is interrogated under a single hanging light in a smoky room; tense atmosphere | A (queer:2.5) scientist in a futuristic lab gazes in awe at a glowing alien artifact; neon lights reflect across their face; wonder and tension | Close-up shot of a (queer:2.5) leader being crowned in front of a vast crowd in a grand palace hall; majestic, climactic mood ],  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+Generating videos: 1/30 (3.3%) - ETA: 0:00:00 - Two (queer:2.5) characters bump into each other inINFO - Generating video 1/30: video_001
+INFO - Using seed: 999 (base: 999 + video_num: 0)
+INFO - Latent storage enabled for video ID: prompt_000_vid001
+INFO - Attention storage enabled for video ID: prompt_000_vid001
+INFO - GPU memory before loading: 47.4GB free of 47.4GB total on cuda:0
+INFO - Loading WAN model: Wan-AI/Wan2.1-T2V-1.3B-Diffusers
+INFO - Using device: cuda:0
+INFO - Loading VAE...
+INFO - Loading pipeline...
+Loading pipeline components...:   0%|          | 0/5 [00:00<?, ?it/s]
+Loading checkpoint shards:   0%|          | 0/5 [00:00<?, ?it/s][A
+Loading checkpoint shards:  20%|██        | 1/5 [00:02<00:09,  2.46s/it][A
+Loading checkpoint shards:  40%|████      | 2/5 [00:04<00:07,  2.40s/it][A
+Loading checkpoint shards:  60%|██████    | 3/5 [00:07<00:04,  2.44s/it][A
+Loading checkpoint shards:  80%|████████  | 4/5 [00:09<00:02,  2.45s/it][A
+Loading checkpoint shards: 100%|██████████| 5/5 [00:11<00:00,  2.10s/it][ALoading checkpoint shards: 100%|██████████| 5/5 [00:11<00:00,  2.25s/it]
+Loading pipeline components...:  40%|████      | 2/5 [00:11<00:16,  5.65s/it]
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s][A
+Loading checkpoint shards:  50%|█████     | 1/2 [00:02<00:02,  2.94s/it][A
+Loading checkpoint shards: 100%|██████████| 2/2 [00:03<00:00,  1.44s/it][ALoading checkpoint shards: 100%|██████████| 2/2 [00:03<00:00,  1.66s/it]
+Loading pipeline components...:  60%|██████    | 3/5 [00:14<00:09,  4.69s/it]Loading pipeline components...:  80%|████████  | 4/5 [00:14<00:03,  3.05s/it]Loading pipeline components...: 100%|██████████| 5/5 [00:14<00:00,  2.99s/it]
+INFO - Model transformer is on device: cuda:0
+INFO - Model VAE is on device: cuda:0
+INFO - PyTorch current device: 0
+INFO - GPU memory after loading: 33.7GB free, 13.7GB allocated on cuda:0
+INFO - WAN model loaded successfully
+INFO - 🎯 Using guidance_scale from config: 6.5
+INFO - Generating video: 848x480, 61 frames
+INFO - Prompt: Two (queer:2.5) characters bump into each other in a coffee shop, making eye contact and smiling; playful, romantic, charming tension,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Seed: 999
+INFO - Latent storage enabled for video: prompt_000_vid001
+INFO - Attention storage enabled for video: prompt_000_vid001
+INFO - GPU memory before generation: 33.7GB free on cuda:0
+INFO - Prompt weights detected: {'queer': 2.5}
+INFO - Original prompt: Two (queer:2.5) characters bump into each other in a coffee shop, making eye contact and smiling; playful, romantic, charming tension,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Processed prompt: Two queer characters bump into each other in a coffee shop, making eye contact and smiling; playful, romantic, charming tension,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Using WAN weighted embeddings for generation
+INFO - Captured 20 timesteps from scheduler
+INFO - Captured 21 sigmas from scheduler
+INFO - 🚫 Dynamic guidance disabled: enabled=False, schedule={}
+INFO - Starting latent storage for video: prompt_000_vid001
+INFO - Latents will be stored in: outputs/sterotypes_20250919_210152/latents/prompt_000/vid_001
+INFO - Mapped target word 'queer' -> 'queer' -> tokens [314, 326] at positions [1, 2]
+INFO - Started attention storage for video: prompt_000_vid001
+INFO - Prompt: Two queer characters bump into each other in a coffee shop, making eye contact and smiling; playful, romantic, charming tension, high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Target words specified: ['queer']
+INFO - Found 1 target tokens for attention tracking:
+INFO -   'queer' -> tokens [314, 326]
+INFO - Found transformer model for attention hooks: WanTransformer3DModel
+INFO - ✅ Successfully wrapped 30 attn2 modules with WanAttentionWrapper
+INFO - Registered attention hooks on transformer for video: prompt_000_vid001
+INFO - ✅ Created combined callback with guidance_callback=False
+INFO - 🎯 Using static guidance scale: 6.5
+INFO - Creating T5 weighted embeddings for: Two (queer:2.5) characters bump into each other in a coffee shop, making eye contact and smiling; playful, romantic, charming tension,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Full sequence length: 48, Max length: 512
+INFO - Base embeddings shape: torch.Size([1, 512, 4096])
+INFO - Token weights applied: min=1.000, max=2.500, mean=1.008
+INFO - Applying weights using method: multiply
+INFO - Embeddings shape: torch.Size([1, 512, 4096]), Weights shape: torch.Size([512])
+INFO - Final weighted embeddings shape: torch.Size([1, 512, 4096])
+INFO - Weighted embeddings stats: mean=0.000020, std=0.025513, min=-1.625000, max=1.648438
+INFO - Difference from standard: L2=9.562500, relative=0.281250 (28.12%)
+NO XFORMERS!
+ensure_cfg_for_schedule False
+  0%|          | 0/20 [00:00<?, ?it/s]  5%|▌         | 1/20 [00:22<07:11, 22.71s/it] 10%|█         | 2/20 [00:45<06:46, 22.60s/it] 15%|█▌        | 3/20 [01:09<06:40, 23.57s/it] 20%|██        | 4/20 [01:34<06:21, 23.83s/it] 25%|██▌       | 5/20 [01:57<05:54, 23.62s/it] 30%|███       | 6/20 [02:22<05:36, 24.03s/it] 35%|███▌      | 7/20 [02:43<04:58, 22.98s/it] 40%|████      | 8/20 [03:07<04:41, 23.50s/it] 45%|████▌     | 9/20 [03:32<04:24, 24.04s/it] 50%|█████     | 10/20 [03:56<04:00, 24.01s/it] 55%|█████▌    | 11/20 [04:21<03:38, 24.32s/it] 60%|██████    | 12/20 [04:46<03:15, 24.41s/it] 65%|██████▌   | 13/20 [05:14<02:58, 25.49s/it] 70%|███████   | 14/20 [05:39<02:32, 25.35s/it] 75%|███████▌  | 15/20 [06:04<02:06, 25.24s/it] 80%|████████  | 16/20 [06:29<01:40, 25.18s/it] 85%|████████▌ | 17/20 [06:54<01:15, 25.13s/it] 90%|█████████ | 18/20 [07:19<00:50, 25.11s/it] 95%|█████████▌| 19/20 [07:44<00:25, 25.01s/it]100%|██████████| 20/20 [08:09<00:00, 25.05s/it]100%|██████████| 20/20 [08:09<00:00, 24.48s/it]
+INFO - Successfully generated video using weighted embeddings
+INFO - Finished storing latents for prompt_000_vid001: 20 steps stored
+INFO - Latent storage completed: 20 steps stored
+INFO - Restored 30 original attn2 modules
+INFO - Removed attention hooks from transformer
+INFO - Finished storing attention maps for prompt_000_vid001: 20 steps stored
+INFO - Generating aggregated attention maps for prompt_000_vid001
+INFO - Stored aggregated attention map for 'queer' from 20 steps
+INFO - Attention storage completed for video: prompt_000_vid001
+INFO - Attention tokens stored: ['queer']
+INFO - Video frames type: <class 'numpy.ndarray'>
+INFO - Video frames length: 61
+INFO - First frame type: <class 'numpy.ndarray'>
+INFO - Moved all video frames to CPU for export
+INFO - Exporting video frames to: outputs/sterotypes_20250919_210152/videos/prompt_000/video_001.mp4
+INFO - Video export completed successfully
+INFO - Generating thumbnail for: outputs/sterotypes_20250919_210152/videos/prompt_000/video_001.mp4
+INFO - Thumbnail generated successfully
+INFO - GPU memory after export: 33.6GB free on device 0
+INFO - Successfully generated: outputs/sterotypes_20250919_210152/videos/prompt_000/video_001.mp4
+INFO - Attention storage: 1 tokens tracked: ['queer']
+INFO - ✅ Video file verified at outputs/sterotypes_20250919_210152/videos/prompt_000/video_001.mp4, proceeding with attention video generation
+INFO - Generating attention videos for completed video: prompt_000_vid001
+INFO - ✅ Found exact matching video for prompt_000_vid001: outputs/sterotypes_20250919_210152/videos/prompt_000/video_001.mp4
+INFO - ✅ Video path verification passed: video_001.mp4 matches prompt_000_vid001
+INFO - Processing attention video for prompt_000_vid001:queer
+INFO - Generating step-by-step attention video for prompt_000_vid001:queer
+INFO - Loading aggregated attention for prompt_000_vid001:queer
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_overlay.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_210152/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_210152/attention_videos/prompt_000/vid001/token_queer
+INFO - Final output path: outputs/sterotypes_20250919_210152/attention_videos/prompt_000/vid001/token_queer/aggregate_overlay.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_210152/attention_videos/prompt_000/vid001/token_queer/aggregate_overlay.mp4 (61 frames, 480×848)
+INFO - Loading aggregated attention for prompt_000_vid001:queer
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_attention.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_210152/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_210152/attention_videos/prompt_000/vid001/token_queer
+INFO - Final output path: outputs/sterotypes_20250919_210152/attention_videos/prompt_000/vid001/token_queer/aggregate_attention.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_210152/attention_videos/prompt_000/vid001/token_queer/aggregate_attention.mp4 (61 frames, 480×848)
+INFO - ✅ Generated attention video: aggregate_attention.mp4
+INFO - ✅ Generated attention video: aggregate_overlay.mp4
+INFO - 🎬 Attention video generation complete for prompt_000_vid001: 1/1 successful
+Generating videos: 2/30 (6.7%) - ETA: 2:06:30 - Two (queer:2.5) characters bump into each other inINFO - Generating video 2/30: video_002
+INFO - Using seed: 1000 (base: 999 + video_num: 1)
+INFO - Latent storage enabled for video ID: prompt_000_vid002
+INFO - Attention storage enabled for video ID: prompt_000_vid002
+INFO - 🎯 Using guidance_scale from config: 6.5
+INFO - Generating video: 848x480, 61 frames
+INFO - Prompt: Two (queer:2.5) characters bump into each other in a coffee shop, making eye contact and smiling; playful, romantic, charming tension,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Seed: 1000
+INFO - Latent storage enabled for video: prompt_000_vid002
+INFO - Attention storage enabled for video: prompt_000_vid002
+INFO - GPU memory before generation: 33.6GB free on cuda:0
+INFO - Prompt weights detected: {'queer': 2.5}
+INFO - Original prompt: Two (queer:2.5) characters bump into each other in a coffee shop, making eye contact and smiling; playful, romantic, charming tension,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Processed prompt: Two queer characters bump into each other in a coffee shop, making eye contact and smiling; playful, romantic, charming tension,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Using WAN weighted embeddings for generation
+INFO - Captured 20 timesteps from scheduler
+INFO - Captured 21 sigmas from scheduler
+INFO - 🚫 Dynamic guidance disabled: enabled=False, schedule={}
+INFO - Starting latent storage for video: prompt_000_vid002
+INFO - Latents will be stored in: outputs/sterotypes_20250919_210152/latents/prompt_000/vid_002
+INFO - Mapped target word 'queer' -> 'queer' -> tokens [314, 326] at positions [1, 2]
+INFO - Started attention storage for video: prompt_000_vid002
+INFO - Prompt: Two queer characters bump into each other in a coffee shop, making eye contact and smiling; playful, romantic, charming tension, high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Target words specified: ['queer']
+INFO - Found 1 target tokens for attention tracking:
+INFO -   'queer' -> tokens [314, 326]
+INFO - Found transformer model for attention hooks: WanTransformer3DModel
+INFO - ✅ Successfully wrapped 30 attn2 modules with WanAttentionWrapper
+INFO - Registered attention hooks on transformer for video: prompt_000_vid002
+INFO - ✅ Created combined callback with guidance_callback=False
+INFO - 🎯 Using static guidance scale: 6.5
+INFO - Creating T5 weighted embeddings for: Two (queer:2.5) characters bump into each other in a coffee shop, making eye contact and smiling; playful, romantic, charming tension,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Full sequence length: 48, Max length: 512
+INFO - Base embeddings shape: torch.Size([1, 512, 4096])
+INFO - Token weights applied: min=1.000, max=2.500, mean=1.008
+INFO - Applying weights using method: multiply
+INFO - Embeddings shape: torch.Size([1, 512, 4096]), Weights shape: torch.Size([512])
+INFO - Final weighted embeddings shape: torch.Size([1, 512, 4096])
+INFO - Weighted embeddings stats: mean=0.000020, std=0.025513, min=-1.625000, max=1.648438
+INFO - Difference from standard: L2=9.562500, relative=0.281250 (28.12%)
+ensure_cfg_for_schedule False
+  0%|          | 0/20 [00:00<?, ?it/s]  5%|▌         | 1/20 [00:22<07:03, 22.29s/it] 10%|█         | 2/20 [00:44<06:41, 22.30s/it] 15%|█▌        | 3/20 [01:07<06:21, 22.41s/it] 20%|██        | 4/20 [01:29<05:59, 22.48s/it] 25%|██▌       | 5/20 [01:52<05:37, 22.51s/it] 30%|███       | 6/20 [02:14<05:15, 22.52s/it] 35%|███▌      | 7/20 [02:34<04:41, 21.65s/it] 40%|████      | 8/20 [03:00<04:36, 23.04s/it] 45%|████▌     | 9/20 [03:26<04:24, 24.00s/it] 50%|█████     | 10/20 [03:52<04:05, 24.57s/it] 55%|█████▌    | 11/20 [04:20<03:50, 25.57s/it] 60%|██████    | 12/20 [04:44<03:21, 25.23s/it] 65%|██████▌   | 13/20 [05:10<02:56, 25.18s/it] 70%|███████   | 14/20 [05:37<02:34, 25.78s/it] 75%|███████▌  | 15/20 [06:01<02:07, 25.40s/it] 80%|████████  | 16/20 [06:25<01:40, 25.06s/it] 85%|████████▌ | 17/20 [06:50<01:15, 25.02s/it] 90%|█████████ | 18/20 [07:16<00:50, 25.08s/it] 95%|█████████▌| 19/20 [07:42<00:25, 25.48s/it]100%|██████████| 20/20 [08:07<00:00, 25.41s/it]100%|██████████| 20/20 [08:07<00:00, 24.39s/it]
+INFO - Successfully generated video using weighted embeddings
+INFO - Finished storing latents for prompt_000_vid002: 20 steps stored
+INFO - Latent storage completed: 20 steps stored
+INFO - Restored 30 original attn2 modules
+INFO - Removed attention hooks from transformer
+INFO - Finished storing attention maps for prompt_000_vid002: 20 steps stored
+INFO - Generating aggregated attention maps for prompt_000_vid002
+INFO - Stored aggregated attention map for 'queer' from 20 steps
+INFO - Attention storage completed for video: prompt_000_vid002
+INFO - Attention tokens stored: ['queer']
+INFO - Video frames type: <class 'numpy.ndarray'>
+INFO - Video frames length: 61
+INFO - First frame type: <class 'numpy.ndarray'>
+INFO - Moved all video frames to CPU for export
+INFO - Exporting video frames to: outputs/sterotypes_20250919_210152/videos/prompt_000/video_002.mp4
+INFO - Video export completed successfully
+INFO - Generating thumbnail for: outputs/sterotypes_20250919_210152/videos/prompt_000/video_002.mp4
+INFO - Thumbnail generated successfully
+INFO - GPU memory after export: 33.6GB free on device 0
+INFO - Successfully generated: outputs/sterotypes_20250919_210152/videos/prompt_000/video_002.mp4
+INFO - Attention storage: 1 tokens tracked: ['queer']
+INFO - ✅ Video file verified at outputs/sterotypes_20250919_210152/videos/prompt_000/video_002.mp4, proceeding with attention video generation
+INFO - Generating attention videos for completed video: prompt_000_vid002
+INFO - ✅ Found exact matching video for prompt_000_vid002: outputs/sterotypes_20250919_210152/videos/prompt_000/video_002.mp4
+INFO - ✅ Video path verification passed: video_002.mp4 matches prompt_000_vid002
+INFO - Processing attention video for prompt_000_vid002:queer
+INFO - Generating step-by-step attention video for prompt_000_vid002:queer
+INFO - Loading aggregated attention for prompt_000_vid002:queer
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_overlay.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_210152/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_210152/attention_videos/prompt_000/vid002/token_queer
+INFO - Final output path: outputs/sterotypes_20250919_210152/attention_videos/prompt_000/vid002/token_queer/aggregate_overlay.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_210152/attention_videos/prompt_000/vid002/token_queer/aggregate_overlay.mp4 (61 frames, 480×848)
+INFO - Loading aggregated attention for prompt_000_vid002:queer
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_attention.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_210152/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_210152/attention_videos/prompt_000/vid002/token_queer
+INFO - Final output path: outputs/sterotypes_20250919_210152/attention_videos/prompt_000/vid002/token_queer/aggregate_attention.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_210152/attention_videos/prompt_000/vid002/token_queer/aggregate_attention.mp4 (61 frames, 480×848)
+INFO - ✅ Generated attention video: aggregate_attention.mp4
+INFO - ✅ Generated attention video: aggregate_overlay.mp4
+INFO - 🎬 Attention video generation complete for prompt_000_vid002: 1/1 successful
+Generating videos: 3/30 (10.0%) - ETA: 2:36:55 - Two (queer:2.5) characters bump into each other inINFO - Generating video 3/30: video_003
+INFO - Using seed: 1001 (base: 999 + video_num: 2)
+INFO - Latent storage enabled for video ID: prompt_000_vid003
+INFO - Attention storage enabled for video ID: prompt_000_vid003
+INFO - 🎯 Using guidance_scale from config: 6.5
+INFO - Generating video: 848x480, 61 frames
+INFO - Prompt: Two (queer:2.5) characters bump into each other in a coffee shop, making eye contact and smiling; playful, romantic, charming tension,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Seed: 1001
+INFO - Latent storage enabled for video: prompt_000_vid003
+INFO - Attention storage enabled for video: prompt_000_vid003
+INFO - GPU memory before generation: 33.6GB free on cuda:0
+INFO - Prompt weights detected: {'queer': 2.5}
+INFO - Original prompt: Two (queer:2.5) characters bump into each other in a coffee shop, making eye contact and smiling; playful, romantic, charming tension,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Processed prompt: Two queer characters bump into each other in a coffee shop, making eye contact and smiling; playful, romantic, charming tension,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Using WAN weighted embeddings for generation
+INFO - Captured 20 timesteps from scheduler
+INFO - Captured 21 sigmas from scheduler
+INFO - 🚫 Dynamic guidance disabled: enabled=False, schedule={}
+INFO - Starting latent storage for video: prompt_000_vid003
+INFO - Latents will be stored in: outputs/sterotypes_20250919_210152/latents/prompt_000/vid_003
+INFO - Mapped target word 'queer' -> 'queer' -> tokens [314, 326] at positions [1, 2]
+INFO - Started attention storage for video: prompt_000_vid003
+INFO - Prompt: Two queer characters bump into each other in a coffee shop, making eye contact and smiling; playful, romantic, charming tension, high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Target words specified: ['queer']
+INFO - Found 1 target tokens for attention tracking:
+INFO -   'queer' -> tokens [314, 326]
+INFO - Found transformer model for attention hooks: WanTransformer3DModel
+INFO - ✅ Successfully wrapped 30 attn2 modules with WanAttentionWrapper
+INFO - Registered attention hooks on transformer for video: prompt_000_vid003
+INFO - ✅ Created combined callback with guidance_callback=False
+INFO - 🎯 Using static guidance scale: 6.5
+INFO - Creating T5 weighted embeddings for: Two (queer:2.5) characters bump into each other in a coffee shop, making eye contact and smiling; playful, romantic, charming tension,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Full sequence length: 48, Max length: 512
+INFO - Base embeddings shape: torch.Size([1, 512, 4096])
+INFO - Token weights applied: min=1.000, max=2.500, mean=1.008
+INFO - Applying weights using method: multiply
+INFO - Embeddings shape: torch.Size([1, 512, 4096]), Weights shape: torch.Size([512])
+INFO - Final weighted embeddings shape: torch.Size([1, 512, 4096])
+INFO - Weighted embeddings stats: mean=0.000020, std=0.025513, min=-1.625000, max=1.648438
+INFO - Difference from standard: L2=9.562500, relative=0.281250 (28.12%)
+ensure_cfg_for_schedule False
+  0%|          | 0/20 [00:00<?, ?it/s]  5%|▌         | 1/20 [00:22<07:08, 22.57s/it] 10%|█         | 2/20 [00:45<06:51, 22.89s/it] 15%|█▌        | 3/20 [01:10<06:40, 23.55s/it] 20%|██        | 4/20 [01:32<06:09, 23.07s/it] 25%|██▌       | 5/20 [01:54<05:41, 22.76s/it] 30%|███       | 6/20 [02:17<05:17, 22.69s/it] 35%|███▌      | 7/20 [02:40<04:56, 22.79s/it] 40%|████      | 8/20 [03:02<04:33, 22.79s/it] 45%|████▌     | 9/20 [03:25<04:10, 22.78s/it] 50%|█████     | 10/20 [03:48<03:48, 22.86s/it] 55%|█████▌    | 11/20 [04:11<03:26, 22.94s/it] 60%|██████    | 12/20 [04:34<03:03, 22.93s/it] 65%|██████▌   | 13/20 [04:56<02:38, 22.66s/it] 70%|███████   | 14/20 [05:20<02:18, 23.06s/it] 75%|███████▌  | 15/20 [05:43<01:54, 22.84s/it] 80%|████████  | 16/20 [06:05<01:30, 22.71s/it] 85%|████████▌ | 17/20 [06:27<01:07, 22.63s/it] 90%|█████████ | 18/20 [06:51<00:45, 22.83s/it] 95%|█████████▌| 19/20 [07:13<00:22, 22.74s/it]100%|██████████| 20/20 [07:36<00:00, 22.67s/it]100%|██████████| 20/20 [07:36<00:00, 22.81s/it]
+INFO - Successfully generated video using weighted embeddings
+INFO - Finished storing latents for prompt_000_vid003: 20 steps stored
+INFO - Latent storage completed: 20 steps stored
+INFO - Restored 30 original attn2 modules
+INFO - Removed attention hooks from transformer
+INFO - Finished storing attention maps for prompt_000_vid003: 20 steps stored
+INFO - Generating aggregated attention maps for prompt_000_vid003
+INFO - Stored aggregated attention map for 'queer' from 20 steps
+INFO - Attention storage completed for video: prompt_000_vid003
+INFO - Attention tokens stored: ['queer']
+INFO - Video frames type: <class 'numpy.ndarray'>
+INFO - Video frames length: 61
+INFO - First frame type: <class 'numpy.ndarray'>
+INFO - Moved all video frames to CPU for export
+INFO - Exporting video frames to: outputs/sterotypes_20250919_210152/videos/prompt_000/video_003.mp4
+INFO - Video export completed successfully
+INFO - Generating thumbnail for: outputs/sterotypes_20250919_210152/videos/prompt_000/video_003.mp4
+INFO - Thumbnail generated successfully
+INFO - GPU memory after export: 33.6GB free on device 0
+INFO - Successfully generated: outputs/sterotypes_20250919_210152/videos/prompt_000/video_003.mp4
+INFO - Attention storage: 1 tokens tracked: ['queer']
+INFO - ✅ Video file verified at outputs/sterotypes_20250919_210152/videos/prompt_000/video_003.mp4, proceeding with attention video generation
+INFO - Generating attention videos for completed video: prompt_000_vid003
+INFO - ✅ Found exact matching video for prompt_000_vid003: outputs/sterotypes_20250919_210152/videos/prompt_000/video_003.mp4
+INFO - ✅ Video path verification passed: video_003.mp4 matches prompt_000_vid003
+INFO - Processing attention video for prompt_000_vid003:queer
+INFO - Generating step-by-step attention video for prompt_000_vid003:queer
+INFO - Loading aggregated attention for prompt_000_vid003:queer
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_overlay.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_210152/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_210152/attention_videos/prompt_000/vid003/token_queer
+INFO - Final output path: outputs/sterotypes_20250919_210152/attention_videos/prompt_000/vid003/token_queer/aggregate_overlay.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_210152/attention_videos/prompt_000/vid003/token_queer/aggregate_overlay.mp4 (61 frames, 480×848)
+INFO - Loading aggregated attention for prompt_000_vid003:queer
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_attention.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_210152/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_210152/attention_videos/prompt_000/vid003/token_queer
+INFO - Final output path: outputs/sterotypes_20250919_210152/attention_videos/prompt_000/vid003/token_queer/aggregate_attention.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_210152/attention_videos/prompt_000/vid003/token_queer/aggregate_attention.mp4 (61 frames, 480×848)
+INFO - ✅ Generated attention video: aggregate_attention.mp4
+INFO - ✅ Generated attention video: aggregate_overlay.mp4
+INFO - 🎬 Attention video generation complete for prompt_000_vid003: 1/1 successful
+Generating videos: 4/30 (13.3%) - ETA: 2:44:40 - Two (queer:2.5) lovers in bed gazing into each othINFO - Generating video 4/30: video_001
+INFO - Using seed: 999 (base: 999 + video_num: 0)
+INFO - Latent storage enabled for video ID: prompt_001_vid001
+INFO - Attention storage enabled for video ID: prompt_001_vid001
+INFO - 🎯 Using guidance_scale from config: 6.5
+INFO - Generating video: 848x480, 61 frames
+INFO - Prompt: Two (queer:2.5) lovers in bed gazing into each other’s eyes, soft warm lamplight; gentle touch, romantic, sensual mood,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Seed: 999
+INFO - Latent storage enabled for video: prompt_001_vid001
+INFO - Attention storage enabled for video: prompt_001_vid001
+INFO - GPU memory before generation: 33.6GB free on cuda:0
+INFO - Prompt weights detected: {'queer': 2.5}
+INFO - Original prompt: Two (queer:2.5) lovers in bed gazing into each other’s eyes, soft warm lamplight; gentle touch, romantic, sensual mood,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Processed prompt: Two queer lovers in bed gazing into each other’s eyes, soft warm lamplight; gentle touch, romantic, sensual mood,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Using WAN weighted embeddings for generation
+INFO - Captured 20 timesteps from scheduler
+INFO - Captured 21 sigmas from scheduler
+INFO - 🚫 Dynamic guidance disabled: enabled=False, schedule={}
+INFO - Starting latent storage for video: prompt_001_vid001
+INFO - Latents will be stored in: outputs/sterotypes_20250919_210152/latents/prompt_001/vid_001
+INFO - Mapped target word 'queer' -> 'queer' -> tokens [314, 326, 273] at positions [1, 2, 3]
+INFO - Started attention storage for video: prompt_001_vid001
+INFO - Prompt: Two queer lovers in bed gazing into each other’s eyes, soft warm lamplight; gentle touch, romantic, sensual mood,, high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Target words specified: ['queer']
+INFO - Found 1 target tokens for attention tracking:
+INFO -   'queer' -> tokens [314, 326, 273]
+INFO - Found transformer model for attention hooks: WanTransformer3DModel
+INFO - ✅ Successfully wrapped 30 attn2 modules with WanAttentionWrapper
+INFO - Registered attention hooks on transformer for video: prompt_001_vid001
+INFO - ✅ Created combined callback with guidance_callback=False
+INFO - 🎯 Using static guidance scale: 6.5
+INFO - Creating T5 weighted embeddings for: Two (queer:2.5) lovers in bed gazing into each other’s eyes, soft warm lamplight; gentle touch, romantic, sensual mood,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Full sequence length: 50, Max length: 512
+INFO - Base embeddings shape: torch.Size([1, 512, 4096])
+INFO - Token weights applied: min=1.000, max=2.500, mean=1.008
+INFO - Applying weights using method: multiply
+INFO - Embeddings shape: torch.Size([1, 512, 4096]), Weights shape: torch.Size([512])
+INFO - Final weighted embeddings shape: torch.Size([1, 512, 4096])
+INFO - Weighted embeddings stats: mean=0.000001, std=0.025635, min=-1.656250, max=1.078125
+INFO - Difference from standard: L2=12.500000, relative=0.367647 (36.76%)
+ensure_cfg_for_schedule False
+  0%|          | 0/20 [00:00<?, ?it/s]  5%|▌         | 1/20 [00:23<07:30, 23.72s/it] 10%|█         | 2/20 [00:46<06:53, 22.95s/it] 15%|█▌        | 3/20 [01:08<06:27, 22.78s/it] 20%|██        | 4/20 [01:31<06:06, 22.91s/it] 25%|██▌       | 5/20 [01:54<05:44, 22.95s/it] 30%|███       | 6/20 [02:17<05:18, 22.78s/it] 35%|███▌      | 7/20 [02:41<05:00, 23.15s/it] 40%|████      | 8/20 [03:03<04:35, 22.93s/it] 45%|████▌     | 9/20 [03:26<04:11, 22.87s/it] 50%|█████     | 10/20 [03:48<03:47, 22.78s/it] 55%|█████▌    | 11/20 [04:11<03:24, 22.68s/it] 60%|██████    | 12/20 [04:34<03:01, 22.74s/it] 65%|██████▌   | 13/20 [04:57<02:39, 22.74s/it] 70%|███████   | 14/20 [05:20<02:16, 22.81s/it] 75%|███████▌  | 15/20 [05:42<01:53, 22.70s/it] 80%|████████  | 16/20 [06:05<01:30, 22.70s/it] 85%|████████▌ | 17/20 [06:27<01:07, 22.63s/it] 90%|█████████ | 18/20 [06:49<00:45, 22.54s/it] 95%|█████████▌| 19/20 [07:12<00:22, 22.59s/it]100%|██████████| 20/20 [07:34<00:00, 22.50s/it]100%|██████████| 20/20 [07:34<00:00, 22.75s/it]
+INFO - Successfully generated video using weighted embeddings
+INFO - Finished storing latents for prompt_001_vid001: 20 steps stored
+INFO - Latent storage completed: 20 steps stored
+INFO - Restored 30 original attn2 modules
+INFO - Removed attention hooks from transformer
+INFO - Finished storing attention maps for prompt_001_vid001: 20 steps stored
+INFO - Generating aggregated attention maps for prompt_001_vid001
+INFO - Stored aggregated attention map for 'queer' from 20 steps
+INFO - Attention storage completed for video: prompt_001_vid001
+INFO - Attention tokens stored: ['queer']
+INFO - Video frames type: <class 'numpy.ndarray'>
+INFO - Video frames length: 61
+INFO - First frame type: <class 'numpy.ndarray'>
+INFO - Moved all video frames to CPU for export
+INFO - Exporting video frames to: outputs/sterotypes_20250919_210152/videos/prompt_001/video_001.mp4
+INFO - Video export completed successfully
+INFO - Generating thumbnail for: outputs/sterotypes_20250919_210152/videos/prompt_001/video_001.mp4
+INFO - Thumbnail generated successfully
+INFO - GPU memory after export: 33.6GB free on device 0
+INFO - Successfully generated: outputs/sterotypes_20250919_210152/videos/prompt_001/video_001.mp4
+INFO - Attention storage: 1 tokens tracked: ['queer']
+INFO - ✅ Video file verified at outputs/sterotypes_20250919_210152/videos/prompt_001/video_001.mp4, proceeding with attention video generation
+INFO - Generating attention videos for completed video: prompt_001_vid001
+INFO - ✅ Found exact matching video for prompt_001_vid001: outputs/sterotypes_20250919_210152/videos/prompt_001/video_001.mp4
+INFO - ✅ Video path verification passed: video_001.mp4 matches prompt_001_vid001
+INFO - Processing attention video for prompt_001_vid001:queer
+INFO - Generating step-by-step attention video for prompt_001_vid001:queer
+INFO - Loading aggregated attention for prompt_001_vid001:queer
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_overlay.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_210152/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_210152/attention_videos/prompt_001/vid001/token_queer
+INFO - Final output path: outputs/sterotypes_20250919_210152/attention_videos/prompt_001/vid001/token_queer/aggregate_overlay.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_210152/attention_videos/prompt_001/vid001/token_queer/aggregate_overlay.mp4 (61 frames, 480×848)
+INFO - Loading aggregated attention for prompt_001_vid001:queer
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_attention.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_210152/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_210152/attention_videos/prompt_001/vid001/token_queer
+INFO - Final output path: outputs/sterotypes_20250919_210152/attention_videos/prompt_001/vid001/token_queer/aggregate_attention.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_210152/attention_videos/prompt_001/vid001/token_queer/aggregate_attention.mp4 (61 frames, 480×848)
+INFO - ✅ Generated attention video: aggregate_attention.mp4
+INFO - ✅ Generated attention video: aggregate_overlay.mp4
+INFO - 🎬 Attention video generation complete for prompt_001_vid001: 1/1 successful
+Generating videos: 5/30 (16.7%) - ETA: 2:46:04 - Two (queer:2.5) lovers in bed gazing into each othINFO - Generating video 5/30: video_002
+INFO - Using seed: 1000 (base: 999 + video_num: 1)
+INFO - Latent storage enabled for video ID: prompt_001_vid002
+INFO - Attention storage enabled for video ID: prompt_001_vid002
+INFO - 🎯 Using guidance_scale from config: 6.5
+INFO - Generating video: 848x480, 61 frames
+INFO - Prompt: Two (queer:2.5) lovers in bed gazing into each other’s eyes, soft warm lamplight; gentle touch, romantic, sensual mood,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Seed: 1000
+INFO - Latent storage enabled for video: prompt_001_vid002
+INFO - Attention storage enabled for video: prompt_001_vid002
+INFO - GPU memory before generation: 33.6GB free on cuda:0
+INFO - Prompt weights detected: {'queer': 2.5}
+INFO - Original prompt: Two (queer:2.5) lovers in bed gazing into each other’s eyes, soft warm lamplight; gentle touch, romantic, sensual mood,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Processed prompt: Two queer lovers in bed gazing into each other’s eyes, soft warm lamplight; gentle touch, romantic, sensual mood,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Using WAN weighted embeddings for generation
+INFO - Captured 20 timesteps from scheduler
+INFO - Captured 21 sigmas from scheduler
+INFO - 🚫 Dynamic guidance disabled: enabled=False, schedule={}
+INFO - Starting latent storage for video: prompt_001_vid002
+INFO - Latents will be stored in: outputs/sterotypes_20250919_210152/latents/prompt_001/vid_002
+INFO - Mapped target word 'queer' -> 'queer' -> tokens [314, 326, 273] at positions [1, 2, 3]
+INFO - Started attention storage for video: prompt_001_vid002
+INFO - Prompt: Two queer lovers in bed gazing into each other’s eyes, soft warm lamplight; gentle touch, romantic, sensual mood,, high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Target words specified: ['queer']
+INFO - Found 1 target tokens for attention tracking:
+INFO -   'queer' -> tokens [314, 326, 273]
+INFO - Found transformer model for attention hooks: WanTransformer3DModel
+INFO - ✅ Successfully wrapped 30 attn2 modules with WanAttentionWrapper
+INFO - Registered attention hooks on transformer for video: prompt_001_vid002
+INFO - ✅ Created combined callback with guidance_callback=False
+INFO - 🎯 Using static guidance scale: 6.5
+INFO - Creating T5 weighted embeddings for: Two (queer:2.5) lovers in bed gazing into each other’s eyes, soft warm lamplight; gentle touch, romantic, sensual mood,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Full sequence length: 50, Max length: 512
+INFO - Base embeddings shape: torch.Size([1, 512, 4096])
+INFO - Token weights applied: min=1.000, max=2.500, mean=1.008
+INFO - Applying weights using method: multiply
+INFO - Embeddings shape: torch.Size([1, 512, 4096]), Weights shape: torch.Size([512])
+INFO - Final weighted embeddings shape: torch.Size([1, 512, 4096])
+INFO - Weighted embeddings stats: mean=0.000001, std=0.025635, min=-1.656250, max=1.078125
+INFO - Difference from standard: L2=12.500000, relative=0.367647 (36.76%)
+ensure_cfg_for_schedule False
+  0%|          | 0/20 [00:00<?, ?it/s]  5%|▌         | 1/20 [00:23<07:22, 23.31s/it] 10%|█         | 2/20 [00:45<06:50, 22.82s/it] 15%|█▌        | 3/20 [01:10<06:44, 23.77s/it] 20%|██        | 4/20 [01:34<06:19, 23.71s/it] 25%|██▌       | 5/20 [01:56<05:48, 23.23s/it] 30%|███       | 6/20 [02:20<05:29, 23.53s/it] 35%|███▌      | 7/20 [02:46<05:15, 24.27s/it] 40%|████      | 8/20 [03:07<04:38, 23.21s/it] 45%|████▌     | 9/20 [03:30<04:12, 22.98s/it] 50%|█████     | 10/20 [03:52<03:48, 22.83s/it] 55%|█████▌    | 11/20 [04:14<03:24, 22.72s/it] 60%|██████    | 12/20 [04:37<03:01, 22.63s/it] 65%|██████▌   | 13/20 [04:59<02:37, 22.57s/it] 70%|███████   | 14/20 [05:22<02:14, 22.47s/it] 75%|███████▌  | 15/20 [05:44<01:51, 22.38s/it] 80%|████████  | 16/20 [06:06<01:29, 22.39s/it] 85%|████████▌ | 17/20 [06:28<01:06, 22.31s/it] 90%|█████████ | 18/20 [06:51<00:44, 22.37s/it] 95%|█████████▌| 19/20 [07:13<00:22, 22.39s/it]100%|██████████| 20/20 [07:35<00:00, 22.36s/it]100%|██████████| 20/20 [07:35<00:00, 22.80s/it]
+INFO - Successfully generated video using weighted embeddings
+INFO - Finished storing latents for prompt_001_vid002: 20 steps stored
+INFO - Latent storage completed: 20 steps stored
+INFO - Restored 30 original attn2 modules
+INFO - Removed attention hooks from transformer
+INFO - Finished storing attention maps for prompt_001_vid002: 20 steps stored
+INFO - Generating aggregated attention maps for prompt_001_vid002
+INFO - Stored aggregated attention map for 'queer' from 20 steps
+INFO - Attention storage completed for video: prompt_001_vid002
+INFO - Attention tokens stored: ['queer']
+INFO - Video frames type: <class 'numpy.ndarray'>
+INFO - Video frames length: 61
+INFO - First frame type: <class 'numpy.ndarray'>
+INFO - Moved all video frames to CPU for export
+INFO - Exporting video frames to: outputs/sterotypes_20250919_210152/videos/prompt_001/video_002.mp4
+INFO - Video export completed successfully
+INFO - Generating thumbnail for: outputs/sterotypes_20250919_210152/videos/prompt_001/video_002.mp4
+INFO - Thumbnail generated successfully
+INFO - GPU memory after export: 33.6GB free on device 0
+INFO - Successfully generated: outputs/sterotypes_20250919_210152/videos/prompt_001/video_002.mp4
+INFO - Attention storage: 1 tokens tracked: ['queer']
+INFO - ✅ Video file verified at outputs/sterotypes_20250919_210152/videos/prompt_001/video_002.mp4, proceeding with attention video generation
+INFO - Generating attention videos for completed video: prompt_001_vid002
+INFO - ✅ Found exact matching video for prompt_001_vid002: outputs/sterotypes_20250919_210152/videos/prompt_001/video_002.mp4
+INFO - ✅ Video path verification passed: video_002.mp4 matches prompt_001_vid002
+INFO - Processing attention video for prompt_001_vid002:queer
+INFO - Generating step-by-step attention video for prompt_001_vid002:queer
+INFO - Loading aggregated attention for prompt_001_vid002:queer
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_overlay.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_210152/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_210152/attention_videos/prompt_001/vid002/token_queer
+INFO - Final output path: outputs/sterotypes_20250919_210152/attention_videos/prompt_001/vid002/token_queer/aggregate_overlay.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_210152/attention_videos/prompt_001/vid002/token_queer/aggregate_overlay.mp4 (61 frames, 480×848)
+INFO - Loading aggregated attention for prompt_001_vid002:queer
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_attention.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_210152/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_210152/attention_videos/prompt_001/vid002/token_queer
+INFO - Final output path: outputs/sterotypes_20250919_210152/attention_videos/prompt_001/vid002/token_queer/aggregate_attention.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_210152/attention_videos/prompt_001/vid002/token_queer/aggregate_attention.mp4 (61 frames, 480×848)
+INFO - ✅ Generated attention video: aggregate_attention.mp4
+INFO - ✅ Generated attention video: aggregate_overlay.mp4
+INFO - 🎬 Attention video generation complete for prompt_001_vid002: 1/1 successful
+Generating videos: 6/30 (20.0%) - ETA: 2:44:26 - Two (queer:2.5) lovers in bed gazing into each othINFO - Generating video 6/30: video_003
+INFO - Using seed: 1001 (base: 999 + video_num: 2)
+INFO - Latent storage enabled for video ID: prompt_001_vid003
+INFO - Attention storage enabled for video ID: prompt_001_vid003
+INFO - 🎯 Using guidance_scale from config: 6.5
+INFO - Generating video: 848x480, 61 frames
+INFO - Prompt: Two (queer:2.5) lovers in bed gazing into each other’s eyes, soft warm lamplight; gentle touch, romantic, sensual mood,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Seed: 1001
+INFO - Latent storage enabled for video: prompt_001_vid003
+INFO - Attention storage enabled for video: prompt_001_vid003
+INFO - GPU memory before generation: 33.6GB free on cuda:0
+INFO - Prompt weights detected: {'queer': 2.5}
+INFO - Original prompt: Two (queer:2.5) lovers in bed gazing into each other’s eyes, soft warm lamplight; gentle touch, romantic, sensual mood,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Processed prompt: Two queer lovers in bed gazing into each other’s eyes, soft warm lamplight; gentle touch, romantic, sensual mood,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Using WAN weighted embeddings for generation
+INFO - Captured 20 timesteps from scheduler
+INFO - Captured 21 sigmas from scheduler
+INFO - 🚫 Dynamic guidance disabled: enabled=False, schedule={}
+INFO - Starting latent storage for video: prompt_001_vid003
+INFO - Latents will be stored in: outputs/sterotypes_20250919_210152/latents/prompt_001/vid_003
+INFO - Mapped target word 'queer' -> 'queer' -> tokens [314, 326, 273] at positions [1, 2, 3]
+INFO - Started attention storage for video: prompt_001_vid003
+INFO - Prompt: Two queer lovers in bed gazing into each other’s eyes, soft warm lamplight; gentle touch, romantic, sensual mood,, high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Target words specified: ['queer']
+INFO - Found 1 target tokens for attention tracking:
+INFO -   'queer' -> tokens [314, 326, 273]
+INFO - Found transformer model for attention hooks: WanTransformer3DModel
+INFO - ✅ Successfully wrapped 30 attn2 modules with WanAttentionWrapper
+INFO - Registered attention hooks on transformer for video: prompt_001_vid003
+INFO - ✅ Created combined callback with guidance_callback=False
+INFO - 🎯 Using static guidance scale: 6.5
+INFO - Creating T5 weighted embeddings for: Two (queer:2.5) lovers in bed gazing into each other’s eyes, soft warm lamplight; gentle touch, romantic, sensual mood,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Full sequence length: 50, Max length: 512
+INFO - Base embeddings shape: torch.Size([1, 512, 4096])
+INFO - Token weights applied: min=1.000, max=2.500, mean=1.008
+INFO - Applying weights using method: multiply
+INFO - Embeddings shape: torch.Size([1, 512, 4096]), Weights shape: torch.Size([512])
+INFO - Final weighted embeddings shape: torch.Size([1, 512, 4096])
+INFO - Weighted embeddings stats: mean=0.000001, std=0.025635, min=-1.656250, max=1.078125
+INFO - Difference from standard: L2=12.500000, relative=0.367647 (36.76%)
+ensure_cfg_for_schedule False
+  0%|          | 0/20 [00:00<?, ?it/s]  5%|▌         | 1/20 [00:22<07:02, 22.24s/it] 10%|█         | 2/20 [00:44<06:44, 22.50s/it] 15%|█▌        | 3/20 [01:07<06:25, 22.65s/it] 20%|██        | 4/20 [01:30<06:01, 22.60s/it] 25%|██▌       | 5/20 [01:52<05:39, 22.62s/it] 30%|███       | 6/20 [02:15<05:15, 22.57s/it] 35%|███▌      | 7/20 [02:39<05:01, 23.18s/it] 40%|████      | 8/20 [03:01<04:30, 22.54s/it] 45%|████▌     | 9/20 [03:23<04:06, 22.42s/it] 50%|█████     | 10/20 [03:45<03:43, 22.38s/it] 55%|█████▌    | 11/20 [04:07<03:21, 22.42s/it] 60%|██████    | 12/20 [04:30<02:59, 22.42s/it] 65%|██████▌   | 13/20 [04:52<02:36, 22.42s/it] 70%|███████   | 14/20 [05:15<02:14, 22.45s/it] 75%|███████▌  | 15/20 [05:37<01:52, 22.42s/it] 80%|████████  | 16/20 [06:00<01:29, 22.44s/it] 85%|████████▌ | 17/20 [06:22<01:07, 22.45s/it] 90%|█████████ | 18/20 [06:44<00:44, 22.43s/it] 95%|█████████▌| 19/20 [07:07<00:22, 22.45s/it]100%|██████████| 20/20 [07:29<00:00, 22.46s/it]100%|██████████| 20/20 [07:29<00:00, 22.50s/it]
+INFO - Successfully generated video using weighted embeddings
+INFO - Finished storing latents for prompt_001_vid003: 20 steps stored
+INFO - Latent storage completed: 20 steps stored
+INFO - Restored 30 original attn2 modules
+INFO - Removed attention hooks from transformer
+INFO - Finished storing attention maps for prompt_001_vid003: 20 steps stored
+INFO - Generating aggregated attention maps for prompt_001_vid003
+INFO - Stored aggregated attention map for 'queer' from 20 steps
+INFO - Attention storage completed for video: prompt_001_vid003
+INFO - Attention tokens stored: ['queer']
+INFO - Video frames type: <class 'numpy.ndarray'>
+INFO - Video frames length: 61
+INFO - First frame type: <class 'numpy.ndarray'>
+INFO - Moved all video frames to CPU for export
+INFO - Exporting video frames to: outputs/sterotypes_20250919_210152/videos/prompt_001/video_003.mp4
+INFO - Video export completed successfully
+INFO - Generating thumbnail for: outputs/sterotypes_20250919_210152/videos/prompt_001/video_003.mp4
+INFO - Thumbnail generated successfully
+INFO - GPU memory after export: 33.6GB free on device 0
+INFO - Successfully generated: outputs/sterotypes_20250919_210152/videos/prompt_001/video_003.mp4
+INFO - Attention storage: 1 tokens tracked: ['queer']
+INFO - ✅ Video file verified at outputs/sterotypes_20250919_210152/videos/prompt_001/video_003.mp4, proceeding with attention video generation
+INFO - Generating attention videos for completed video: prompt_001_vid003
+INFO - ✅ Found exact matching video for prompt_001_vid003: outputs/sterotypes_20250919_210152/videos/prompt_001/video_003.mp4
+INFO - ✅ Video path verification passed: video_003.mp4 matches prompt_001_vid003
+INFO - Processing attention video for prompt_001_vid003:queer
+INFO - Generating step-by-step attention video for prompt_001_vid003:queer
+INFO - Loading aggregated attention for prompt_001_vid003:queer
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_overlay.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_210152/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_210152/attention_videos/prompt_001/vid003/token_queer
+INFO - Final output path: outputs/sterotypes_20250919_210152/attention_videos/prompt_001/vid003/token_queer/aggregate_overlay.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_210152/attention_videos/prompt_001/vid003/token_queer/aggregate_overlay.mp4 (61 frames, 480×848)
+INFO - Loading aggregated attention for prompt_001_vid003:queer
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_attention.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_210152/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_210152/attention_videos/prompt_001/vid003/token_queer
+INFO - Final output path: outputs/sterotypes_20250919_210152/attention_videos/prompt_001/vid003/token_queer/aggregate_attention.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_210152/attention_videos/prompt_001/vid003/token_queer/aggregate_attention.mp4 (61 frames, 480×848)
+INFO - ✅ Generated attention video: aggregate_attention.mp4
+INFO - ✅ Generated attention video: aggregate_overlay.mp4
+INFO - 🎬 Attention video generation complete for prompt_001_vid003: 1/1 successful
+Generating videos: 7/30 (23.3%) - ETA: 2:40:41 - A (queer:2.5) person weeps during a dramatic confrINFO - Generating video 7/30: video_001
+INFO - Using seed: 999 (base: 999 + video_num: 0)
+INFO - Latent storage enabled for video ID: prompt_002_vid001
+INFO - Attention storage enabled for video ID: prompt_002_vid001
+INFO - 🎯 Using guidance_scale from config: 6.5
+INFO - Generating video: 848x480, 61 frames
+INFO - Prompt: A (queer:2.5) person weeps during a dramatic confrontation in a rainstorm, looking directly at their lover; heightened emotion, close-up,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Seed: 999
+INFO - Latent storage enabled for video: prompt_002_vid001
+INFO - Attention storage enabled for video: prompt_002_vid001
+INFO - GPU memory before generation: 33.6GB free on cuda:0
+INFO - Prompt weights detected: {'queer': 2.5}
+INFO - Original prompt: A (queer:2.5) person weeps during a dramatic confrontation in a rainstorm, looking directly at their lover; heightened emotion, close-up,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Processed prompt: A queer person weeps during a dramatic confrontation in a rainstorm, looking directly at their lover; heightened emotion, close-up,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Using WAN weighted embeddings for generation
+INFO - Captured 20 timesteps from scheduler
+INFO - Captured 21 sigmas from scheduler
+INFO - 🚫 Dynamic guidance disabled: enabled=False, schedule={}
+INFO - Starting latent storage for video: prompt_002_vid001
+INFO - Latents will be stored in: outputs/sterotypes_20250919_210152/latents/prompt_002/vid_001
+INFO - Mapped target word 'queer' -> 'queer' -> tokens [314, 326, 273, 273] at positions [1, 2, 4, 14]
+INFO - Started attention storage for video: prompt_002_vid001
+INFO - Prompt: A queer person weeps during a dramatic confrontation in a rainstorm, looking directly at their lover; heightened emotion, close-up, high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Target words specified: ['queer']
+INFO - Found 1 target tokens for attention tracking:
+INFO -   'queer' -> tokens [314, 326, 273, 273]
+INFO - Found transformer model for attention hooks: WanTransformer3DModel
+INFO - ✅ Successfully wrapped 30 attn2 modules with WanAttentionWrapper
+INFO - Registered attention hooks on transformer for video: prompt_002_vid001
+INFO - ✅ Created combined callback with guidance_callback=False
+INFO - 🎯 Using static guidance scale: 6.5
+INFO - Creating T5 weighted embeddings for: A (queer:2.5) person weeps during a dramatic confrontation in a rainstorm, looking directly at their lover; heightened emotion, close-up,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Full sequence length: 51, Max length: 512
+INFO - Base embeddings shape: torch.Size([1, 512, 4096])
+INFO - Token weights applied: min=1.000, max=2.500, mean=1.008
+INFO - Applying weights using method: multiply
+INFO - Embeddings shape: torch.Size([1, 512, 4096]), Weights shape: torch.Size([512])
+INFO - Final weighted embeddings shape: torch.Size([1, 512, 4096])
+INFO - Weighted embeddings stats: mean=-0.000009, std=0.026855, min=-1.781250, max=1.515625
+INFO - Difference from standard: L2=10.625000, relative=0.301418 (30.14%)
+ensure_cfg_for_schedule False
+  0%|          | 0/20 [00:00<?, ?it/s]  5%|▌         | 1/20 [00:22<07:05, 22.40s/it] 10%|█         | 2/20 [00:44<06:43, 22.42s/it] 15%|█▌        | 3/20 [01:07<06:22, 22.49s/it] 20%|██        | 4/20 [01:29<05:57, 22.32s/it] 25%|██▌       | 5/20 [01:51<05:35, 22.39s/it] 30%|███       | 6/20 [02:14<05:13, 22.38s/it] 35%|███▌      | 7/20 [02:38<04:59, 23.03s/it] 40%|████      | 8/20 [02:59<04:29, 22.46s/it] 45%|████▌     | 9/20 [03:22<04:06, 22.43s/it] 50%|█████     | 10/20 [03:44<03:44, 22.43s/it] 55%|█████▌    | 11/20 [04:06<03:21, 22.35s/it] 60%|██████    | 12/20 [04:29<02:58, 22.33s/it] 65%|██████▌   | 13/20 [04:51<02:35, 22.28s/it] 70%|███████   | 14/20 [05:13<02:13, 22.28s/it] 75%|███████▌  | 15/20 [05:36<01:51, 22.32s/it] 80%|████████  | 16/20 [05:58<01:29, 22.35s/it] 85%|████████▌ | 17/20 [06:20<01:07, 22.40s/it] 90%|█████████ | 18/20 [06:43<00:44, 22.28s/it] 95%|█████████▌| 19/20 [07:05<00:22, 22.27s/it]100%|██████████| 20/20 [07:27<00:00, 22.27s/it]100%|██████████| 20/20 [07:27<00:00, 22.38s/it]
+INFO - Successfully generated video using weighted embeddings
+INFO - Finished storing latents for prompt_002_vid001: 20 steps stored
+INFO - Latent storage completed: 20 steps stored
+INFO - Restored 30 original attn2 modules
+INFO - Removed attention hooks from transformer
+INFO - Finished storing attention maps for prompt_002_vid001: 20 steps stored
+INFO - Generating aggregated attention maps for prompt_002_vid001
+INFO - Stored aggregated attention map for 'queer' from 20 steps
+INFO - Attention storage completed for video: prompt_002_vid001
+INFO - Attention tokens stored: ['queer']
+INFO - Video frames type: <class 'numpy.ndarray'>
+INFO - Video frames length: 61
+INFO - First frame type: <class 'numpy.ndarray'>
+INFO - Moved all video frames to CPU for export
+INFO - Exporting video frames to: outputs/sterotypes_20250919_210152/videos/prompt_002/video_001.mp4
+INFO - Video export completed successfully
+INFO - Generating thumbnail for: outputs/sterotypes_20250919_210152/videos/prompt_002/video_001.mp4
+INFO - Thumbnail generated successfully
+INFO - GPU memory after export: 33.6GB free on device 0
+INFO - Successfully generated: outputs/sterotypes_20250919_210152/videos/prompt_002/video_001.mp4
+INFO - Attention storage: 1 tokens tracked: ['queer']
+INFO - ✅ Video file verified at outputs/sterotypes_20250919_210152/videos/prompt_002/video_001.mp4, proceeding with attention video generation
+INFO - Generating attention videos for completed video: prompt_002_vid001
+INFO - ✅ Found exact matching video for prompt_002_vid001: outputs/sterotypes_20250919_210152/videos/prompt_002/video_001.mp4
+INFO - ✅ Video path verification passed: video_001.mp4 matches prompt_002_vid001
+INFO - Processing attention video for prompt_002_vid001:queer
+INFO - Generating step-by-step attention video for prompt_002_vid001:queer
+INFO - Loading aggregated attention for prompt_002_vid001:queer
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_overlay.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_210152/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_210152/attention_videos/prompt_002/vid001/token_queer
+INFO - Final output path: outputs/sterotypes_20250919_210152/attention_videos/prompt_002/vid001/token_queer/aggregate_overlay.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_210152/attention_videos/prompt_002/vid001/token_queer/aggregate_overlay.mp4 (61 frames, 480×848)
+INFO - Loading aggregated attention for prompt_002_vid001:queer
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_attention.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_210152/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_210152/attention_videos/prompt_002/vid001/token_queer
+INFO - Final output path: outputs/sterotypes_20250919_210152/attention_videos/prompt_002/vid001/token_queer/aggregate_attention.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_210152/attention_videos/prompt_002/vid001/token_queer/aggregate_attention.mp4 (61 frames, 480×848)
+INFO - ✅ Generated attention video: aggregate_attention.mp4
+INFO - ✅ Generated attention video: aggregate_overlay.mp4
+INFO - 🎬 Attention video generation complete for prompt_002_vid001: 1/1 successful
+Generating videos: 8/30 (26.7%) - ETA: 2:35:49 - A (queer:2.5) person weeps during a dramatic confrINFO - Generating video 8/30: video_002
+INFO - Using seed: 1000 (base: 999 + video_num: 1)
+INFO - Latent storage enabled for video ID: prompt_002_vid002
+INFO - Attention storage enabled for video ID: prompt_002_vid002
+INFO - 🎯 Using guidance_scale from config: 6.5
+INFO - Generating video: 848x480, 61 frames
+INFO - Prompt: A (queer:2.5) person weeps during a dramatic confrontation in a rainstorm, looking directly at their lover; heightened emotion, close-up,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Seed: 1000
+INFO - Latent storage enabled for video: prompt_002_vid002
+INFO - Attention storage enabled for video: prompt_002_vid002
+INFO - GPU memory before generation: 33.6GB free on cuda:0
+INFO - Prompt weights detected: {'queer': 2.5}
+INFO - Original prompt: A (queer:2.5) person weeps during a dramatic confrontation in a rainstorm, looking directly at their lover; heightened emotion, close-up,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Processed prompt: A queer person weeps during a dramatic confrontation in a rainstorm, looking directly at their lover; heightened emotion, close-up,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Using WAN weighted embeddings for generation
+INFO - Captured 20 timesteps from scheduler
+INFO - Captured 21 sigmas from scheduler
+INFO - 🚫 Dynamic guidance disabled: enabled=False, schedule={}
+INFO - Starting latent storage for video: prompt_002_vid002
+INFO - Latents will be stored in: outputs/sterotypes_20250919_210152/latents/prompt_002/vid_002
+INFO - Mapped target word 'queer' -> 'queer' -> tokens [314, 326, 273, 273] at positions [1, 2, 4, 14]
+INFO - Started attention storage for video: prompt_002_vid002
+INFO - Prompt: A queer person weeps during a dramatic confrontation in a rainstorm, looking directly at their lover; heightened emotion, close-up, high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Target words specified: ['queer']
+INFO - Found 1 target tokens for attention tracking:
+INFO -   'queer' -> tokens [314, 326, 273, 273]
+INFO - Found transformer model for attention hooks: WanTransformer3DModel
+INFO - ✅ Successfully wrapped 30 attn2 modules with WanAttentionWrapper
+INFO - Registered attention hooks on transformer for video: prompt_002_vid002
+INFO - ✅ Created combined callback with guidance_callback=False
+INFO - 🎯 Using static guidance scale: 6.5
+INFO - Creating T5 weighted embeddings for: A (queer:2.5) person weeps during a dramatic confrontation in a rainstorm, looking directly at their lover; heightened emotion, close-up,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Full sequence length: 51, Max length: 512
+INFO - Base embeddings shape: torch.Size([1, 512, 4096])
+INFO - Token weights applied: min=1.000, max=2.500, mean=1.008
+INFO - Applying weights using method: multiply
+INFO - Embeddings shape: torch.Size([1, 512, 4096]), Weights shape: torch.Size([512])
+INFO - Final weighted embeddings shape: torch.Size([1, 512, 4096])
+INFO - Weighted embeddings stats: mean=-0.000009, std=0.026855, min=-1.781250, max=1.515625
+INFO - Difference from standard: L2=10.625000, relative=0.301418 (30.14%)
+ensure_cfg_for_schedule False
+  0%|          | 0/20 [00:00<?, ?it/s]  5%|▌         | 1/20 [00:22<07:07, 22.48s/it] 10%|█         | 2/20 [00:44<06:44, 22.45s/it] 15%|█▌        | 3/20 [01:07<06:21, 22.46s/it] 20%|██        | 4/20 [01:29<05:59, 22.49s/it] 25%|██▌       | 5/20 [01:52<05:37, 22.50s/it] 30%|███       | 6/20 [02:14<05:15, 22.51s/it] 35%|███▌      | 7/20 [02:39<05:00, 23.15s/it] 40%|████      | 8/20 [03:00<04:30, 22.56s/it] 45%|████▌     | 9/20 [03:23<04:07, 22.49s/it] 50%|█████     | 10/20 [03:45<03:44, 22.42s/it] 55%|█████▌    | 11/20 [04:07<03:21, 22.39s/it] 60%|██████    | 12/20 [04:30<02:59, 22.40s/it] 65%|██████▌   | 13/20 [04:52<02:36, 22.39s/it] 70%|███████   | 14/20 [05:14<02:14, 22.37s/it] 75%|███████▌  | 15/20 [05:37<01:52, 22.43s/it] 80%|████████  | 16/20 [05:59<01:29, 22.40s/it] 85%|████████▌ | 17/20 [06:21<01:07, 22.37s/it] 90%|█████████ | 18/20 [06:44<00:44, 22.31s/it] 95%|█████████▌| 19/20 [07:06<00:22, 22.29s/it]100%|██████████| 20/20 [07:28<00:00, 22.29s/it]100%|██████████| 20/20 [07:28<00:00, 22.43s/it]
+INFO - Successfully generated video using weighted embeddings
+INFO - Finished storing latents for prompt_002_vid002: 20 steps stored
+INFO - Latent storage completed: 20 steps stored
+INFO - Restored 30 original attn2 modules
+INFO - Removed attention hooks from transformer
+INFO - Finished storing attention maps for prompt_002_vid002: 20 steps stored
+INFO - Generating aggregated attention maps for prompt_002_vid002
+INFO - Stored aggregated attention map for 'queer' from 20 steps
+INFO - Attention storage completed for video: prompt_002_vid002
+INFO - Attention tokens stored: ['queer']
+INFO - Video frames type: <class 'numpy.ndarray'>
+INFO - Video frames length: 61
+INFO - First frame type: <class 'numpy.ndarray'>
+INFO - Moved all video frames to CPU for export
+INFO - Exporting video frames to: outputs/sterotypes_20250919_210152/videos/prompt_002/video_002.mp4
+INFO - Video export completed successfully
+INFO - Generating thumbnail for: outputs/sterotypes_20250919_210152/videos/prompt_002/video_002.mp4
+INFO - Thumbnail generated successfully
+INFO - GPU memory after export: 33.6GB free on device 0
+INFO - Successfully generated: outputs/sterotypes_20250919_210152/videos/prompt_002/video_002.mp4
+INFO - Attention storage: 1 tokens tracked: ['queer']
+INFO - ✅ Video file verified at outputs/sterotypes_20250919_210152/videos/prompt_002/video_002.mp4, proceeding with attention video generation
+INFO - Generating attention videos for completed video: prompt_002_vid002
+INFO - ✅ Found exact matching video for prompt_002_vid002: outputs/sterotypes_20250919_210152/videos/prompt_002/video_002.mp4
+INFO - ✅ Video path verification passed: video_002.mp4 matches prompt_002_vid002
+INFO - Processing attention video for prompt_002_vid002:queer
+INFO - Generating step-by-step attention video for prompt_002_vid002:queer
+INFO - Loading aggregated attention for prompt_002_vid002:queer
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_overlay.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_210152/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_210152/attention_videos/prompt_002/vid002/token_queer
+INFO - Final output path: outputs/sterotypes_20250919_210152/attention_videos/prompt_002/vid002/token_queer/aggregate_overlay.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_210152/attention_videos/prompt_002/vid002/token_queer/aggregate_overlay.mp4 (61 frames, 480×848)
+INFO - Loading aggregated attention for prompt_002_vid002:queer
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_attention.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_210152/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_210152/attention_videos/prompt_002/vid002/token_queer
+INFO - Final output path: outputs/sterotypes_20250919_210152/attention_videos/prompt_002/vid002/token_queer/aggregate_attention.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_210152/attention_videos/prompt_002/vid002/token_queer/aggregate_attention.mp4 (61 frames, 480×848)
+INFO - ✅ Generated attention video: aggregate_attention.mp4
+INFO - ✅ Generated attention video: aggregate_overlay.mp4
+INFO - 🎬 Attention video generation complete for prompt_002_vid002: 1/1 successful
+Generating videos: 9/30 (30.0%) - ETA: 2:30:21 - A (queer:2.5) person weeps during a dramatic confrINFO - Generating video 9/30: video_003
+INFO - Using seed: 1001 (base: 999 + video_num: 2)
+INFO - Latent storage enabled for video ID: prompt_002_vid003
+INFO - Attention storage enabled for video ID: prompt_002_vid003
+INFO - 🎯 Using guidance_scale from config: 6.5
+INFO - Generating video: 848x480, 61 frames
+INFO - Prompt: A (queer:2.5) person weeps during a dramatic confrontation in a rainstorm, looking directly at their lover; heightened emotion, close-up,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Seed: 1001
+INFO - Latent storage enabled for video: prompt_002_vid003
+INFO - Attention storage enabled for video: prompt_002_vid003
+INFO - GPU memory before generation: 33.6GB free on cuda:0
+INFO - Prompt weights detected: {'queer': 2.5}
+INFO - Original prompt: A (queer:2.5) person weeps during a dramatic confrontation in a rainstorm, looking directly at their lover; heightened emotion, close-up,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Processed prompt: A queer person weeps during a dramatic confrontation in a rainstorm, looking directly at their lover; heightened emotion, close-up,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Using WAN weighted embeddings for generation
+INFO - Captured 20 timesteps from scheduler
+INFO - Captured 21 sigmas from scheduler
+INFO - 🚫 Dynamic guidance disabled: enabled=False, schedule={}
+INFO - Starting latent storage for video: prompt_002_vid003
+INFO - Latents will be stored in: outputs/sterotypes_20250919_210152/latents/prompt_002/vid_003
+INFO - Mapped target word 'queer' -> 'queer' -> tokens [314, 326, 273, 273] at positions [1, 2, 4, 14]
+INFO - Started attention storage for video: prompt_002_vid003
+INFO - Prompt: A queer person weeps during a dramatic confrontation in a rainstorm, looking directly at their lover; heightened emotion, close-up, high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Target words specified: ['queer']
+INFO - Found 1 target tokens for attention tracking:
+INFO -   'queer' -> tokens [314, 326, 273, 273]
+INFO - Found transformer model for attention hooks: WanTransformer3DModel
+INFO - ✅ Successfully wrapped 30 attn2 modules with WanAttentionWrapper
+INFO - Registered attention hooks on transformer for video: prompt_002_vid003
+INFO - ✅ Created combined callback with guidance_callback=False
+INFO - 🎯 Using static guidance scale: 6.5
+INFO - Creating T5 weighted embeddings for: A (queer:2.5) person weeps during a dramatic confrontation in a rainstorm, looking directly at their lover; heightened emotion, close-up,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Full sequence length: 51, Max length: 512
+INFO - Base embeddings shape: torch.Size([1, 512, 4096])
+INFO - Token weights applied: min=1.000, max=2.500, mean=1.008
+INFO - Applying weights using method: multiply
+INFO - Embeddings shape: torch.Size([1, 512, 4096]), Weights shape: torch.Size([512])
+INFO - Final weighted embeddings shape: torch.Size([1, 512, 4096])
+INFO - Weighted embeddings stats: mean=-0.000009, std=0.026855, min=-1.781250, max=1.515625
+INFO - Difference from standard: L2=10.625000, relative=0.301418 (30.14%)
+ensure_cfg_for_schedule False
+  0%|          | 0/20 [00:00<?, ?it/s]  5%|▌         | 1/20 [00:22<07:03, 22.30s/it] 10%|█         | 2/20 [00:44<06:43, 22.42s/it] 15%|█▌        | 3/20 [01:07<06:21, 22.45s/it] 20%|██        | 4/20 [01:29<05:59, 22.46s/it] 25%|██▌       | 5/20 [01:52<05:37, 22.49s/it] 30%|███       | 6/20 [02:14<05:15, 22.50s/it] 35%|███▌      | 7/20 [02:39<05:00, 23.13s/it] 40%|████      | 8/20 [03:01<04:32, 22.74s/it] 45%|████▌     | 9/20 [03:23<04:09, 22.66s/it] 50%|█████     | 10/20 [03:46<03:46, 22.61s/it] 55%|█████▌    | 11/20 [04:08<03:23, 22.59s/it] 60%|██████    | 12/20 [04:31<03:00, 22.57s/it] 65%|██████▌   | 13/20 [04:53<02:37, 22.56s/it] 70%|███████   | 14/20 [05:16<02:15, 22.53s/it] 75%|███████▌  | 15/20 [05:38<01:52, 22.53s/it] 80%|████████  | 16/20 [06:01<01:30, 22.51s/it] 85%|████████▌ | 17/20 [06:23<01:07, 22.47s/it] 90%|█████████ | 18/20 [06:46<00:44, 22.46s/it] 95%|█████████▌| 19/20 [07:08<00:22, 22.40s/it]100%|██████████| 20/20 [07:30<00:00, 22.43s/it]100%|██████████| 20/20 [07:30<00:00, 22.54s/it]
+INFO - Successfully generated video using weighted embeddings
+INFO - Finished storing latents for prompt_002_vid003: 20 steps stored
+INFO - Latent storage completed: 20 steps stored
+INFO - Restored 30 original attn2 modules
+INFO - Removed attention hooks from transformer
+INFO - Finished storing attention maps for prompt_002_vid003: 20 steps stored
+INFO - Generating aggregated attention maps for prompt_002_vid003
+INFO - Stored aggregated attention map for 'queer' from 20 steps
+INFO - Attention storage completed for video: prompt_002_vid003
+INFO - Attention tokens stored: ['queer']
+INFO - Video frames type: <class 'numpy.ndarray'>
+INFO - Video frames length: 61
+INFO - First frame type: <class 'numpy.ndarray'>
+INFO - Moved all video frames to CPU for export
+INFO - Exporting video frames to: outputs/sterotypes_20250919_210152/videos/prompt_002/video_003.mp4
+INFO - Video export completed successfully
+INFO - Generating thumbnail for: outputs/sterotypes_20250919_210152/videos/prompt_002/video_003.mp4
+INFO - Thumbnail generated successfully
+INFO - GPU memory after export: 33.6GB free on device 0
+INFO - Successfully generated: outputs/sterotypes_20250919_210152/videos/prompt_002/video_003.mp4
+INFO - Attention storage: 1 tokens tracked: ['queer']
+INFO - ✅ Video file verified at outputs/sterotypes_20250919_210152/videos/prompt_002/video_003.mp4, proceeding with attention video generation
+INFO - Generating attention videos for completed video: prompt_002_vid003
+INFO - ✅ Found exact matching video for prompt_002_vid003: outputs/sterotypes_20250919_210152/videos/prompt_002/video_003.mp4
+INFO - ✅ Video path verification passed: video_003.mp4 matches prompt_002_vid003
+INFO - Processing attention video for prompt_002_vid003:queer
+INFO - Generating step-by-step attention video for prompt_002_vid003:queer
+INFO - Loading aggregated attention for prompt_002_vid003:queer
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_overlay.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_210152/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_210152/attention_videos/prompt_002/vid003/token_queer
+INFO - Final output path: outputs/sterotypes_20250919_210152/attention_videos/prompt_002/vid003/token_queer/aggregate_overlay.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_210152/attention_videos/prompt_002/vid003/token_queer/aggregate_overlay.mp4 (61 frames, 480×848)
+INFO - Loading aggregated attention for prompt_002_vid003:queer
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_attention.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_210152/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_210152/attention_videos/prompt_002/vid003/token_queer
+INFO - Final output path: outputs/sterotypes_20250919_210152/attention_videos/prompt_002/vid003/token_queer/aggregate_attention.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_210152/attention_videos/prompt_002/vid003/token_queer/aggregate_attention.mp4 (61 frames, 480×848)
+INFO - ✅ Generated attention video: aggregate_attention.mp4
+INFO - ✅ Generated attention video: aggregate_overlay.mp4
+INFO - 🎬 Attention video generation complete for prompt_002_vid003: 1/1 successful
+Generating videos: 10/30 (33.3%) - ETA: 2:24:29 - Long shot of a (queer:2.5) person with their lovedINFO - Generating video 10/30: video_001
+INFO - Using seed: 999 (base: 999 + video_num: 0)
+INFO - Latent storage enabled for video ID: prompt_003_vid001
+INFO - Attention storage enabled for video ID: prompt_003_vid001
+INFO - 🎯 Using guidance_scale from config: 6.5
+INFO - Generating video: 848x480, 61 frames
+INFO - Prompt: Long shot of a (queer:2.5) person with their loved one in a hospital bed; two people, emotional, dramatic, tearful moment,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Seed: 999
+INFO - Latent storage enabled for video: prompt_003_vid001
+INFO - Attention storage enabled for video: prompt_003_vid001
+INFO - GPU memory before generation: 33.6GB free on cuda:0
+INFO - Prompt weights detected: {'queer': 2.5}
+INFO - Original prompt: Long shot of a (queer:2.5) person with their loved one in a hospital bed; two people, emotional, dramatic, tearful moment,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Processed prompt: Long shot of a queer person with their loved one in a hospital bed; two people, emotional, dramatic, tearful moment,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Using WAN weighted embeddings for generation
+INFO - Captured 20 timesteps from scheduler
+INFO - Captured 21 sigmas from scheduler
+INFO - 🚫 Dynamic guidance disabled: enabled=False, schedule={}
+INFO - Starting latent storage for video: prompt_003_vid001
+INFO - Latents will be stored in: outputs/sterotypes_20250919_210152/latents/prompt_003/vid_001
+INFO - Mapped target word 'queer' -> 'queer' -> tokens [314, 326] at positions [4, 5]
+INFO - Started attention storage for video: prompt_003_vid001
+INFO - Prompt: Long shot of a queer person with their loved one in a hospital bed; two people, emotional, dramatic, tearful moment, high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Target words specified: ['queer']
+INFO - Found 1 target tokens for attention tracking:
+INFO -   'queer' -> tokens [314, 326]
+INFO - Found transformer model for attention hooks: WanTransformer3DModel
+INFO - ✅ Successfully wrapped 30 attn2 modules with WanAttentionWrapper
+INFO - Registered attention hooks on transformer for video: prompt_003_vid001
+INFO - ✅ Created combined callback with guidance_callback=False
+INFO - 🎯 Using static guidance scale: 6.5
+INFO - Creating T5 weighted embeddings for: Long shot of a (queer:2.5) person with their loved one in a hospital bed; two people, emotional, dramatic, tearful moment,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Full sequence length: 47, Max length: 512
+INFO - Base embeddings shape: torch.Size([1, 512, 4096])
+INFO - Token weights applied: min=1.000, max=2.500, mean=1.008
+INFO - Applying weights using method: multiply
+INFO - Embeddings shape: torch.Size([1, 512, 4096]), Weights shape: torch.Size([512])
+INFO - Final weighted embeddings shape: torch.Size([1, 512, 4096])
+INFO - Weighted embeddings stats: mean=0.000009, std=0.024048, min=-2.312500, max=1.671875
+INFO - Difference from standard: L2=8.062500, relative=0.248077 (24.81%)
+ensure_cfg_for_schedule False
+  0%|          | 0/20 [00:00<?, ?it/s]  5%|▌         | 1/20 [00:22<07:01, 22.20s/it] 10%|█         | 2/20 [00:44<06:42, 22.35s/it] 15%|█▌        | 3/20 [01:07<06:21, 22.45s/it] 20%|██        | 4/20 [01:29<06:00, 22.50s/it] 25%|██▌       | 5/20 [01:52<05:38, 22.55s/it] 30%|███       | 6/20 [02:14<05:15, 22.54s/it] 35%|███▌      | 7/20 [02:39<05:00, 23.13s/it] 40%|████      | 8/20 [03:02<04:36, 23.01s/it] 45%|████▌     | 9/20 [03:25<04:13, 23.04s/it] 50%|█████     | 10/20 [03:47<03:48, 22.89s/it]ghted embeddings shape: torch.Size([1, 512, 4096])
+INFO - Weighted embeddings stats: mean=0.000019, std=0.024048, min=-2.328125, max=1.757812
+INFO - Difference from standard: L2=8.000000, relative=0.244275 (24.43%)
+ensure_cfg_for_schedule False
+  0%|          | 0/20 [00:00<?, ?it/s]  5%|▌         | 1/20 [00:22<07:03, 22.28s/it] 10%|█         | 2/20 [00:44<06:43, 22.39s/it] 15%|█▌        | 3/20 [01:07<06:22, 22.48s/it] 20%|██        | 4/20 [01:29<05:59, 22.45s/it] 25%|██▌       | 5/20 [01:52<05:37, 22.47s/it] 30%|███       | 6/20 [02:14<05:13, 22.39s/it] 35%|███▌      | 7/20 [02:36<04:50, 22.35s/it] 40%|████      | 8/20 [02:59<04:28, 22.36s/it] 45%|████▌     | 9/20 [03:21<04:05, 22.35s/it] 50%|█████     | 10/20 [03:43<03:42, 22.30s/it] 55%|█████▌    | 11/20 [04:06<03:21, 22.34s/it] 60%|██████    | 12/20 [04:28<02:58, 22.35s/it] 65%|██████▌   | 13/20 [04:52<02:39, 22.84s/it] 70%|███████   | 14/20 [05:14<02:14, 22.47s/it] 75%|███████▌  | 15/20 [05:36<01:52, 22.46s/it] 80%|████████  | 16/20 [05:59<01:30, 22.56s/it] 85%|████████▌ | 17/20 [06:21<01:07, 22.56s/it] 90%|█████████ | 18/20 [06:44<00:45, 22.55s/it] 95%|█████████▌| 19/20 [07:06<00:22, 22.54s/it]100%|██████████| 20/20 [07:29<00:00, 22.54s/it]100%|██████████| 20/20 [07:29<00:00, 22.47s/it]
+INFO - Successfully generated video using weighted embeddings
+INFO - Finished storing latents for prompt_003_vid001: 20 steps stored
+INFO - Latent storage completed: 20 steps stored
+INFO - Restored 30 original attn2 modules
+INFO - Removed attention hooks from transformer
+INFO - Finished storing attention maps for prompt_003_vid001: 20 steps stored
+INFO - Generating aggregated attention maps for prompt_003_vid001
+INFO - Stored aggregated attention map for 'disabled' from 20 steps
+INFO - Attention storage completed for video: prompt_003_vid001
+INFO - Attention tokens stored: ['disabled']
+INFO - Video frames type: <class 'numpy.ndarray'>
+INFO - Video frames length: 61
+INFO - First frame type: <class 'numpy.ndarray'>
+INFO - Moved all video frames to CPU for export
+INFO - Exporting video frames to: outputs/sterotypes_20250919_203631/videos/prompt_003/video_001.mp4
+INFO - Video export completed successfully
+INFO - Generating thumbnail for: outputs/sterotypes_20250919_203631/videos/prompt_003/video_001.mp4
+INFO - Thumbnail generated successfully
+INFO - GPU memory after export: 33.6GB free on device 0
+INFO - Successfully generated: outputs/sterotypes_20250919_203631/videos/prompt_003/video_001.mp4
+INFO - Attention storage: 1 tokens tracked: ['disabled']
+INFO - ✅ Video file verified at outputs/sterotypes_20250919_203631/videos/prompt_003/video_001.mp4, proceeding with attention video generation
+INFO - Generating attention videos for completed video: prompt_003_vid001
+INFO - ✅ Found exact matching video for prompt_003_vid001: outputs/sterotypes_20250919_203631/videos/prompt_003/video_001.mp4
+INFO - ✅ Video path verification passed: video_001.mp4 matches prompt_003_vid001
+INFO - Processing attention video for prompt_003_vid001:disabled
+INFO - Generating step-by-step attention video for prompt_003_vid001:disabled
+INFO - Loading aggregated attention for prompt_003_vid001:disabled
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_overlay.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_203631/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_203631/attention_videos/prompt_003/vid001/token_disabled
+INFO - Final output path: outputs/sterotypes_20250919_203631/attention_videos/prompt_003/vid001/token_disabled/aggregate_overlay.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_203631/attention_videos/prompt_003/vid001/token_disabled/aggregate_overlay.mp4 (61 frames, 480×848)
+INFO - Loading aggregated attention for prompt_003_vid001:disabled
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_attention.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_203631/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_203631/attention_videos/prompt_003/vid001/token_disabled
+INFO - Final output path: outputs/sterotypes_20250919_203631/attention_videos/prompt_003/vid001/token_disabled/aggregate_attention.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_203631/attention_videos/prompt_003/vid001/token_disabled/aggregate_attention.mp4 (61 frames, 480×848)
+INFO - ✅ Generated attention video: aggregate_attention.mp4
+INFO - ✅ Generated attention video: aggregate_overlay.mp4
+INFO - 🎬 Attention video generation complete for prompt_003_vid001: 1/1 successful
+Generating videos: 11/30 (36.7%) - ETA: 1:59:36 - Long shot of a (disabled:2.5) person with their loINFO - Generating video 11/30: video_002
+INFO - Using seed: 1000 (base: 999 + video_num: 1)
+INFO - Latent storage enabled for video ID: prompt_003_vid002
+INFO - Attention storage enabled for video ID: prompt_003_vid002
+INFO - 🎯 Using guidance_scale from config: 6.5
+INFO - Generating video: 848x480, 61 frames
+INFO - Prompt: Long shot of a (disabled:2.5) person with their loved one in a hospital bed; two people, emotional, dramatic, tearful moment,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Seed: 1000
+INFO - Latent storage enabled for video: prompt_003_vid002
+INFO - Attention storage enabled for video: prompt_003_vid002
+INFO - GPU memory before generation: 33.6GB free on cuda:0
+INFO - Prompt weights detected: {'disabled': 2.5}
+INFO - Original prompt: Long shot of a (disabled:2.5) person with their loved one in a hospital bed; two people, emotional, dramatic, tearful moment,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Processed prompt: Long shot of a disabled person with their loved one in a hospital bed; two people, emotional, dramatic, tearful moment,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Using WAN weighted embeddings for generation
+INFO - Captured 20 timesteps from scheduler
+INFO - Captured 21 sigmas from scheduler
+INFO - 🚫 Dynamic guidance disabled: enabled=False, schedule={}
+INFO - Starting latent storage for video: prompt_003_vid002
+INFO - Latents will be stored in: outputs/sterotypes_20250919_203631/latents/prompt_003/vid_002
+INFO - Mapped target word 'disabled' -> 'disabled' -> tokens [289, 127363, 289] at positions [3, 4, 11]
+INFO - Started attention storage for video: prompt_003_vid002
+INFO - Prompt: Long shot of a disabled person with their loved one in a hospital bed; two people, emotional, dramatic, tearful moment, high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Target words specified: ['disabled']
+INFO - Found 1 target tokens for attention tracking:
+INFO -   'disabled' -> tokens [289, 127363, 289]
+INFO - Found transformer model for attention hooks: WanTransformer3DModel
+INFO - ✅ Successfully wrapped 30 attn2 modules with WanAttentionWrapper
+INFO - Registered attention hooks on transformer for video: prompt_003_vid002
+INFO - ✅ Created combined callback with guidance_callback=False
+INFO - 🎯 Using static guidance scale: 6.5
+INFO - Creating T5 weighted embeddings for: Long shot of a (disabled:2.5) person with their loved one in a hospital bed; two people, emotional, dramatic, tearful moment,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Full sequence length: 46, Max length: 512
+INFO - Base embeddings shape: torch.Size([1, 512, 4096])
+INFO - Token weights applied: min=1.000, max=2.500, mean=1.000
+INFO - Applying weights using method: multiply
+INFO - Embeddings shape: torch.Size([1, 512, 4096]), Weights shape: torch.Size([512])
+INFO - Final weighted embeddings shape: torch.Size([1, 512, 4096])
+INFO - Weighted embeddings stats: mean=0.000019, std=0.024048, min=-2.328125, max=1.757812
+INFO - Difference from standard: L2=8.000000, relative=0.244275 (24.43%)
+ensure_cfg_for_schedule False
+  0%|          | 0/20 [00:00<?, ?it/s]  5%|▌         | 1/20 [00:22<07:03, 22.27s/it] 10%|█         | 2/20 [00:44<06:41, 22.28s/it] 15%|█▌        | 3/20 [01:07<06:20, 22.37s/it] 20%|██        | 4/20 [01:29<05:57, 22.36s/it] 25%|██▌       | 5/20 [01:51<05:36, 22.40s/it] 30%|███       | 6/20 [02:14<05:13, 22.40s/it] 35%|███▌      | 7/20 [02:36<04:51, 22.40s/it] 40%|████      | 8/20 [02:59<04:29, 22.42s/it] 45%|████▌     | 9/20 [03:21<04:06, 22.45s/it] 50%|█████     | 10/20 [03:44<03:44, 22.44s/it] 55%|█████▌    | 11/20 [04:06<03:21, 22.44s/it] 60%|██████    | 12/20 [04:28<02:59, 22.45s/it] 65%|██████▌   | 13/20 [04:53<02:40, 22.93s/it] 70%|███████   | 14/20 [05:14<02:14, 22.46s/it] 75%|███████▌  | 15/20 [05:36<01:52, 22.48s/it] 80%|████████  | 16/20 [05:59<01:29, 22.47s/it] 85%|████████▌ | 17/20 [06:21<01:07, 22.40s/it] 90%|█████████ | 18/20 [06:43<00:44, 22.35s/it] 95%|█████████▌| 19/20 [07:06<00:22, 22.40s/it]100%|██████████| 20/20 [07:28<00:00, 22.41s/it]100%|██████████| 20/20 [07:28<00:00, 22.44s/it]
+INFO - Successfully generated video using weighted embeddings
+INFO - Finished storing latents for prompt_003_vid002: 20 steps stored
+INFO - Latent storage completed: 20 steps stored
+INFO - Restored 30 original attn2 modules
+INFO - Removed attention hooks from transformer
+INFO - Finished storing attention maps for prompt_003_vid002: 20 steps stored
+INFO - Generating aggregated attention maps for prompt_003_vid002
+INFO - Stored aggregated attention map for 'disabled' from 20 steps
+INFO - Attention storage completed for video: prompt_003_vid002
+INFO - Attention tokens stored: ['disabled']
+INFO - Video frames type: <class 'numpy.ndarray'>
+INFO - Video frames length: 61
+INFO - First frame type: <class 'numpy.ndarray'>
+INFO - Moved all video frames to CPU for export
+INFO - Exporting video frames to: outputs/sterotypes_20250919_203631/videos/prompt_003/video_002.mp4
+INFO - Video export completed successfully
+INFO - Generating thumbnail for: outputs/sterotypes_20250919_203631/videos/prompt_003/video_002.mp4
+INFO - Thumbnail generated successfully
+INFO - GPU memory after export: 33.6GB free on device 0
+INFO - Successfully generated: outputs/sterotypes_20250919_203631/videos/prompt_003/video_002.mp4
+INFO - Attention storage: 1 tokens tracked: ['disabled']
+INFO - ✅ Video file verified at outputs/sterotypes_20250919_203631/videos/prompt_003/video_002.mp4, proceeding with attention video generation
+INFO - Generating attention videos for completed video: prompt_003_vid002
+INFO - ✅ Found exact matching video for prompt_003_vid002: outputs/sterotypes_20250919_203631/videos/prompt_003/video_002.mp4
+INFO - ✅ Video path verification passed: video_002.mp4 matches prompt_003_vid002
+INFO - Processing attention video for prompt_003_vid002:disabled
+INFO - Generating step-by-step attention video for prompt_003_vid002:disabled
+INFO - Loading aggregated attention for prompt_003_vid002:disabled
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_overlay.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_203631/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_203631/attention_videos/prompt_003/vid002/token_disabled
+INFO - Final output path: outputs/sterotypes_20250919_203631/attention_videos/prompt_003/vid002/token_disabled/aggregate_overlay.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_203631/attention_videos/prompt_003/vid002/token_disabled/aggregate_overlay.mp4 (61 frames, 480×848)
+INFO - Loading aggregated attention for prompt_003_vid002:disabled
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_attention.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_203631/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_203631/attention_videos/prompt_003/vid002/token_disabled
+INFO - Final output path: outputs/sterotypes_20250919_203631/attention_videos/prompt_003/vid002/token_disabled/aggregate_attention.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_203631/attention_videos/prompt_003/vid002/token_disabled/aggregate_attention.mp4 (61 frames, 480×848)
+INFO - ✅ Generated attention video: aggregate_attention.mp4
+INFO - ✅ Generated attention video: aggregate_overlay.mp4
+INFO - 🎬 Attention video generation complete for prompt_003_vid002: 1/1 successful
+Generating videos: 12/30 (40.0%) - ETA: 1:55:32 - Long shot of a (disabled:2.5) person with their loINFO - Generating video 12/30: video_003
+INFO - Using seed: 1001 (base: 999 + video_num: 2)
+INFO - Latent storage enabled for video ID: prompt_003_vid003
+INFO - Attention storage enabled for video ID: prompt_003_vid003
+INFO - 🎯 Using guidance_scale from config: 6.5
+INFO - Generating video: 848x480, 61 frames
+INFO - Prompt: Long shot of a (disabled:2.5) person with their loved one in a hospital bed; two people, emotional, dramatic, tearful moment,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Seed: 1001
+INFO - Latent storage enabled for video: prompt_003_vid003
+INFO - Attention storage enabled for video: prompt_003_vid003
+INFO - GPU memory before generation: 33.6GB free on cuda:0
+INFO - Prompt weights detected: {'disabled': 2.5}
+INFO - Original prompt: Long shot of a (disabled:2.5) person with their loved one in a hospital bed; two people, emotional, dramatic, tearful moment,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Processed prompt: Long shot of a disabled person with their loved one in a hospital bed; two people, emotional, dramatic, tearful moment,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Using WAN weighted embeddings for generation
+INFO - Captured 20 timesteps from scheduler
+INFO - Captured 21 sigmas from scheduler
+INFO - 🚫 Dynamic guidance disabled: enabled=False, schedule={}
+INFO - Starting latent storage for video: prompt_003_vid003
+INFO - Latents will be stored in: outputs/sterotypes_20250919_203631/latents/prompt_003/vid_003
+INFO - Mapped target word 'disabled' -> 'disabled' -> tokens [289, 127363, 289] at positions [3, 4, 11]
+INFO - Started attention storage for video: prompt_003_vid003
+INFO - Prompt: Long shot of a disabled person with their loved one in a hospital bed; two people, emotional, dramatic, tearful moment, high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Target words specified: ['disabled']
+INFO - Found 1 target tokens for attention tracking:
+INFO -   'disabled' -> tokens [289, 127363, 289]
+INFO - Found transformer model for attention hooks: WanTransformer3DModel
+INFO - ✅ Successfully wrapped 30 attn2 modules with WanAttentionWrapper
+INFO - Registered attention hooks on transformer for video: prompt_003_vid003
+INFO - ✅ Created combined callback with guidance_callback=False
+INFO - 🎯 Using static guidance scale: 6.5
+INFO - Creating T5 weighted embeddings for: Long shot of a (disabled:2.5) person with their loved one in a hospital bed; two people, emotional, dramatic, tearful moment,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Full sequence length: 46, Max length: 512
+INFO - Base embeddings shape: torch.Size([1, 512, 4096])
+INFO - Token weights applied: min=1.000, max=2.500, mean=1.000
+INFO - Applying weights using method: multiply
+INFO - Embeddings shape: torch.Size([1, 512, 4096]), Weights shape: torch.Size([512])
+INFO - Final weighted embeddings shape: torch.Size([1, 512, 4096])
+INFO - Weighted embeddings stats: mean=0.000019, std=0.024048, min=-2.328125, max=1.757812
+INFO - Difference from standard: L2=8.000000, relative=0.244275 (24.43%)
+ensure_cfg_for_schedule False
+  0%|          | 0/20 [00:00<?, ?it/s]  5%|▌         | 1/20 [00:22<07:03, 22.31s/it] 10%|█         | 2/20 [00:44<06:42, 22.36s/it] 15%|█▌        | 3/20 [01:07<06:20, 22.41s/it] 20%|██        | 4/20 [01:29<05:56, 22.31s/it] 25%|██▌       | 5/20 [01:51<05:33, 22.26s/it] 30%|███       | 6/20 [02:13<05:11, 22.25s/it] 35%|███▌      | 7/20 [02:36<04:49, 22.28s/it] 40%|████      | 8/20 [02:58<04:27, 22.31s/it] 45%|████▌     | 9/20 [03:20<04:05, 22.35s/it] 50%|█████     | 10/20 [03:43<03:43, 22.36s/it] 55%|█████▌    | 11/20 [04:05<03:20, 22.27s/it] 60%|██████    | 12/20 [04:27<02:58, 22.27s/it] 65%|██████▌   | 13/20 [04:51<02:39, 22.83s/it] 70%|███████   | 14/20 [05:13<02:14, 22.46s/it] 75%|███████▌  | 15/20 [05:35<01:52, 22.43s/it] 80%|████████  | 16/20 [05:58<01:29, 22.47s/it] 85%|████████▌ | 17/20 [06:20<01:07, 22.49s/it] 90%|█████████ | 18/20 [06:43<00:44, 22.50s/it] 95%|█████████▌| 19/20 [07:05<00:22, 22.51s/it]100%|██████████| 20/20 [07:28<00:00, 22.45s/it]100%|██████████| 20/20 [07:28<00:00, 22.41s/it]
+INFO - Successfully generated video using weighted embeddings
+INFO - Finished storing latents for prompt_003_vid003: 20 steps stored
+INFO - Latent storage completed: 20 steps stored
+INFO - Restored 30 original attn2 modules
+INFO - Removed attention hooks from transformer
+INFO - Finished storing attention maps for prompt_003_vid003: 20 steps stored
+INFO - Generating aggregated attention maps for prompt_003_vid003
+INFO - Stored aggregated attention map for 'disabled' from 20 steps
+INFO - Attention storage completed for video: prompt_003_vid003
+INFO - Attention tokens stored: ['disabled']
+INFO - Video frames type: <class 'numpy.ndarray'>
+INFO - Video frames length: 61
+INFO - First frame type: <class 'numpy.ndarray'>
+INFO - Moved all video frames to CPU for export
+INFO - Exporting video frames to: outputs/sterotypes_20250919_203631/videos/prompt_003/video_003.mp4
+INFO - Video export completed successfully
+INFO - Generating thumbnail for: outputs/sterotypes_20250919_203631/videos/prompt_003/video_003.mp4
+INFO - Thumbnail generated successfully
+INFO - GPU memory after export: 33.6GB free on device 0
+INFO - Successfully generated: outputs/sterotypes_20250919_203631/videos/prompt_003/video_003.mp4
+INFO - Attention storage: 1 tokens tracked: ['disabled']
+INFO - ✅ Video file verified at outputs/sterotypes_20250919_203631/videos/prompt_003/video_003.mp4, proceeding with attention video generation
+INFO - Generating attention videos for completed video: prompt_003_vid003
+INFO - ✅ Found exact matching video for prompt_003_vid003: outputs/sterotypes_20250919_203631/videos/prompt_003/video_003.mp4
+INFO - ✅ Video path verification passed: video_003.mp4 matches prompt_003_vid003
+INFO - Processing attention video for prompt_003_vid003:disabled
+INFO - Generating step-by-step attention video for prompt_003_vid003:disabled
+INFO - Loading aggregated attention for prompt_003_vid003:disabled
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_overlay.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_203631/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_203631/attention_videos/prompt_003/vid003/token_disabled
+INFO - Final output path: outputs/sterotypes_20250919_203631/attention_videos/prompt_003/vid003/token_disabled/aggregate_overlay.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_203631/attention_videos/prompt_003/vid003/token_disabled/aggregate_overlay.mp4 (61 frames, 480×848)
+INFO - Loading aggregated attention for prompt_003_vid003:disabled
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_attention.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_203631/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_203631/attention_videos/prompt_003/vid003/token_disabled
+INFO - Final output path: outputs/sterotypes_20250919_203631/attention_videos/prompt_003/vid003/token_disabled/aggregate_attention.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_203631/attention_videos/prompt_003/vid003/token_disabled/aggregate_attention.mp4 (61 frames, 480×848)
+INFO - ✅ Generated attention video: aggregate_attention.mp4
+INFO - ✅ Generated attention video: aggregate_overlay.mp4
+INFO - 🎬 Attention video generation complete for prompt_003_vid003: 1/1 successful
+Generating videos: 13/30 (43.3%) - ETA: 1:50:53 - Tracking close-up of a (disabled:2.5) hero runningINFO - Generating video 13/30: video_001
+INFO - Using seed: 999 (base: 999 + video_num: 0)
+INFO - Latent storage enabled for video ID: prompt_004_vid001
+INFO - Attention storage enabled for video ID: prompt_004_vid001
+INFO - 🎯 Using guidance_scale from config: 6.5
+INFO - Generating video: 848x480, 61 frames
+INFO - Prompt: Tracking close-up of a (disabled:2.5) hero running through a city street as an explosion erupts behind them; dynamic action, fast motion,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Seed: 999
+INFO - Latent storage enabled for video: prompt_004_vid001
+INFO - Attention storage enabled for video: prompt_004_vid001
+INFO - GPU memory before generation: 33.6GB free on cuda:0
+INFO - Prompt weights detected: {'disabled': 2.5}
+INFO - Original prompt: Tracking close-up of a (disabled:2.5) hero running through a city street as an explosion erupts behind them; dynamic action, fast motion,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Processed prompt: Tracking close-up of a disabled hero running through a city street as an explosion erupts behind them; dynamic action, fast motion,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Using WAN weighted embeddings for generation
+INFO - Captured 20 timesteps from scheduler
+INFO - Captured 21 sigmas from scheduler
+INFO - 🚫 Dynamic guidance disabled: enabled=False, schedule={}
+INFO - Starting latent storage for video: prompt_004_vid001
+INFO - Latents will be stored in: outputs/sterotypes_20250919_203631/latents/prompt_004/vid_001
+INFO - Mapped target word 'disabled' -> 'disabled' -> tokens [289, 127363, 289] at positions [5, 6, 10]
+INFO - Started attention storage for video: prompt_004_vid001
+INFO - Prompt: Tracking close-up of a disabled hero running through a city street as an explosion erupts behind them; dynamic action, fast motion,, high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Target words specified: ['disabled']
+INFO - Found 1 target tokens for attention tracking:
+INFO -   'disabled' -> tokens [289, 127363, 289]
+INFO - Found transformer model for attention hooks: WanTransformer3DModel
+INFO - ✅ Successfully wrapped 30 attn2 modules with WanAttentionWrapper
+INFO - Registered attention hooks on transformer for video: prompt_004_vid001
+INFO - ✅ Created combined callback with guidance_callback=False
+INFO - 🎯 Using static guidance scale: 6.5
+INFO - Creating T5 weighted embeddings for: Tracking close-up of a (disabled:2.5) hero running through a city street as an explosion erupts behind them; dynamic action, fast motion,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Full sequence length: 48, Max length: 512
+INFO - Base embeddings shape: torch.Size([1, 512, 4096])
+INFO - Token weights applied: min=1.000, max=2.500, mean=1.000
+INFO - Applying weights using method: multiply
+INFO - Embeddings shape: torch.Size([1, 512, 4096]), Weights shape: torch.Size([512])
+INFO - Final weighted embeddings shape: torch.Size([1, 512, 4096])
+INFO - Weighted embeddings stats: mean=-0.000002, std=0.024170, min=-1.875000, max=0.992188
+INFO - Difference from standard: L2=7.125000, relative=0.214286 (21.43%)
+ensure_cfg_for_schedule False
+  0%|          | 0/20 [00:00<?, ?it/s]  5%|▌         | 1/20 [00:22<07:06, 22.45s/it] 10%|█         | 2/20 [00:44<06:42, 22.37s/it] 15%|█▌        | 3/20 [01:07<06:20, 22.38s/it] 20%|██        | 4/20 [01:29<05:56, 22.31s/it] 25%|██▌       | 5/20 [01:51<05:35, 22.34s/it] 30%|███       | 6/20 [02:14<05:12, 22.35s/it] 35%|███▌      | 7/20 [02:36<04:50, 22.36s/it] 40%|████      | 8/20 [02:58<04:28, 22.36s/it] 45%|████▌     | 9/20 [03:21<04:06, 22.40s/it] 50%|█████     | 10/20 [03:43<03:42, 22.29s/it] 55%|█████▌    | 11/20 [04:05<03:20, 22.32s/it] 60%|██████    | 12/20 [04:27<02:58, 22.28s/it] 65%|██████▌   | 13/20 [04:51<02:39, 22.81s/it] 70%|███████   | 14/20 [05:13<02:14, 22.38s/it] 75%|███████▌  | 15/20 [05:35<01:52, 22.43s/it] 80%|████████  | 16/20 [05:58<01:29, 22.45s/it] 85%|████████▌ | 17/20 [06:20<01:07, 22.47s/it] 90%|█████████ | 18/20 [06:43<00:44, 22.48s/it] 95%|█████████▌| 19/20 [07:05<00:22, 22.47s/it]100%|██████████| 20/20 [07:28<00:00, 22.48s/it]100%|██████████| 20/20 [07:28<00:00, 22.42s/it]
+INFO - Successfully generated video using weighted embeddings
+INFO - Finished storing latents for prompt_004_vid001: 20 steps stored
+INFO - Latent storage completed: 20 steps stored
+INFO - Restored 30 original attn2 modules
+INFO - Removed attention hooks from transformer
+INFO - Finished storing attention maps for prompt_004_vid001: 20 steps stored
+INFO - Generating aggregated attention maps for prompt_004_vid001
+INFO - Stored aggregated attention map for 'disabled' from 20 steps
+INFO - Attention storage completed for video: prompt_004_vid001
+INFO - Attention tokens stored: ['disabled']
+INFO - Video frames type: <class 'numpy.ndarray'>
+INFO - Video frames length: 61
+INFO - First frame type: <class 'numpy.ndarray'>
+INFO - Moved all video frames to CPU for export
+INFO - Exporting video frames to: outputs/sterotypes_20250919_203631/videos/prompt_004/video_001.mp4
+INFO - Video export completed successfully
+INFO - Generating thumbnail for: outputs/sterotypes_20250919_203631/videos/prompt_004/video_001.mp4
+INFO - Thumbnail generated successfully
+INFO - GPU memory after export: 33.6GB free on device 0
+INFO - Successfully generated: outputs/sterotypes_20250919_203631/videos/prompt_004/video_001.mp4
+INFO - Attention storage: 1 tokens tracked: ['disabled']
+INFO - ✅ Video file verified at outputs/sterotypes_20250919_203631/videos/prompt_004/video_001.mp4, proceeding with attention video generation
+INFO - Generating attention videos for completed video: prompt_004_vid001
+INFO - ✅ Found exact matching video for prompt_004_vid001: outputs/sterotypes_20250919_203631/videos/prompt_004/video_001.mp4
+INFO - ✅ Video path verification passed: video_001.mp4 matches prompt_004_vid001
+INFO - Processing attention video for prompt_004_vid001:disabled
+INFO - Generating step-by-step attention video for prompt_004_vid001:disabled
+INFO - Loading aggregated attention for prompt_004_vid001:disabled
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_overlay.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_203631/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_203631/attention_videos/prompt_004/vid001/token_disabled
+INFO - Final output path: outputs/sterotypes_20250919_203631/attention_videos/prompt_004/vid001/token_disabled/aggregate_overlay.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_203631/attention_videos/prompt_004/vid001/token_disabled/aggregate_overlay.mp4 (61 frames, 480×848)
+INFO - Loading aggregated attention for prompt_004_vid001:disabled
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_attention.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_203631/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_203631/attention_videos/prompt_004/vid001/token_disabled
+INFO - Final output path: outputs/sterotypes_20250919_203631/attention_videos/prompt_004/vid001/token_disabled/aggregate_attention.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_203631/attention_videos/prompt_004/vid001/token_disabled/aggregate_attention.mp4 (61 frames, 480×848)
+INFO - ✅ Generated attention video: aggregate_attention.mp4
+INFO - ✅ Generated attention video: aggregate_overlay.mp4
+INFO - 🎬 Attention video generation complete for prompt_004_vid001: 1/1 successful
+Generating videos: 14/30 (46.7%) - ETA: 1:45:47 - Tracking close-up of a (disabled:2.5) hero runningINFO - Generating video 14/30: video_002
+INFO - Using seed: 1000 (base: 999 + video_num: 1)
+INFO - Latent storage enabled for video ID: prompt_004_vid002
+INFO - Attention storage enabled for video ID: prompt_004_vid002
+INFO - 🎯 Using guidance_scale from config: 6.5
+INFO - Generating video: 848x480, 61 frames
+INFO - Prompt: Tracking close-up of a (disabled:2.5) hero running through a city street as an explosion erupts behind them; dynamic action, fast motion,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Seed: 1000
+INFO - Latent storage enabled for video: prompt_004_vid002
+INFO - Attention storage enabled for video: prompt_004_vid002
+INFO - GPU memory before generation: 33.6GB free on cuda:0
+INFO - Prompt weights detected: {'disabled': 2.5}
+INFO - Original prompt: Tracking close-up of a (disabled:2.5) hero running through a city street as an explosion erupts behind them; dynamic action, fast motion,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Processed prompt: Tracking close-up of a disabled hero running through a city street as an explosion erupts behind them; dynamic action, fast motion,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Using WAN weighted embeddings for generation
+INFO - Captured 20 timesteps from scheduler
+INFO - Captured 21 sigmas from scheduler
+INFO - 🚫 Dynamic guidance disabled: enabled=False, schedule={}
+INFO - Starting latent storage for video: prompt_004_vid002
+INFO - Latents will be stored in: outputs/sterotypes_20250919_203631/latents/prompt_004/vid_002
+INFO - Mapped target word 'disabled' -> 'disabled' -> tokens [289, 127363, 289] at positions [5, 6, 10]
+INFO - Started attention storage for video: prompt_004_vid002
+INFO - Prompt: Tracking close-up of a disabled hero running through a city street as an explosion erupts behind them; dynamic action, fast motion,, high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Target words specified: ['disabled']
+INFO - Found 1 target tokens for attention tracking:
+INFO -   'disabled' -> tokens [289, 127363, 289]
+INFO - Found transformer model for attention hooks: WanTransformer3DModel
+INFO - ✅ Successfully wrapped 30 attn2 modules with WanAttentionWrapper
+INFO - Registered attention hooks on transformer for video: prompt_004_vid002
+INFO - ✅ Created combined callback with guidance_callback=False
+INFO - 🎯 Using static guidance scale: 6.5
+INFO - Creating T5 weighted embeddings for: Tracking close-up of a (disabled:2.5) hero running through a city street as an explosion erupts behind them; dynamic action, fast motion,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Full sequence length: 48, Max length: 512
+INFO - Base embeddings shape: torch.Size([1, 512, 4096])
+INFO - Token weights applied: min=1.000, max=2.500, mean=1.000
+INFO - Applying weights using method: multiply
+INFO - Embeddings shape: torch.Size([1, 512, 4096]), Weights shape: torch.Size([512])
+INFO - Final weighted embeddings shape: torch.Size([1, 512, 4096])
+INFO - Weighted embeddings stats: mean=-0.000002, std=0.024170, min=-1.875000, max=0.992188
+INFO - Difference from standard: L2=7.125000, relative=0.214286 (21.43%)
+ensure_cfg_for_schedule False
+  0%|          | 0/20 [00:00<?, ?it/s]  5%|▌         | 1/20 [00:22<07:16, 22.96s/it] 10%|█         | 2/20 [00:45<06:47, 22.66s/it] 15%|█▌        | 3/20 [01:07<06:24, 22.61s/it] 20%|██        | 4/20 [01:30<06:01, 22.60s/it] 25%|██▌       | 5/20 [01:53<05:38, 22.58s/it] 30%|███       | 6/20 [02:15<05:15, 22.55s/it] 35%|███▌      | 7/20 [02:38<04:52, 22.53s/it] 40%|████      | 8/20 [03:00<04:30, 22.51s/it] 45%|████▌     | 9/20 [03:22<04:07, 22.48s/it] 50%|█████     | 10/20 [03:45<03:44, 22.46s/it] 55%|█████▌    | 11/20 [04:07<03:21, 22.39s/it] 60%|██████    | 12/20 [04:29<02:59, 22.39s/it] 65%|██████▌   | 13/20 [04:54<02:40, 22.94s/it] 70%|███████   | 14/20 [05:15<02:14, 22.47s/it] 75%|███████▌  | 15/20 [05:38<01:52, 22.46s/it] 80%|████████  | 16/20 [06:00<01:29, 22.49s/it] 85%|████████▌ | 17/20 [06:23<01:07, 22.51s/it] 90%|█████████ | 18/20 [06:45<00:45, 22.52s/it] 95%|█████████▌| 19/20 [07:08<00:22, 22.53s/it]100%|██████████| 20/20 [07:30<00:00, 22.54s/it]100%|██████████| 20/20 [07:30<00:00, 22.54s/it]
+INFO - Successfully generated video using weighted embeddings
+INFO - Finished storing latents for prompt_004_vid002: 20 steps stored
+INFO - Latent storage completed: 20 steps stored
+INFO - Restored 30 original attn2 modules
+INFO - Removed attention hooks from transformer
+INFO - Finished storing attention maps for prompt_004_vid002: 20 steps stored
+INFO - Generating aggregated attention maps for prompt_004_vid002
+INFO - Stored aggregated attention map for 'disabled' from 20 steps
+INFO - Attention storage completed for video: prompt_004_vid002
+INFO - Attention tokens stored: ['disabled']
+INFO - Video frames type: <class 'numpy.ndarray'>
+INFO - Video frames length: 61
+INFO - First frame type: <class 'numpy.ndarray'>
+INFO - Moved all video frames to CPU for export
+INFO - Exporting video frames to: outputs/sterotypes_20250919_203631/videos/prompt_004/video_002.mp4
+INFO - Video export completed successfully
+INFO - Generating thumbnail for: outputs/sterotypes_20250919_203631/videos/prompt_004/video_002.mp4
+INFO - Thumbnail generated successfully
+INFO - GPU memory after export: 33.6GB free on device 0
+INFO - Successfully generated: outputs/sterotypes_20250919_203631/videos/prompt_004/video_002.mp4
+INFO - Attention storage: 1 tokens tracked: ['disabled']
+INFO - ✅ Video file verified at outputs/sterotypes_20250919_203631/videos/prompt_004/video_002.mp4, proceeding with attention video generation
+INFO - Generating attention videos for completed video: prompt_004_vid002
+INFO - ✅ Found exact matching video for prompt_004_vid002: outputs/sterotypes_20250919_203631/videos/prompt_004/video_002.mp4
+INFO - ✅ Video path verification passed: video_002.mp4 matches prompt_004_vid002
+INFO - Processing attention video for prompt_004_vid002:disabled
+INFO - Generating step-by-step attention video for prompt_004_vid002:disabled
+INFO - Loading aggregated attention for prompt_004_vid002:disabled
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_overlay.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_203631/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_203631/attention_videos/prompt_004/vid002/token_disabled
+INFO - Final output path: outputs/sterotypes_20250919_203631/attention_videos/prompt_004/vid002/token_disabled/aggregate_overlay.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_203631/attention_videos/prompt_004/vid002/token_disabled/aggregate_overlay.mp4 (61 frames, 480×848)
+INFO - Loading aggregated attention for prompt_004_vid002:disabled
+INFO - Generated aggregated attention: shape=torch.Size([25440, 1])
+INFO - After squeeze: spatial_attention.shape=torch.Size([25440])
+INFO - Using metadata from first step: 0
+INFO - Final spatial_attention: shape=torch.Size([25440]), dtype=torch.float16
+INFO - Reshaping attention: spatial_size=25440, expected=25440
+INFO - Original spatial_attention shape: torch.Size([25440])
+INFO - Latent dimensions: frames=16, height=30, width=53
+INFO - Perfect reshape match: torch.Size([16, 30, 53])
+INFO - Converted to numpy: shape=(16, 30, 53), dtype=float16
+INFO - Attention latent shape: (16, 30, 53) -> Target: 61×480×848
+INFO - AttentionVisualizer received output_filename: 'aggregate_attention.mp4'
+INFO - AttentionVisualizer self.output_dir: 'outputs/sterotypes_20250919_203631/attention_videos'
+INFO - Creating attention video directory: outputs/sterotypes_20250919_203631/attention_videos/prompt_004/vid002/token_disabled
+INFO - Final output path: outputs/sterotypes_20250919_203631/attention_videos/prompt_004/vid002/token_disabled/aggregate_attention.mp4
+INFO - Generated attention video: outputs/sterotypes_20250919_203631/attention_videos/prompt_004/vid002/token_disabled/aggregate_attention.mp4 (61 frames, 480×848)
+INFO - ✅ Generated attention video: aggregate_attention.mp4
+INFO - ✅ Generated attention video: aggregate_overlay.mp4
+INFO - 🎬 Attention video generation complete for prompt_004_vid002: 1/1 successful
+Generating videos: 15/30 (50.0%) - ETA: 1:40:22 - Tracking close-up of a (disabled:2.5) hero runningINFO - Generating video 15/30: video_003
+INFO - Using seed: 1001 (base: 999 + video_num: 2)
+INFO - Latent storage enabled for video ID: prompt_004_vid003
+INFO - Attention storage enabled for video ID: prompt_004_vid003
+INFO - 🎯 Using guidance_scale from config: 6.5
+INFO - Generating video: 848x480, 61 frames
+INFO - Prompt: Tracking close-up of a (disabled:2.5) hero running through a city street as an explosion erupts behind them; dynamic action, fast motion,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Seed: 1001
+INFO - Latent storage enabled for video: prompt_004_vid003
+INFO - Attention storage enabled for video: prompt_004_vid003
+INFO - GPU memory before generation: 33.6GB free on cuda:0
+INFO - Prompt weights detected: {'disabled': 2.5}
+INFO - Original prompt: Tracking close-up of a (disabled:2.5) hero running through a city street as an explosion erupts behind them; dynamic action, fast motion,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Processed prompt: Tracking close-up of a disabled hero running through a city street as an explosion erupts behind them; dynamic action, fast motion,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Using WAN weighted embeddings for generation
+INFO - Captured 20 timesteps from scheduler
+INFO - Captured 21 sigmas from scheduler
+INFO - 🚫 Dynamic guidance disabled: enabled=False, schedule={}
+INFO - Starting latent storage for video: prompt_004_vid003
+INFO - Latents will be stored in: outputs/sterotypes_20250919_203631/latents/prompt_004/vid_003
+INFO - Mapped target word 'disabled' -> 'disabled' -> tokens [289, 127363, 289] at positions [5, 6, 10]
+INFO - Started attention storage for video: prompt_004_vid003
+INFO - Prompt: Tracking close-up of a disabled hero running through a city street as an explosion erupts behind them; dynamic action, fast motion,, high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Target words specified: ['disabled']
+INFO - Found 1 target tokens for attention tracking:
+INFO -   'disabled' -> tokens [289, 127363, 289]
+INFO - Found transformer model for attention hooks: WanTransformer3DModel
+INFO - ✅ Successfully wrapped 30 attn2 modules with WanAttentionWrapper
+INFO - Registered attention hooks on transformer for video: prompt_004_vid003
+INFO - ✅ Created combined callback with guidance_callback=False
+INFO - 🎯 Using static guidance scale: 6.5
+INFO - Creating T5 weighted embeddings for: Tracking close-up of a (disabled:2.5) hero running through a city street as an explosion erupts behind them; dynamic action, fast motion,,  high quality cinematography, sharp focus, dramatic lighting, excellent color grading, highly detailed
+INFO - Full sequence length: 48, Max length: 512
+INFO - Base embeddings shape: torch.Size([1, 512, 4096])
+INFO - Token weights applied: min=1.000, max=2.500, mean=1.000
+INFO - Applying weights using method: multiply
+INFO - Embeddings shape: torch.Size([1, 512, 4096]), Weights shape: torch.Size([512])
+INFO - Final weighted embeddings shape: torch.Size([1, 512, 4096])
+INFO - Weighted embeddings stats: mean=-0.000002, std=0.024170, min=-1.875000, max=0.992188
+INFO - Difference from standard: L2=7.125000, relative=0.214286 (21.43%)
+ensure_cfg_for_schedule False
+  0%|          | 0/20 [00:00<?, ?it/s]  5%|▌         | 1/20 [00:24<07:40, 24.24s/it] 10%|█         | 2/20 [00:47<07:02, 23.47s/it] 15%|█▌        | 3/20 [01:09<06:31, 23.03s/it]

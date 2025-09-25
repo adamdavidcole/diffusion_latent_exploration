@@ -1,0 +1,73 @@
+attention_analysis_settings:
+  aggregated_storage_format: numpy
+  attention_threshold: null
+  auto_generate_per_video: false
+  auto_generate_videos: false
+  compress_attention: true
+  spatial_downsample_factor: 1
+  storage_dtype: float32
+  storage_format: numpy
+  storage_interval: 5
+  store_aggregated_attention: false
+  store_attention: false
+  store_individual_tokens: false
+  store_per_block: false
+  store_per_head: false
+  tokenizer_name: google/umt5-xxl
+  visualization_params:
+    colormap: hot
+    figsize:
+    - 12
+    - 8
+    fps: 10
+    include_colorbar: true
+    interpolation_steps: 2
+    overlay_alpha: 0.6
+    static_duration: 3.0
+    video_format: mp4
+batch_name: null
+cfg_schedule_settings:
+  apply_to_guidance_2: true
+  enabled: false
+  force_cfg: false
+  interpolation: linear
+  schedule: {}
+  verbose: false
+latent_analysis_settings:
+  compress_latents: true
+  latent_storage_format: numpy
+  storage_dtype: float32
+  storage_interval: 1
+  store_latents: false
+memory_settings:
+  clear_cache_between_videos: true
+  enable_memory_efficient_attention: true
+  enable_memory_optimization: true
+  reload_model_for_large_models: true
+  use_gradient_checkpointing: true
+model_settings:
+  seed: 999                    # Random seed for reproducibility
+  sampler: "unipc"             # Scheduler type (unipc recommended for WAN)
+  cfg_scale: 6.5               # Classifier-free guidance scale
+  steps: 20                    # Number of inference steps
+  eta: 0.0                     # Scheduler eta parameter
+  clip_skip: 1                 # CLIP skip layers
+  model_id: "Wan-AI/Wan2.1-T2V-14B-Diffusers"  # 14B model
+
+output_dir: outputs
+prompt_settings:
+  base_weight: 1.0
+  embedding_method: norm_preserving
+  enable_prompt_weighting: true
+  enable_weighting: false
+  use_weighted_embeddings: false
+  variation_weight: 1.5
+use_timestamp: true
+video_settings:
+  width: 848                 # Video width (must be divisible by 8)
+  height: 480                # Video height (must be divisible by 8) - lower than 720p to save memory
+  fps: 12                    # Frames per second
+  duration: null             # Video duration in seconds
+  frames: 5                  # Total frames (calculated from fps * duration if null)
+
+videos_per_variation: 3

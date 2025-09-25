@@ -8,12 +8,12 @@ import ExperimentItem from './ExperimentItem';
 const INITIAL_MIN_VIDEO_COUNT = 20;
 
 const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, modelFilter, minVideoCount, minDuration, sortOrder, vlmAnalysisFilter, trajectoryAnalysisFilter, attentionVideosFilter }) => {
-    const [isExpanded, setIsExpanded] = useState(level < 2); // Auto-expand first two levels
+    const [isExpanded, setIsExpanded] = useState(level < 0); // Auto-expand only first level (level 0)
     const navigate = useNavigate();
 
     // Auto-expand when switching to alphabetical to show first experiment
     useEffect(() => {
-        if (sortOrder === 'alphabetical' && level < 2) {
+        if (sortOrder === 'alphabetical' && level < 0) {
             setIsExpanded(true);
         }
     }, [sortOrder, level]);
@@ -217,7 +217,7 @@ const sortChildren = (children, sortOrder) => {
         if (a.type !== b.type) {
             return a.type === 'folder' ? -1 : 1;
         }
-        
+
         if (sortOrder === 'recent') {
             // Sort by most recent timestamp (newest first)
             const aTimestamp = getMostRecentTimestamp(a);
@@ -238,17 +238,17 @@ const findFirstExperiment = (node, searchTerm, modelFilter, minVideoCount, minDu
         }
         return null;
     }
-    
+
     if (node.type === 'folder' && node.children) {
         // Sort children alphabetically and look for the first experiment
         const sortedChildren = [...node.children].sort((a, b) => a.name.localeCompare(b.name));
-        
+
         for (const child of sortedChildren) {
             const result = findFirstExperiment(child, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter, attentionVideosFilter);
             if (result) return result;
         }
     }
-    
+
     return null;
 };
 
@@ -340,7 +340,7 @@ const TreeExperimentList = ({ onRescan }) => {
 
     const handleSortOrderChange = useCallback((order) => {
         setSortOrder(order);
-        
+
         // When switching to alphabetical, navigate to the first experiment
         if (order === 'alphabetical' && experimentsTree) {
             const firstExperiment = findFirstExperiment(experimentsTree, searchTerm, modelFilter, minVideoCount, minDuration, currentExperiment, vlmAnalysisFilter, trajectoryAnalysisFilter, attentionVideosFilter);

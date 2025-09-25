@@ -1,0 +1,41 @@
+# Test configuration with CFG scheduling to validate DynamicScale approach
+
+model_settings:
+  seed: 999
+  sampler: "unipc"
+  cfg_scale: 6.5  # Starting CFG value
+  steps: 20
+  eta: 0.0
+  clip_skip: 2
+  model_id: "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
+  device: "auto"
+
+video_settings:
+  width: 512
+  height: 512
+  fps: 15
+  duration: 2.0
+  frames: null
+
+videos_per_variation: 1
+output_dir: "outputs"
+batch_name: "cfg_schedule_test"
+use_timestamp: true
+
+# CFG scheduling configuration
+cfg_schedule_settings:
+  enabled: true
+  schedule:
+    0: 6.5   # Start with high CFG for strong guidance
+    10: 0.0  # End with CFG=0 for final refinement
+  interpolation: "linear"
+  apply_to_guidance_2: true
+  verbose: true
+
+prompt_settings:
+  enabled: false
+  prompt_processor: "clean"
+  embedding_method: "multiply"
+
+prompts:
+  - "A cat sitting on a windowsill, watching raindrops on glass"
