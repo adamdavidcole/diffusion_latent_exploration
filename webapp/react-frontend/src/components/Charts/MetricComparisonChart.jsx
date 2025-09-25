@@ -36,10 +36,10 @@ const MetricComparisonChart = ({
     const chartLabels = promptGroups.map(key => {
         const abbreviatedLabel = key.replace('prompt_', 'P');
         const variationText = currentExperiment ?
-            getVariationTextFromPromptKey(key, currentExperiment) :
+            getVariationTextFromPromptKey(key, currentExperiment, showFullVariationText) :
             abbreviatedLabel;
 
-        return showFullVariationText ? variationText : abbreviatedLabel;
+        return variationText;
     });
 
     const chartData = {
@@ -75,7 +75,7 @@ const MetricComparisonChart = ({
                         const index = context[0].dataIndex;
                         const promptKey = promptGroups[index];
                         const variationText = currentExperiment ?
-                            getVariationTextFromPromptKey(promptKey, currentExperiment) :
+                            getVariationTextFromPromptKey(promptKey, currentExperiment, true) :
                             promptKey.replace('prompt_', 'Prompt ');
                         return variationText;
                     },
@@ -113,8 +113,10 @@ const MetricComparisonChart = ({
                 },
                 ticks: {
                     color: '#b0b0b0',
-                    maxRotation: showFullVariationText ? 45 : 0,
-                    minRotation: showFullVariationText ? 45 : 0,
+                    maxRotation: 45,
+                    minRotation: 45,
+                    maxTicksLimit: 50, // Ensure all labels are shown
+                    display: true, // Force all ticks to display
                 },
                 grid: {
                     color: 'rgba(176, 176, 176, 0.1)',

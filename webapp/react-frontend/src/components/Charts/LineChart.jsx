@@ -31,8 +31,8 @@ const LineChart = ({
       const groupData = data[promptGroup];
       if (!Array.isArray(groupData)) return null;
       
-      const label = showFullVariationText && currentExperiment ?
-        getVariationTextFromPromptKey(promptGroup, currentExperiment) :
+      const label = currentExperiment ?
+        getVariationTextFromPromptKey(promptGroup, currentExperiment, showFullVariationText) :
         promptGroup.replace('prompt_', 'P');
       
       return {
@@ -100,6 +100,10 @@ const LineChart = ({
           },
           ticks: {
             color: '#b0b0b0',
+            maxTicksLimit: 50, // Ensure all labels are shown
+            maxRotation: 45,
+            minRotation: 45,
+            display: true, // Force all ticks to display
           },
           grid: {
             color: 'rgba(176, 176, 176, 0.1)',

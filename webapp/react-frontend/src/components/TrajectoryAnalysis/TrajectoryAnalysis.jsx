@@ -45,7 +45,7 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
         { key: 'geometric', label: 'Geometric' },
         { key: 'spatial', label: 'Spatial' },
         { key: 'channel', label: 'Channel' },
-        { key: 'other', label: 'Other' }
+        // { key: 'other', label: 'Other' }
     ];
 
     // Load trajectory analysis data
@@ -89,7 +89,7 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
         promptGroups.forEach(key => {
             const abbreviatedLabel = key.replace('prompt_', 'P');
             const variationText = currentExperiment ?
-                getVariationTextFromPromptKey(key, currentExperiment) :
+                getVariationTextFromPromptKey(key, currentExperiment, showFullVariationText) :
                 abbreviatedLabel;
             mappings[abbreviatedLabel] = variationText;
         });
@@ -316,7 +316,7 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                         </div>
                     </div>
 
-                    <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
+                    {/* <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
                         <h5>
                             Semantic Convergence
                             <TrajectoryInfoTooltip metricKey="semantic_convergence" title="Semantic Convergence" />
@@ -337,7 +337,7 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                                 showFullVariationText={showFullVariationText}
                             />
                         </div>
-                    </div>
+                    </div> */}
                 </div>
             </div>
         );
@@ -946,7 +946,7 @@ const TrajectoryAnalysis = ({ experimentPath }) => {
                                 />
                             </div>
                         </div>
-                        
+
                         <div className="metric-chart-container" style={{ width: `${chartSize}px` }}>
                             <h5>
                                 Video Diversity Metrics

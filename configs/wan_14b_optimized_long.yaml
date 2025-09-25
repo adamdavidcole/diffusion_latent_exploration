@@ -16,7 +16,7 @@ video_settings:
   height: 480                # Video height (must be divisible by 8) - lower than 720p to save memory
   fps: 12                    # Frames per second
   duration: null             # Video duration in seconds
-  frames: 49                 # Total frames (calculated from fps * duration if null)
+  frames: 45                 # Total frames (calculated from fps * duration if null)
 
 # Dynamic Classifier-Free Guidance Scheduling
 cfg_schedule_settings: 

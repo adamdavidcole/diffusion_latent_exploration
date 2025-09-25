@@ -285,8 +285,8 @@ const TrajectoryChartModal = ({
         promptGroups.forEach((promptGroup, index) => {
             const values = individualValues[promptGroup];
             if (values && values.length > 0) {
-                const label = showFullVariationText && currentExperiment ?
-                    getVariationTextFromPromptKey(promptGroup, currentExperiment) :
+                const label = currentExperiment ?
+                    getVariationTextFromPromptKey(promptGroup, currentExperiment, showFullVariationText) :
                     promptGroup.replace('prompt_', 'P');
 
                 combinedData[label] = values;
@@ -467,8 +467,8 @@ const TrajectoryChartModal = ({
                                     const stats = errorBarData[promptGroup];
                                     if (!stats) return null;
 
-                                    const label = showFullVariationText && currentExperiment ?
-                                        getVariationTextFromPromptKey(promptGroup, currentExperiment) :
+                                    const label = currentExperiment ?
+                                        getVariationTextFromPromptKey(promptGroup, currentExperiment, showFullVariationText) :
                                         promptGroup.replace('prompt_', 'P');
 
                                     return (
@@ -499,8 +499,8 @@ const TrajectoryChartModal = ({
                                     const values = individualValues[promptGroup];
                                     if (!values || values.length === 0) return null;
 
-                                    const label = showFullVariationText && currentExperiment ?
-                                        getVariationTextFromPromptKey(promptGroup, currentExperiment) :
+                                    const label = currentExperiment ?
+                                        getVariationTextFromPromptKey(promptGroup, currentExperiment, showFullVariationText) :
                                         promptGroup.replace('prompt_', 'P');
 
                                     // Use consistent color for this prompt group

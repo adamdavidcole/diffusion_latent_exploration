@@ -8,6 +8,7 @@ import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-d
 import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
 import { extractClosestEdge, attachClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 import { getVariationTextFromPromptKey } from '../../utils/variationText';
+import { getVariationDisplayText, extractVariationFromPrompt } from '../../utils/promptVariationUtils';
 
 const VideoGrid = () => {
     const context = useApp();
@@ -187,75 +188,11 @@ const VideoGrid = () => {
         }
     }, [lightboxVideo, videoGridToRender]);
 
-    // Helper function to extract just the variation part from the full prompt
-    const extractVariationFromPrompt = useCallback((fullPrompt, basePrompt) => {
-        if (!basePrompt || !fullPrompt) return fullPrompt;
-        
-        console.log('Extracting variation from:', { fullPrompt, basePrompt });
-        
-        // Look for patterns like [variation] in base prompt
-        const bracketMatch = basePrompt.match(/\[(.*?)\]/);
-        if (bracketMatch) {
-            console.log('Found bracket pattern:', bracketMatch);
-            // Base prompt has [placeholder], find what replaced it
-            const placeholder = bracketMatch[0]; // e.g., "[...] family"
-            const beforePlaceholder = basePrompt.split(placeholder)[0];
-            const afterPlaceholder = basePrompt.split(placeholder)[1];
-            
-            console.log('Placeholder parts:', { placeholder, beforePlaceholder, afterPlaceholder });
-            
-            // Extract the variation by finding what's between the before/after parts
-            const beforeIndex = fullPrompt.indexOf(beforePlaceholder);
-            const afterIndex = fullPrompt.lastIndexOf(afterPlaceholder);
-            
-            if (beforeIndex !== -1 && afterIndex !== -1) {
-                const startIndex = beforeIndex + beforePlaceholder.length;
-                const variation = fullPrompt.substring(startIndex, afterIndex).trim();
-                console.log('Extracted variation:', variation);
-                
-                // Handle empty variation case
-                if (variation === '') {
-                    return '[empty]';
-                }
-                
-                return variation || fullPrompt;
-            }
-        }
-        
-        // Fallback: try to find differences by comparing word by word
-        const baseWords = basePrompt.toLowerCase().split(/\s+/);
-        const fullWords = fullPrompt.toLowerCase().split(/\s+/);
-        
-        // Find the differing parts
-        const variations = [];
-        fullWords.forEach((word, index) => {
-            if (baseWords[index] && baseWords[index] !== word) {
-                variations.push(fullPrompt.split(/\s+/)[index]); // Keep original case
-            } else if (!baseWords[index]) {
-                variations.push(fullPrompt.split(/\s+/)[index]); // Additional words
-            }
-        });
-        
-        return variations.length > 0 ? variations.join(' ') : fullPrompt;
-    }, []);
-
-    // Helper function to get display text for variation with intelligent truncation
-    const getVariationDisplayText = useCallback((row, maxLength = 40) => {
-        const fullText = row.variation || '';
+    // Use centralized utility for getting variation display text
+    const getVariationDisplayTextLocal = useCallback((row, maxLength = 40) => {
         const basePrompt = currentExperiment?.base_prompt || '';
-        
-        // Extract just the variation part
-        const variationOnly = extractVariationFromPrompt(fullText, basePrompt);
-        
-        // Handle special cases
-        if (variationOnly === '[empty]' || variationOnly.length <= maxLength) {
-            return { display: variationOnly, full: fullText };
-        }
-        
-        // If variation is still too long, truncate it
-        const truncated = variationOnly.substring(0, maxLength - 3) + '...';
-        return { display: truncated, full: fullText };
-    }, [currentExperiment?.base_prompt, extractVariationFromPrompt]);
+        return getVariationDisplayText(row, basePrompt, maxLength);
+    }, [currentExperiment?.base_prompt]);
 
     // Get preview information for navigation
     const getNavigationPreview = useCallback((direction) => {
@@ -303,7 +240,7 @@ const VideoGrid = () => {
                 if (newVideoIndex >= grid[newRowIndex].videos.length) {
                     newVideoIndex = grid[newRowIndex].videos.length - 1;
                 }
-                return getVariationDisplayText(grid[newRowIndex]).display;
+                return getVariationDisplayTextLocal(grid[newRowIndex]).display;
             case 'down':
                 newRowIndex = currentRowIndex + 1;
                 if (newRowIndex >= grid.length) {
@@ -312,11 +249,11 @@ const VideoGrid = () => {
                 if (newVideoIndex >= grid[newRowIndex].videos.length) {
                     newVideoIndex = grid[newRowIndex].videos.length - 1;
                 }
-                return getVariationDisplayText(grid[newRowIndex]).display;
+                return getVariationDisplayTextLocal(grid[newRowIndex]).display;
             default:
                 return null;
         }
-    }, [lightboxVideo, videoGridToRender, getVariationDisplayText]);
+    }, [lightboxVideo, videoGridToRender, getVariationDisplayTextLocal]);
 
     // Calculate proportional gap
     const calculateGap = useCallback((size) => {
@@ -496,9 +433,9 @@ const VideoGrid = () => {
                 </div>
                 <div 
                     className={`row-label ${showLabels ? '' : 'hidden'}`}
-                    title={getVariationDisplayText(row).full}
+                    title={getVariationDisplayTextLocal(row).full}
                 >
-                    {getVariationDisplayText(row).display}
+                    {getVariationDisplayTextLocal(row).display}
                 </div>
                 <div
                     className="videos-row"

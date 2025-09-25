@@ -43,10 +43,10 @@ const ScatterChart = ({
         // Get label for the group
         const abbreviatedLabel = promptGroup.replace('prompt_', 'P');
         const variationText = currentExperiment ?
-            getVariationTextFromPromptKey(promptGroup, currentExperiment) :
+            getVariationTextFromPromptKey(promptGroup, currentExperiment, showFullVariationText) :
             abbreviatedLabel;
 
-        const label = showFullVariationText ? variationText : abbreviatedLabel;
+        const label = variationText;
 
         return {
             label: label,
@@ -116,7 +116,7 @@ const ScatterChart = ({
 
                         // Always show full variation text in tooltip, regardless of showFullVariationText setting
                         const fullVariationText = currentExperiment ?
-                            getVariationTextFromPromptKey(promptGroup, currentExperiment) :
+                            getVariationTextFromPromptKey(promptGroup, currentExperiment, true) :
                             promptGroup.replace('prompt_', 'P');
 
                         return fullVariationText;

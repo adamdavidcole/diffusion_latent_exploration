@@ -37,10 +37,10 @@ const StatisticalBarChart = ({
     const chartLabels = promptGroups.map(key => {
         const abbreviatedLabel = key.replace('prompt_', 'P');
         const variationText = currentExperiment ?
-            getVariationTextFromPromptKey(key, currentExperiment) :
+            getVariationTextFromPromptKey(key, currentExperiment, showFullVariationText) :
             abbreviatedLabel;
 
-        return showFullVariationText ? variationText : abbreviatedLabel;
+        return variationText;
     });
 
     // Prepare statistical ranges if available
@@ -152,7 +152,7 @@ const StatisticalBarChart = ({
                         
                         // Always show full variation text in tooltip
                         const fullVariationText = currentExperiment ?
-                            getVariationTextFromPromptKey(promptGroup, currentExperiment) :
+                            getVariationTextFromPromptKey(promptGroup, currentExperiment, true) :
                             promptGroup.replace('prompt_', 'P');
                         
                         return fullVariationText;

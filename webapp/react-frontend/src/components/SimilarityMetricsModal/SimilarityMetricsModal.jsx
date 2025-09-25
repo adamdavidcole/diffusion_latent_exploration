@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useApp } from '../../context/AppContext';
 import BarChart from '../Charts/BarChart';
+import { getVariationDisplayText, findVideoGridRowByPromptKey } from '../../utils/promptVariationUtils';
 import './SimilarityMetricsModal.css';
 
 const SimilarityMetricsModal = () => {
@@ -8,75 +9,7 @@ const SimilarityMetricsModal = () => {
     const [selectedMetric, setSelectedMetric] = useState('clip');
     const [useZScore, setUseZScore] = useState(false);
 
-    // Helper function to extract just the variation part from the full prompt (COPIED FROM VideoGrid)
-    const extractVariationFromPrompt = useCallback((fullPrompt, basePrompt) => {
-        if (!basePrompt || !fullPrompt) return fullPrompt;
-        
-        console.log('Extracting variation from:', { fullPrompt, basePrompt });
-        
-        // Look for patterns like [variation] in base prompt
-        const bracketMatch = basePrompt.match(/\[(.*?)\]/);
-        if (bracketMatch) {
-            console.log('Found bracket pattern:', bracketMatch);
-            // Base prompt has [placeholder], find what replaced it
-            const placeholder = bracketMatch[0]; // e.g., "[...] family"
-            const beforePlaceholder = basePrompt.split(placeholder)[0];
-            const afterPlaceholder = basePrompt.split(placeholder)[1];
-            
-            console.log('Placeholder parts:', { placeholder, beforePlaceholder, afterPlaceholder });
-            
-            // Extract the variation by finding what's between the before/after parts
-            const beforeIndex = fullPrompt.indexOf(beforePlaceholder);
-            const afterIndex = fullPrompt.lastIndexOf(afterPlaceholder);
-            
-            if (beforeIndex !== -1 && afterIndex !== -1) {
-                const startIndex = beforeIndex + beforePlaceholder.length;
-                const variation = fullPrompt.substring(startIndex, afterIndex).trim();
-                console.log('Extracted variation:', variation);
-                
-                // Handle empty variation case
-                if (variation === '') {
-                    return '[empty]';
-                }
-                
-                return variation || fullPrompt;
-            }
-        }
-        
-        // Fallback: try to find differences by comparing word by word
-        const baseWords = basePrompt.toLowerCase().split(/\s+/);
-        const fullWords = fullPrompt.toLowerCase().split(/\s+/);
-        
-        // Find the differing parts
-        const variations = [];
-        fullWords.forEach((word, index) => {
-            if (baseWords[index] && baseWords[index] !== word) {
-                variations.push(fullPrompt.split(/\s+/)[index]); // Keep original case
-            } else if (!baseWords[index]) {
-                variations.push(fullPrompt.split(/\s+/)[index]); // Additional words
-            }
-        });
-        
-        return variations.length > 0 ? variations.join(' ') : fullPrompt;
-    }, []);
-
-    // Helper function to get display text for variation with intelligent truncation (COPIED FROM VideoGrid)
-    const getVariationDisplayText = useCallback((row, maxLength = 30) => {
-        const fullText = row.variation || '';
-        const basePrompt = state.currentExperiment?.base_prompt || '';
-        
-        // Extract just the variation part
-        const variationOnly = extractVariationFromPrompt(fullText, basePrompt);
-        
-        // Handle special cases
-        if (variationOnly === '[empty]' || variationOnly.length <= maxLength) {
-            return { display: variationOnly, full: fullText };
-        }
-        
-        // If variation is still too long, truncate it
-        const truncated = variationOnly.substring(0, maxLength - 3) + '...';
-        return { display: truncated, full: fullText };
-    }, [state.currentExperiment?.base_prompt, extractVariationFromPrompt]);
+    // Use the centralized utility for getting variation display text
 
     const chartData = useMemo(() => {
         if (!state.similarityAnalysis?.rankings?.final_scores || !state.currentExperiment) {
@@ -108,15 +41,13 @@ const SimilarityMetricsModal = () => {
             }
 
             if (value !== undefined) {
-                // Convert prompt_XXX to XXX format for matching with variation_num
-                const variationNum = promptKey.replace('prompt_', '');
-                
                 // Find the matching video_grid row - video_grid contains the variation text
-                const matchingRow = state.currentExperiment?.video_grid?.find(row => row.variation_num === variationNum);
+                const matchingRow = findVideoGridRowByPromptKey(promptKey, state.currentExperiment?.video_grid);
                 
                 if (matchingRow) {
-                    // Use the EXACT same logic as VideoGrid for getting variation text
-                    const displayText = getVariationDisplayText(matchingRow, 30).display;
+                    // Use the centralized utility for getting variation text
+                    const basePrompt = state.currentExperiment?.base_prompt || '';
+                    const displayText = getVariationDisplayText(matchingRow, basePrompt, 30).display;
                     
                     promptEntries.push({
                         label: displayText,

@@ -27,8 +27,8 @@ const BarChartWithLabels = ({
 
   // Prepare labels
   const labels = promptGroups.map(promptGroup => {
-    return showFullVariationText && currentExperiment ?
-      getVariationTextFromPromptKey(promptGroup, currentExperiment) :
+    return currentExperiment ?
+      getVariationTextFromPromptKey(promptGroup, currentExperiment, showFullVariationText) :
       promptGroup.replace('prompt_', 'P');
   });
 
@@ -93,6 +93,10 @@ const BarChartWithLabels = ({
         },
         ticks: {
           color: '#b0b0b0',
+          maxTicksLimit: 50, // Ensure all labels are shown
+          maxRotation: 45,
+          minRotation: 45,
+          display: true, // Force all ticks to display
         },
         grid: {
           color: 'rgba(176, 176, 176, 0.1)',
