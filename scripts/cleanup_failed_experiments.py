@@ -22,7 +22,7 @@ import sys
 import shutil
 import argparse
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 
 def find_video_files(experiment_dir: Path) -> List[Path]:
@@ -111,66 +111,106 @@ def scan_experiments(outputs_dir: Path, verbose: bool = False) -> Tuple[List[Pat
             
             # Check if this directory contains video files (is an experiment)
             video_files = find_video_files(item)
-            dir_size = get_directory_size(item)
             
             if video_files:
                 # This is a successful experiment
                 successful_experiments.append(item)
                 if verbose:
+                    dir_size = get_directory_size(item)
                     print(f"{indent}✅ {item.relative_to(outputs_dir)}")
                     print(f"{indent}   📹 Videos: {len(video_files)} files")
                     print(f"{indent}   💾 Size: {format_size(dir_size)}")
+                    print()
             else:
                 # Check if this directory contains subdirectories that might be experiments
-                has_subdirs = any(sub.is_dir() for sub in item.iterdir() if not sub.name.startswith('.'))
+                subdirs = [sub for sub in item.iterdir() if sub.is_dir() and not sub.name.startswith('.')]
                 
-                if has_subdirs:
+                if subdirs:
                     # This is a folder containing other experiments/folders
                     if verbose:
                         print(f"{indent}📁 Folder: {item.relative_to(outputs_dir)}")
                     
-                    # Recursively scan subdirectories but suppress their verbose output
-                    subdirs_before = len(failed_experiments)
+                    # Recursively scan subdirectories
                     scan_directory(item, level + 1)
-                    subdirs_after = len(failed_experiments)
-                    
-                    # If all subdirectories were failed experiments, treat the parent as a single failed experiment
-                    subdirs_added = subdirs_after - subdirs_before
-                    if subdirs_added > 0:
-                        # Check if all subdirectories are failed experiments
-                        all_subdirs_failed = all(
-                            not find_video_files(sub) 
-                            for sub in item.iterdir() 
-                            if sub.is_dir() and not sub.name.startswith('.')
-                        )
-                        
-                        if all_subdirs_failed:
-                            # Remove the individual subdirectory entries and add the parent instead
-                            for _ in range(subdirs_added):
-                                failed_experiments.pop()
-                            failed_experiments.append(item)
-                            
-                            if verbose:
-                                dir_size = get_directory_size(item)
-                                print(f"{indent}❌ {item.relative_to(outputs_dir)} (consolidated)")
-                                print(f"{indent}   📹 Videos: 0 files")
-                                print(f"{indent}   💾 Size: {format_size(dir_size)}")
                 else:
-                    # This is a failed experiment (no videos, no subdirectories)
+                    # This is a leaf directory with no videos and no subdirectories - failed experiment
                     failed_experiments.append(item)
                     if verbose:
+                        dir_size = get_directory_size(item)
                         print(f"{indent}❌ {item.relative_to(outputs_dir)}")
                         print(f"{indent}   📹 Videos: 0 files")
                         print(f"{indent}   💾 Size: {format_size(dir_size)}")
-            
-            if verbose:
-                print()
+                        print()
     
     scan_directory(outputs_dir)
+    
+    # Consolidate failed experiments: if a parent directory only contains failed experiments,
+    # replace all child entries with just the parent
+    failed_experiments = consolidate_failed_experiments(failed_experiments, outputs_dir, verbose)
+    
     return successful_experiments, failed_experiments
 
 
-def cleanup_failed_experiments(failed_experiments: List[Path], dry_run: bool = True, outputs_dir: Path = None) -> None:
+def consolidate_failed_experiments(failed_experiments: List[Path], outputs_dir: Path, verbose: bool = False) -> List[Path]:
+    """
+    Consolidate failed experiments by replacing multiple failed child directories 
+    with their parent directory when all children are failed.
+    
+    Args:
+        failed_experiments: List of failed experiment paths
+        outputs_dir: Base outputs directory
+        verbose: Whether to print consolidation information
+        
+    Returns:
+        Consolidated list of failed experiment paths
+    """
+    if not failed_experiments:
+        return failed_experiments
+    
+    # Group failed experiments by their parent directory
+    parent_to_children = {}
+    for exp_dir in failed_experiments:
+        parent = exp_dir.parent
+        if parent not in parent_to_children:
+            parent_to_children[parent] = []
+        parent_to_children[parent].append(exp_dir)
+    
+    # Check each parent directory
+    consolidated = set(failed_experiments)
+    
+    for parent, children in parent_to_children.items():
+        # Skip if parent is the outputs directory itself
+        if parent == outputs_dir:
+            continue
+            
+        # Get all subdirectories of this parent
+        try:
+            all_subdirs = [sub for sub in parent.iterdir() if sub.is_dir() and not sub.name.startswith('.')]
+        except (OSError, PermissionError):
+            continue
+        
+        # If all subdirectories are failed experiments, consolidate to parent
+        if len(all_subdirs) > 0 and len(children) == len(all_subdirs):
+            # Remove all children from the consolidated set
+            for child in children:
+                consolidated.discard(child)
+            # Add the parent instead
+            consolidated.add(parent)
+            
+            if verbose:
+                print(f"🔄 Consolidated {len(children)} failed experiments under: {parent.relative_to(outputs_dir)}")
+    
+    # Recursively consolidate in case we have multi-level consolidation opportunities
+    consolidated_list = sorted(list(consolidated))
+    
+    # Check if we made any changes, if so, recurse to consolidate further up the tree
+    if len(consolidated_list) < len(failed_experiments):
+        return consolidate_failed_experiments(consolidated_list, outputs_dir, verbose)
+    
+    return consolidated_list
+
+
+def cleanup_failed_experiments(failed_experiments: List[Path], dry_run: bool = True, outputs_dir: Optional[Path] = None) -> None:
     """
     Remove failed experiment directories.
     

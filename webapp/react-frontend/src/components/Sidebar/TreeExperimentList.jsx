@@ -7,9 +7,34 @@ import ExperimentItem from './ExperimentItem';
 // Configuration constants
 const INITIAL_MIN_VIDEO_COUNT = 20;
 
+// Helper function to check if a folder contains the currently selected experiment
+const containsCurrentExperiment = (node, currentExperiment) => {
+    if (!currentExperiment) return false;
+    
+    if (node.type === 'experiment') {
+        return node.experiment_data.name === currentExperiment.name;
+    }
+    
+    if (node.type === 'folder' && node.children) {
+        return node.children.some(child => containsCurrentExperiment(child, currentExperiment));
+    }
+    
+    return false;
+};
+
 const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, modelFilter, minVideoCount, minDuration, sortOrder, vlmAnalysisFilter, trajectoryAnalysisFilter, attentionVideosFilter }) => {
-    const [isExpanded, setIsExpanded] = useState(level < 0); // Auto-expand only first level (level 0)
+    // Determine initial expansion state: expand if contains current experiment, otherwise collapse by default
+    const shouldExpandForCurrent = containsCurrentExperiment(node, currentExperiment);
+    const [isExpanded, setIsExpanded] = useState(shouldExpandForCurrent);
     const navigate = useNavigate();
+
+    // Update expansion when current experiment changes
+    useEffect(() => {
+        const shouldExpand = containsCurrentExperiment(node, currentExperiment);
+        if (shouldExpand) {
+            setIsExpanded(true);
+        }
+    }, [currentExperiment, node]);
 
     // Auto-expand when switching to alphabetical to show first experiment
     useEffect(() => {

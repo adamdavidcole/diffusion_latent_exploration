@@ -189,7 +189,7 @@ def analyze_temporal_coherence(
         #             'spectral_centroid': 0.0,
         #             'spectral_entropy': 0.0
         #         }
-        
+
         # 7. Enhanced Trajectory Progression Patterns
         magnitude_evolutions = []
         for video_idx in range(n_videos):
