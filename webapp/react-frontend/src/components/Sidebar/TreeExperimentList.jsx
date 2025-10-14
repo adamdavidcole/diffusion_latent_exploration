@@ -5,20 +5,20 @@ import { api } from '../../services/api';
 import ExperimentItem from './ExperimentItem';
 
 // Configuration constants
-const INITIAL_MIN_VIDEO_COUNT = 20;
+const INITIAL_MIN_VIDEO_COUNT = 3;
 
 // Helper function to check if a folder contains the currently selected experiment
 const containsCurrentExperiment = (node, currentExperiment) => {
     if (!currentExperiment) return false;
-    
+
     if (node.type === 'experiment') {
         return node.experiment_data.name === currentExperiment.name;
     }
-    
+
     if (node.type === 'folder' && node.children) {
         return node.children.some(child => containsCurrentExperiment(child, currentExperiment));
     }
-    
+
     return false;
 };
 
@@ -285,7 +285,7 @@ const TreeExperimentList = ({ onRescan }) => {
     const [modelFilter, setModelFilter] = useState('all'); // 'all', '14b', '1.3b'
     const [minVideoCount, setMinVideoCount] = useState(INITIAL_MIN_VIDEO_COUNT); // Minimum video count filter
     const [minDuration, setMinDuration] = useState(0); // Minimum duration filter in seconds
-    const [sortOrder, setSortOrder] = useState('alphabetical'); // 'alphabetical', 'recent'
+    const [sortOrder, setSortOrder] = useState('recent'); // 'alphabetical', 'recent'
     const [vlmAnalysisFilter, setVlmAnalysisFilter] = useState(false); // VLM analysis filter
     const [trajectoryAnalysisFilter, setTrajectoryAnalysisFilter] = useState(false); // Trajectory analysis filter
     const [attentionVideosFilter, setAttentionVideosFilter] = useState(false); // Attention videos filter
