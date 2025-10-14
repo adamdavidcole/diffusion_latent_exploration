@@ -45,6 +45,46 @@ python scripts/demo.py
 - Running test generations
 - System validation
 
+### 🔄 `backfill_prompt_schedules.py` **NEW**
+**Purpose**: Generate missing `prompt_schedule.json` files for existing batch outputs  
+**Usage**: 
+```bash
+# Preview what would be created (safe)
+python scripts/backfill_prompt_schedules.py --dry-run
+
+# Create prompt_schedule.json files for specific directory
+python scripts/backfill_prompt_schedules.py --output-dir outputs/PromptInterpolation
+
+# Create prompt_schedule.json files for all outputs
+python scripts/backfill_prompt_schedules.py
+
+# Verbose mode for debugging
+python scripts/backfill_prompt_schedules.py --verbose
+```
+**Description**: Recursively scans batch output directories and generates `prompt_schedule.json` files for batches that used prompt interpolation but don't have the JSON file yet. This is useful for backfilling older generations that were created before the prompt schedule saving feature was implemented.
+
+**Features**:
+- Recursively scans nested output directories
+- Validates batch directory structure (requires `configs/generation_config.yaml` and `videos/`)
+- Parses prompt scheduling settings from `generation_config.yaml`
+- Only creates files if they don't already exist
+- Matches the exact format used by `video_generator.py`
+- Dry-run mode to preview changes
+- Detailed statistics and progress reporting
+
+**Output Format**:
+```json
+{
+  "schedule": {
+    "0": "first prompt text",
+    "10": "second prompt text"
+  },
+  "interpolation": "slerp",
+  "total_steps": 20,
+  "keyframes": [0, 10]
+}
+```
+
 ### ⭐ `demo_prompt_weighting.py` **NEW**
 **Purpose**: Demonstrate the new prompt weighting feature  
 **Usage**: 

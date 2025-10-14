@@ -1142,15 +1142,14 @@ class WanVideoGenerator:
                 if dynamic_prompt_embeddings is not None:
                     # Use dynamic prompt embeddings for interpolation
                     logging.info("🎨 Using dynamic prompt embeddings for interpolation")
+                    
+                    # Get embeddings from dynamic system (already computed correctly in create_prompt_callback)
                     prompt_embeds = dynamic_prompt_embeddings.get()
                     
-                    # DEBUGGING: Compare with what normal generation would produce
-                    # Get the step 0 prompt text to compare
+                    # Generate negative prompt embeddings for CFG
+                    # Note: Dynamic system only handles positive embeddings, we still need negative
                     step_0_prompt = prompt_schedule_settings.schedule.get(0, list(prompt_schedule_settings.schedule.values())[0])
-                    # logging.info(f"🔍 COMPARISON TEST: Comparing embeddings for prompt: '{step_0_prompt[:50]}...'")
-                    
-                    # Generate embeddings the "normal" way for comparison
-                    normal_prompt_embeds, normal_negative_embeds = self.pipe.encode_prompt(
+                    _, negative_prompt_embeds_for_cfg = self.pipe.encode_prompt(
                         prompt=step_0_prompt,
                         negative_prompt=explicit_negative_prompt,
                         do_classifier_free_guidance=True,
@@ -1158,43 +1157,15 @@ class WanVideoGenerator:
                         device=self.device,
                     )
                     
-                    # Compare our dynamic embeddings vs normal embeddings
-                    # logging.info(f"� EMBEDDING COMPARISON:")
-                    # logging.info(f"   Dynamic shape: {prompt_embeds.shape}, Normal shape: {normal_prompt_embeds.shape}")
-                    # logging.info(f"   Dynamic dtype: {prompt_embeds.dtype}, Normal dtype: {normal_prompt_embeds.dtype}")
-                    # logging.info(f"   Dynamic device: {prompt_embeds.device}, Normal device: {normal_prompt_embeds.device}")
-                    # logging.info(f"   Dynamic norm: {torch.norm(prompt_embeds).item():.6f}, Normal norm: {torch.norm(normal_prompt_embeds).item():.6f}")
-                    # logging.info(f"   Dynamic mean: {prompt_embeds.mean().item():.6f}, Normal mean: {normal_prompt_embeds.mean().item():.6f}")
-                    # logging.info(f"   Dynamic std: {prompt_embeds.std().item():.6f}, Normal std: {normal_prompt_embeds.std().item():.6f}")
-                    
-                    # # Check if they're identical or close
-                    # if torch.allclose(prompt_embeds, normal_prompt_embeds, rtol=1e-5, atol=1e-5):
-                    #     logging.info(f"   ✅ Embeddings are IDENTICAL (within tolerance)")
-                    # else:
-                    #     diff = torch.abs(prompt_embeds - normal_prompt_embeds)
-                    #     max_diff = diff.max().item()
-                    #     mean_diff = diff.mean().item()
-                    #     logging.warning(f"   ⚠️ Embeddings DIFFER: max_diff={max_diff:.6f}, mean_diff={mean_diff:.6f}")
-                    #     logging.warning(f"   This explains why videos are different!")
-                    
-                    # Use the normal embeddings that we just generated for exact match
-                    # CRITICAL: This ensures step 0 uses EXACTLY what normal generation uses
-                    prompt_embeds = normal_prompt_embeds
-                    negative_prompt_embeds_for_cfg = normal_negative_embeds
-                    
-                    # Also update the dynamic wrapper so the callback uses consistent embeddings
-                    dynamic_prompt_embeddings.update(normal_prompt_embeds)
-                    logging.info(f"✅ Updated dynamic wrapper to use normal embeddings for exact match")
-                    
-                    logging.info(f"📊 Using embeddings from encode_prompt for consistency:")
+                    logging.info(f"📊 Using dynamic prompt embeddings:")
                     logging.info(f"   prompt_embeds: shape={prompt_embeds.shape}, dtype={prompt_embeds.dtype}, norm={torch.norm(prompt_embeds).item():.4f}")
                     logging.info(f"   negative_prompt_embeds: shape={negative_prompt_embeds_for_cfg.shape}, dtype={negative_prompt_embeds_for_cfg.dtype}, norm={torch.norm(negative_prompt_embeds_for_cfg).item():.4f}")
                     
                     # Check if embeddings contain NaN or Inf
                     if torch.isnan(prompt_embeds).any():
-                        logging.error("❌ WARNING: Dynamic embeddings contain NaN values!")
+                        logging.error("❌ WARNING: Prompt embeddings contain NaN values!")
                     if torch.isinf(prompt_embeds).any():
-                        logging.error("❌ WARNING: Dynamic embeddings contain Inf values!")
+                        logging.error("❌ WARNING: Prompt embeddings contain Inf values!")
                     
                     # Generate using dynamic prompt_embeds with callback
                     logging.info("🎬 Starting generation with dynamic prompt embeddings...")
@@ -1205,12 +1176,10 @@ class WanVideoGenerator:
                     logging.info(f"   callback_on_step_end_tensor_inputs: {callback_tensor_inputs}")
                     if callback_fn:
                         logging.info(f"   Callback type: {type(callback_fn).__name__}")
-                                        
-                 
                     
                     video_frames = self.pipe(
                         prompt_embeds=prompt_embeds,
-                        negative_prompt_embeds=negative_prompt_embeds_for_cfg,  # Use embeddings instead of string
+                        negative_prompt_embeds=negative_prompt_embeds_for_cfg,
                         width=width,
                         height=height,
                         num_frames=num_frames,
@@ -1222,7 +1191,7 @@ class WanVideoGenerator:
                     ).frames[0]
                     
                     logging.info(f"✅ Successfully generated video using dynamic prompt interpolation")
-                    # logging.info(f"🔔 Total callback invocations: {callback_call_count[0]} (expected: {num_inference_steps})")
+
 
                     
                 elif use_weighted_embeddings:
