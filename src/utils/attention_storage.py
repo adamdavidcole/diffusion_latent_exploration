@@ -46,13 +46,16 @@ class AttentionMetadata:
 class WanAttentionWrapper(torch.nn.Module):
     """Wrapper for WAN attention modules to capture attention maps."""
     
-    def __init__(self, original_module, attention_storage, block_index, layer_name):
+    def __init__(self, original_module, attention_storage, block_index, layer_name, 
+                 attention_bender=None, apply_bending_to_output=False):
         super().__init__()
         self.original_module = original_module
         self.attention_storage = attention_storage
         self.block_index = block_index
         self.layer_name = layer_name
         self.has_done_attention_at_step = {}  # Track which steps we've processed
+        self.attention_bender = attention_bender  # NEW: Optional attention bending
+        self.apply_bending_to_output = apply_bending_to_output  # NEW: Whether to use bent attention in generation
         
     def forward(self, *args, **kwargs):
         """Forward pass that captures attention maps."""
@@ -101,16 +104,84 @@ class WanAttentionWrapper(torch.nn.Module):
                 attention_scores = torch.matmul(query, key_transposed) / (head_dim ** 0.5)
                 attention_maps = torch.softmax(attention_scores, dim=-1)
                 
-                # Store attention maps for this block (following your working code pattern)
-                # Shape: [batch, heads, seq_len_spatial, seq_len_text]
-                self.attention_storage.current_attention_maps[self.block_index] = attention_maps.detach().cpu()
+                # NEW: Apply attention bending if configured
+                bent_attention = None
+                if self.attention_bender is not None:
+                    try:
+                        # Use diffusion_step as timestep for bending logic
+                        # (This is the step index 0-19, not the scheduler timestep)
+                        
+                        # Apply bending transformation
+                        # attention_maps shape: [batch, heads, spatial, text_seq]
+                        bent_attention = self.attention_bender.bend_attention(
+                            attention_probs=attention_maps,
+                            layer_idx=self.block_index,
+                            timestep=diffusion_step,  # Use the step index we already have
+                            spatial_shape=None  # Will be inferred from shape
+                        )
+                        
+                        self.attention_storage.logger.info(
+                            f"✅ Applied attention bending at block {self.block_index}, step {diffusion_step}"
+                        )
+                        
+                    except Exception as e:
+                        self.attention_storage.logger.warning(
+                            f"Error applying attention bending: {e}, using original attention"
+                        )
+                        bent_attention = None
                 
-                self.attention_storage.logger.debug(
-                    f"Captured attention for block {self.block_index}, step {diffusion_step}: "
-                    f"shape {attention_maps.shape} "
-                    f"(batch={attention_maps.shape[0]}, heads={attention_maps.shape[1]}, "
-                    f"spatial={attention_maps.shape[2]}, text={attention_maps.shape[3]})"
+                # Store bent attention if available, otherwise store original
+                # This allows visualization of bent attention even if not applied to output
+                attention_to_store = bent_attention if bent_attention is not None else attention_maps
+                self.attention_storage.current_attention_maps[self.block_index] = attention_to_store.detach().cpu()
+                
+                bending_status = "BENT" if bent_attention is not None else "ORIGINAL"
+                self.attention_storage.logger.info(
+                    f"💾 Stored attention for block {self.block_index}, step {diffusion_step}: "
+                    f"shape {attention_to_store.shape} [{bending_status}]"
                 )
+                if bent_attention is not None:
+                    self.attention_storage.logger.info(
+                        f"   Original mean: {attention_maps.mean():.6f}, Bent mean: {bent_attention.mean():.6f}"
+                    )
+                
+                # PHASE 1 vs PHASE 2: Decide whether to actually use bent attention
+                if self.apply_bending_to_output and bent_attention is not None:
+                    # PHASE 2: Complete attention computation with bent attention
+                    # This actually affects generation!
+                    self.attention_storage.logger.info(
+                        f"🎨 PHASE 2: Using bent attention for generation output"
+                    )
+                    
+                    # Complete the attention operation: attention_probs @ V
+                    value = self.original_module.to_v(encoder_hidden_states_copy)
+                    value = value.view(batch_size, seq_len_k, num_heads, head_dim).transpose(1, 2)
+                    
+                    # Apply bent attention to value: [batch, heads, spatial, text_seq] @ [batch, heads, text_seq, head_dim]
+                    attention_output = torch.matmul(bent_attention, value)  # [batch, heads, spatial, head_dim]
+                    
+                    # Reshape back: [batch, heads, spatial, head_dim] -> [batch, spatial, heads * head_dim]
+                    attention_output = attention_output.transpose(1, 2).contiguous()
+                    attention_output = attention_output.view(batch_size, seq_len_q, embed_dim)
+                    
+                    # Apply output projection
+                    output = self.original_module.to_out[0](attention_output)
+                    
+                    # Apply dropout if present
+                    if len(self.original_module.to_out) > 1:
+                        output = self.original_module.to_out[1](output)
+                    
+                    self.attention_storage.logger.debug(
+                        f"✅ Completed bent attention computation, output shape: {output.shape}"
+                    )
+                    
+                    return output
+                else:
+                    # PHASE 1: Just store bent attention for visualization, use original for generation
+                    if bent_attention is not None:
+                        self.attention_storage.logger.debug(
+                            f"👁️  PHASE 1: Bent attention stored for visualization only, using original module output"
+                        )
                 
             else:
                 self.attention_storage.logger.warning(f"Missing inputs for attention computation in {self.layer_name}")
@@ -120,7 +191,8 @@ class WanAttentionWrapper(torch.nn.Module):
             import traceback
             traceback.print_exc()
         
-        # Always call the original module
+        # PHASE 1: Always call original module (bent attention only visualized)
+        # PHASE 2: Only called if bending is disabled or failed
         return self.original_module(*args, **kwargs)
 
 
@@ -204,6 +276,11 @@ class AttentionStorage:
         self.original_modules = {}  # Store original attn2 modules for restoration
         self.current_attention_maps = {}  # Store current step's attention
         self.steps_processed = set()  # Track which steps we've already processed to avoid duplicates
+        
+        # NEW: Attention bending
+        self.attention_bender = None  # Optional AttentionBender instance
+        self._current_timestep = None  # Track current timestep for bending
+        self.apply_bending_to_output = False  # PHASE 1 (visualization only) vs PHASE 2 (affects generation)
         
     def parse_parenthetical_tokens(self, prompt: str) -> Dict[str, List[int]]:
         """Parse prompt to find words in parentheses and get their token IDs."""
@@ -420,7 +497,15 @@ class AttentionStorage:
                     self.original_modules[name] = current_module
                     
                     # Create wrapper with reference to this attention storage instance
-                    wrapper = WanAttentionWrapper(current_module, self, wrap_count, name)
+                    # Pass attention_bender if configured
+                    wrapper = WanAttentionWrapper(
+                        original_module=current_module,
+                        attention_storage=self,
+                        block_index=wrap_count,
+                        layer_name=name,
+                        attention_bender=self.attention_bender,  # NEW: Pass bender
+                        apply_bending_to_output=self.apply_bending_to_output  # NEW: Pass mode flag
+                    )
                     
                     # Replace the module with our wrapper
                     setattr(parent_module, module_name, wrapper)
@@ -1044,6 +1129,65 @@ class AttentionStorage:
                 self.logger.error(f"Error loading attention metadata from {metadata_file}: {e}")
         
         return None
+    
+    def configure_attention_bending(self, attention_bender, apply_to_output=False):
+        """
+        Configure attention bending for this storage instance.
+        
+        Args:
+            attention_bender: AttentionBender instance or None to disable
+            apply_to_output: If True, bent attention affects generation (PHASE 2)
+                           If False, bent attention only visualized/stored (PHASE 1)
+        
+        Note:
+            Must be called before wrap_attention_modules() to take effect,
+            or call wrap_attention_modules() again after configuration.
+            
+        RECOMMENDED: Start with apply_to_output=False to verify transformations
+        visually before enabling them for generation.
+        """
+        self.attention_bender = attention_bender
+        self.apply_bending_to_output = apply_to_output
+        
+        if attention_bender is not None:
+            mode_str = "PHASE 2 (AFFECTS GENERATION)" if apply_to_output else "PHASE 1 (VISUALIZATION ONLY)"
+            self.logger.info(f"✨ Attention bending configured with {len(attention_bender.bending_configs)} configs [{mode_str}]")
+            for config in attention_bender.bending_configs:
+                self.logger.info(f"  - Token '{config.token}': {config.mode.value} (strength={config.strength})")
+            
+            if not apply_to_output:
+                self.logger.info("  💡 TIP: Bent attention will be STORED but NOT USED for generation")
+                self.logger.info("  💡      Set apply_to_output=True to actually affect the generated video")
+        else:
+            self.logger.info("Attention bending disabled")
+    
+    def update_bending_token_map(self):
+        """
+        Update the attention bender's token map with current target tokens.
+        Should be called after tokens are parsed from the prompt.
+        """
+        if self.attention_bender is not None and self.target_tokens:
+            # Create index map: token_text -> position in sequence
+            token_to_index = {
+                word.lower(): min(token_ids) if token_ids else 0 
+                for word, token_ids in self.target_tokens.items()
+            }
+            self.attention_bender.update_token_map(token_to_index)
+            self.logger.debug(f"Updated bender token map: {token_to_index}")
+    
+    def set_current_timestep(self, timestep: Optional[Union[int, float, torch.Tensor]]):
+        """
+        Set the current denoising timestep for attention bending logic.
+        
+        Args:
+            timestep: Current timestep (int/float) or timestep tensor
+        """
+        if timestep is None:
+            self._current_timestep = None
+        elif torch.is_tensor(timestep):
+            self._current_timestep = int(timestep.item())
+        else:
+            self._current_timestep = int(timestep)
 
 
 def create_attention_callback(attention_storage: AttentionStorage):

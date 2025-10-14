@@ -122,6 +122,15 @@ class PromptScheduleSettings:
 
 
 @dataclass
+class AttentionBendingSettings:
+    """Attention bending configuration settings."""
+    enabled: bool = False
+    device: str = "cuda"
+    configs: List[Dict[str, Any]] = field(default_factory=list)  # List of bending config dicts
+    apply_to_output: bool = False  # Phase 1 (False) = viz only, Phase 2 (True) = affects generation
+
+
+@dataclass
 class GenerationConfig:
     """Complete configuration for video generation batch."""
     model_settings: ModelSettings = field(default_factory=ModelSettings)
@@ -132,6 +141,7 @@ class GenerationConfig:
     attention_analysis_settings: AttentionAnalysisSettings = field(default_factory=AttentionAnalysisSettings)
     cfg_schedule_settings: CFGScheduleSettings = field(default_factory=CFGScheduleSettings)
     prompt_schedule_settings: PromptScheduleSettings = field(default_factory=PromptScheduleSettings)
+    attention_bending_settings: AttentionBendingSettings = field(default_factory=AttentionBendingSettings)
     videos_per_variation: int = 3
     output_dir: str = "outputs"
     batch_name: Optional[str] = None
@@ -191,6 +201,7 @@ class ConfigManager:
         attention_data = config_data.get('attention_analysis_settings', {})
         cfg_schedule_data = config_data.get('cfg_schedule_settings', {})
         prompt_schedule_data = config_data.get('prompt_schedule_settings', {})
+        attention_bending_data = config_data.get('attention_bending', {})
         
         model_settings = ModelSettings(
             seed=model_data.get('seed', 42),
@@ -278,6 +289,14 @@ class ConfigManager:
             verbose=prompt_schedule_data.get('verbose', False)
         )
         
+        # Parse Attention bending settings
+        attention_bending_settings = AttentionBendingSettings(
+            enabled=attention_bending_data.get('enabled', False),
+            device=attention_bending_data.get('device', 'cuda'),
+            configs=attention_bending_data.get('configs', []),
+            apply_to_output=attention_bending_data.get('apply_to_output', False)
+        )
+        
         return GenerationConfig(
             model_settings=model_settings,
             memory_settings=memory_settings,
@@ -287,6 +306,7 @@ class ConfigManager:
             attention_analysis_settings=attention_analysis_settings,
             cfg_schedule_settings=cfg_schedule_settings,
             prompt_schedule_settings=prompt_schedule_settings,
+            attention_bending_settings=attention_bending_settings,
             videos_per_variation=config_data.get('videos_per_variation', 3),
             output_dir=config_data.get('output_dir', 'outputs'),
             batch_name=config_data.get('batch_name'),
@@ -365,6 +385,12 @@ class ConfigManager:
                 'schedule': config.prompt_schedule_settings.schedule,
                 'interpolation': config.prompt_schedule_settings.interpolation,
                 'verbose': config.prompt_schedule_settings.verbose
+            },
+            'attention_bending_settings': {
+                'enabled': config.attention_bending_settings.enabled,
+                'device': config.attention_bending_settings.device,
+                'configs': config.attention_bending_settings.configs,
+                'apply_to_output': config.attention_bending_settings.apply_to_output
             },
             'videos_per_variation': config.videos_per_variation,
             'output_dir': config.output_dir,

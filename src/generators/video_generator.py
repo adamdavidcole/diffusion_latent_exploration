@@ -962,6 +962,55 @@ class WanVideoGenerator:
                     num_frames=num_frames
                 )
                 
+                # Check if attention bending is enabled in config
+                attention_bending_settings = getattr(self.config, 'attention_bending_settings', None)
+                if attention_bending_settings and attention_bending_settings.enabled:
+                    try:
+                        from src.utils.attention_bending import create_bending_from_config
+                        
+                        # Create bending configuration dict in expected format
+                        bending_config_dict = {
+                            "device": attention_bending_settings.device,
+                            "bending_configs": attention_bending_settings.configs
+                        }
+                        
+                        # Create the AttentionBender
+                        attention_bender = create_bending_from_config(bending_config_dict)
+                        
+                        # Determine which phase to use
+                        apply_to_output = attention_bending_settings.apply_to_output
+                        phase_name = "PHASE 2 (AFFECTS GENERATION)" if apply_to_output else "PHASE 1 (VISUALIZATION ONLY)"
+                        
+                        logging.info(f"🎨 Attention bending enabled: {len(attention_bending_settings.configs)} config(s)")
+                        logging.info(f"🔧 Bending mode: {phase_name}")
+                        
+                        # Log each bending config
+                        for i, cfg in enumerate(attention_bending_settings.configs):
+                            token = cfg.get('token', 'unknown')
+                            mode = cfg.get('mode', 'unknown')
+                            strength = cfg.get('strength', 1.0)
+                            logging.info(f"   [{i+1}] Token '{token}': {mode} (strength={strength})")
+                        
+                        # Configure attention storage with bending
+                        attention_storage.configure_attention_bending(
+                            attention_bender=attention_bender,
+                            apply_to_output=apply_to_output
+                        )
+                        
+                        logging.info(f"✅ Attention bending configured successfully")
+                        
+                    except Exception as e:
+                        logging.error(f"❌ Failed to configure attention bending: {e}")
+                        logging.error(f"   Config: {attention_bending_settings}")
+                        import traceback
+                        logging.error(traceback.format_exc())
+                        # Continue without bending rather than failing
+                else:
+                    if attention_bending_settings:
+                        logging.info(f"🚫 Attention bending disabled (enabled={attention_bending_settings.enabled})")
+                    else:
+                        logging.debug("🚫 No attention_bending_settings found in config")
+                
                 # Register attention hooks on the transformer model
                 if hasattr(self.pipe, 'transformer') and self.pipe.transformer is not None:
                     logging.info(f"Found transformer model for attention hooks: {type(self.pipe.transformer).__name__}")
@@ -973,6 +1022,11 @@ class WanVideoGenerator:
                     attention_storage.register_attention_hooks(self.pipe.transformer)
                     attention_hooks_registered = True
                     logging.info(f"Registered attention hooks on transformer for video: {video_id}")
+                    
+                    # Update bending token map after hooks are registered and tokens are parsed
+                    if attention_bending_settings and attention_bending_settings.enabled:
+                        attention_storage.update_bending_token_map()
+                        logging.info(f"🔄 Updated bending token map for target tokens")
                 else:
                     logging.warning("Could not register attention hooks: transformer not found")
                     logging.warning(f"Pipeline attributes: {list(self.pipe.__dict__.keys())}")
