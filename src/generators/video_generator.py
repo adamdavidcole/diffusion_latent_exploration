@@ -41,6 +41,7 @@ from src.prompts.wan_weighted_embeddings_fixed import create_wan_weighted_embedd
 from src.utils.latent_storage import LatentStorage, create_denoising_callback
 from src.utils.attention_storage import AttentionStorage
 from src.utils.dynamic_guidance import parse_guidance_schedule_config
+from src.utils.dynamic_prompts import create_prompt_callback, save_prompt_schedule
 
 
 def generate_thumbnail(video_path: str) -> bool:
@@ -630,6 +631,55 @@ class WanVideoGenerator:
             else:
                 logging.info(f"🎯 Using guidance_scale from config: {guidance_scale}")
             
+            # Check if dynamic prompt schedule is enabled
+            prompt_schedule_settings = getattr(self.config, 'prompt_schedule_settings', None)
+            use_prompt_interpolation = (
+                prompt_schedule_settings and 
+                prompt_schedule_settings.enabled and 
+                prompt_schedule_settings.schedule and
+                len(prompt_schedule_settings.schedule) > 0
+            )
+            
+            if use_prompt_interpolation:
+                logging.info(f"🎨 Prompt interpolation enabled with {len(prompt_schedule_settings.schedule)} keyframes")
+                logging.info(f"🔄 Interpolation method: {prompt_schedule_settings.interpolation}")
+                for step, prompt_text in sorted(prompt_schedule_settings.schedule.items()):
+                    logging.info(f"   Step {step}: '{prompt_text[:60]}{'...' if len(prompt_text) > 60 else ''}'")
+                
+                # Save prompt schedule to batch output directory (once per batch)
+                try:
+                    output_path_obj = Path(output_path)
+                    # Navigate up to find the batch root directory (which contains videos/ folder)
+                    # output_path is typically: batch_dir/videos/prompt_000/video_001.mp4
+                    if output_path_obj.parent.parent.parent.name.startswith(('batch_', 'test_')):
+                        root_output_dir = output_path_obj.parent.parent.parent
+                    else:
+                        # Fallback: use parent.parent if structure is different  
+                        root_output_dir = output_path_obj.parent.parent
+                    
+                    configs_dir = root_output_dir / "configs"
+                    configs_dir.mkdir(parents=True, exist_ok=True)
+                    prompt_schedule_file = configs_dir / "prompt_schedule.json"
+                    
+                    # Only save if file doesn't already exist (avoids re-saving for each video)
+                    if not prompt_schedule_file.exists():
+                        from src.utils.dynamic_prompts import save_prompt_schedule
+                        save_prompt_schedule(
+                            schedule=prompt_schedule_settings.schedule,
+                            interpolation=prompt_schedule_settings.interpolation,
+                            total_steps=num_inference_steps,
+                            output_path=str(prompt_schedule_file)
+                        )
+                        logging.info(f"💾 Saved prompt schedule to {prompt_schedule_file}")
+                    else:
+                        logging.info(f"📄 Prompt schedule already exists: {prompt_schedule_file}")
+                
+                except Exception as e:
+                    logging.warning(f"⚠️ Could not save prompt schedule: {e}")
+                    # Don't fail generation if schedule saving fails
+                    import traceback
+                    logging.debug(traceback.format_exc())
+            
             # Check if we need to ensure CFG mode (when using dynamic guidance scheduling)
             ensure_cfg_for_schedule = (
                 cfg_schedule_settings and 
@@ -710,6 +760,12 @@ class WanVideoGenerator:
             callback_fn = None
             callback_tensor_inputs = ['latents']
             
+            # Add prompt embeddings to callback tensor inputs if prompt interpolation is enabled
+            if use_prompt_interpolation:
+                # WAN pipeline only accepts: 'latents', 'prompt_embeds', 'negative_prompt_embeds'
+                callback_tensor_inputs.extend(['prompt_embeds', 'negative_prompt_embeds'])
+                logging.info(f"📝 Extended callback_tensor_inputs for prompt interpolation: {callback_tensor_inputs}")
+            
             # Setup dynamic guidance schedule if enabled (cfg_schedule_settings already checked above)
             guidance_callback = None
             dynamic_guidance_scale = None
@@ -744,16 +800,21 @@ class WanVideoGenerator:
                         for step in last_steps:
                             logging.info(f"   Step {step}: {full_schedule[step]}")
                     
-                    # Generate and save the full CFG schedule if this is the first video in a batch
+                    # Save the full CFG schedule to batch output directory (once per batch)
                     try:
-                        # Determine if we're in a batch by checking if output_path contains prompt_000
                         output_path_obj = Path(output_path)
-                        if 'prompt_000' in str(output_path_obj) and 'vid001' in str(output_path_obj):
-                            # This is the first video of the first prompt, save the CFG schedule
-                            root_output_dir = output_path_obj.parent.parent.parent  # vid001.mp4 -> prompt_000 -> videos -> root
-                            configs_dir = root_output_dir / "configs"
-                            cfg_schedule_file = configs_dir / "cfg_schedule.json"
-                            
+                        # Navigate up to find the batch root directory
+                        if output_path_obj.parent.parent.parent.name.startswith(('batch_', 'test_')):
+                            root_output_dir = output_path_obj.parent.parent.parent
+                        else:
+                            root_output_dir = output_path_obj.parent.parent
+                        
+                        configs_dir = root_output_dir / "configs"
+                        configs_dir.mkdir(parents=True, exist_ok=True)
+                        cfg_schedule_file = configs_dir / "cfg_schedule.json"
+                        
+                        # Only save if file doesn't already exist
+                        if not cfg_schedule_file.exists():
                             # Generate the full schedule using the guidance scheduler
                             full_schedule = guidance_callback.guidance_scheduler.generate_full_schedule(num_inference_steps)
                             
@@ -783,14 +844,18 @@ class WanVideoGenerator:
                             }
                             
                             # Save the CFG schedule to JSON
+                            import json
                             with open(cfg_schedule_file, 'w') as f:
                                 json.dump(cfg_schedule_data, f, indent=2)
                             
                             logging.info(f"💾 Saved complete CFG schedule to {cfg_schedule_file}")
                             logging.info(f"📈 Full schedule covers {len(full_schedule)} timesteps")
+                        else:
+                            logging.info(f"📄 CFG schedule already exists: {cfg_schedule_file}")
                     
                     except Exception as e:
-                        logging.error(f"❌ Failed to save CFG schedule: {e}")
+                        logging.warning(f"⚠️ Could not save CFG schedule: {e}")
+                        # Don't fail generation if schedule saving fails
                         import traceback
                         logging.error(traceback.format_exc())
                 except Exception as e:
@@ -803,6 +868,36 @@ class WanVideoGenerator:
                     logging.info(f"🚫 Dynamic guidance disabled: enabled={getattr(cfg_schedule_settings, 'enabled', None)}, schedule={getattr(cfg_schedule_settings, 'schedule', None)}")
                 else:
                     logging.info("🚫 No cfg_schedule_settings found in config")
+            
+            # Setup dynamic prompt interpolation if enabled
+            prompt_callback = None
+            dynamic_prompt_embeddings = None
+            if use_prompt_interpolation:
+                try:
+                    from src.utils.dynamic_prompts import create_prompt_callback
+                    dynamic_prompt_embeddings, prompt_callback = create_prompt_callback(
+                        schedule=prompt_schedule_settings.schedule,
+                        interpolation=prompt_schedule_settings.interpolation,
+                        total_steps=num_inference_steps,
+                        pipe=self.pipe,
+                        device=self.device,
+                        verbose=prompt_schedule_settings.verbose,
+                    )
+                    
+                    logging.info(f"✨ Dynamic prompt interpolation enabled with {len(prompt_schedule_settings.schedule)} keyframes")
+                    logging.info(f"🔄 Interpolation method: {prompt_schedule_settings.interpolation}")
+                        
+                except Exception as e:
+                    logging.error(f"❌ Failed to setup dynamic prompt callback: {e}")
+                    import traceback
+                    logging.error(traceback.format_exc())
+                    prompt_callback = None
+                    dynamic_prompt_embeddings = None
+            else:
+                if prompt_schedule_settings:
+                    logging.info(f"🚫 Dynamic prompts disabled: enabled={getattr(prompt_schedule_settings, 'enabled', None)}, schedule={getattr(prompt_schedule_settings, 'schedule', None)}")
+                else:
+                    logging.info("🚫 No prompt_schedule_settings found in config")
             
             if latent_storage and video_id:
                 # Start latent storage for this video
@@ -886,12 +981,16 @@ class WanVideoGenerator:
                 original_callback = callback_fn
                 
                 def combined_callback(pipe, step: int, timestep: torch.Tensor, callback_kwargs: dict):
-                    """Combined callback for latent, attention storage, and dynamic guidance."""
+                    """Combined callback for latent, attention storage, dynamic guidance, and prompt interpolation."""
                     result = callback_kwargs or {}
                     
                     # Apply dynamic guidance schedule first (before other callbacks)
                     if guidance_callback:
                         result = guidance_callback(pipe, step, timestep, result)
+                    
+                    # Apply dynamic prompt interpolation
+                    if prompt_callback:
+                        result = prompt_callback(pipe, step, timestep, result)
                     
                     # Apply original callback (latent storage) if it exists
                     if original_callback:
@@ -916,18 +1015,23 @@ class WanVideoGenerator:
                     return result
                 
                 callback_fn = combined_callback
-                logging.info(f"✅ Created combined callback with guidance_callback={guidance_callback is not None}")
+                logging.info(f"✅ Created combined callback with guidance_callback={guidance_callback is not None}, prompt_callback={prompt_callback is not None}")
             
             # If no attention storage but we have guidance callback, make sure it's used
             elif guidance_callback:
                 original_callback = callback_fn
                 
                 def guidance_only_callback(pipe, step: int, timestep: torch.Tensor, callback_kwargs: dict):
-                    """Callback that handles latent storage and dynamic guidance."""
+                    """Callback that handles latent storage, dynamic guidance, and prompt interpolation."""
                     result = callback_kwargs or {}
                     
                     # Apply dynamic guidance schedule first
-                    result = guidance_callback(pipe, step, timestep, result)
+                    if guidance_callback:
+                        result = guidance_callback(pipe, step, timestep, result)
+                    
+                    # Apply dynamic prompt interpolation
+                    if prompt_callback:
+                        result = prompt_callback(pipe, step, timestep, result)
                     
                     # Call original latent callback if it exists
                     if original_callback:
@@ -936,7 +1040,28 @@ class WanVideoGenerator:
                     return result
                 
                 callback_fn = guidance_only_callback
-                logging.info(f"✅ Created guidance-only callback with guidance_callback={guidance_callback is not None}")
+                logging.info(f"✅ Created guidance-only callback with guidance_callback={guidance_callback is not None}, prompt_callback={prompt_callback is not None}")
+            
+            # If we only have prompt callback (no guidance, no latent storage), use it directly
+            elif prompt_callback:
+                original_callback = callback_fn
+                
+                def prompt_only_callback(pipe, step: int, timestep: torch.Tensor, callback_kwargs: dict):
+                    """Callback that handles only prompt interpolation."""
+                    result = callback_kwargs or {}
+                    
+                    # Apply dynamic prompt interpolation
+                    if prompt_callback:
+                        result = prompt_callback(pipe, step, timestep, result)
+                    
+                    # Call original callback if it exists
+                    if original_callback:
+                        result = original_callback(pipe, step, timestep, result)
+                    
+                    return result
+                
+                callback_fn = prompt_only_callback
+                logging.info(f"✅ Created prompt-only callback")
             
             # For CFG scheduling, ensure we always use proper negative prompt embeddings
             explicit_negative_prompt = ""  # Always use empty string for consistency
@@ -1008,12 +1133,99 @@ class WanVideoGenerator:
                 
                 # Ensure CFG path is enabled initially for DynamicScale to work
                 if dynamic_guidance_scale is not None:
-                    self.pipe._guidance_scale = 5.1  # ensure CFG path is enabled initially
+                    self.pipe._guidance_scale = 6.5  # ensure CFG path is enabled initially
                     logging.info(f"🎯 Using DynamicScale for guidance scheduling, initial value: {float(dynamic_guidance_scale):.2f}")
                 else:
                     logging.info(f"🎯 Using static guidance scale: {guidance_scale}")
                 
-                if use_weighted_embeddings:
+                # Determine which prompt/embeddings to use based on prompt interpolation
+                if dynamic_prompt_embeddings is not None:
+                    # Use dynamic prompt embeddings for interpolation
+                    logging.info("🎨 Using dynamic prompt embeddings for interpolation")
+                    prompt_embeds = dynamic_prompt_embeddings.get()
+                    
+                    # DEBUGGING: Compare with what normal generation would produce
+                    # Get the step 0 prompt text to compare
+                    step_0_prompt = prompt_schedule_settings.schedule.get(0, list(prompt_schedule_settings.schedule.values())[0])
+                    # logging.info(f"🔍 COMPARISON TEST: Comparing embeddings for prompt: '{step_0_prompt[:50]}...'")
+                    
+                    # Generate embeddings the "normal" way for comparison
+                    normal_prompt_embeds, normal_negative_embeds = self.pipe.encode_prompt(
+                        prompt=step_0_prompt,
+                        negative_prompt=explicit_negative_prompt,
+                        do_classifier_free_guidance=True,
+                        num_videos_per_prompt=1,
+                        device=self.device,
+                    )
+                    
+                    # Compare our dynamic embeddings vs normal embeddings
+                    # logging.info(f"� EMBEDDING COMPARISON:")
+                    # logging.info(f"   Dynamic shape: {prompt_embeds.shape}, Normal shape: {normal_prompt_embeds.shape}")
+                    # logging.info(f"   Dynamic dtype: {prompt_embeds.dtype}, Normal dtype: {normal_prompt_embeds.dtype}")
+                    # logging.info(f"   Dynamic device: {prompt_embeds.device}, Normal device: {normal_prompt_embeds.device}")
+                    # logging.info(f"   Dynamic norm: {torch.norm(prompt_embeds).item():.6f}, Normal norm: {torch.norm(normal_prompt_embeds).item():.6f}")
+                    # logging.info(f"   Dynamic mean: {prompt_embeds.mean().item():.6f}, Normal mean: {normal_prompt_embeds.mean().item():.6f}")
+                    # logging.info(f"   Dynamic std: {prompt_embeds.std().item():.6f}, Normal std: {normal_prompt_embeds.std().item():.6f}")
+                    
+                    # # Check if they're identical or close
+                    # if torch.allclose(prompt_embeds, normal_prompt_embeds, rtol=1e-5, atol=1e-5):
+                    #     logging.info(f"   ✅ Embeddings are IDENTICAL (within tolerance)")
+                    # else:
+                    #     diff = torch.abs(prompt_embeds - normal_prompt_embeds)
+                    #     max_diff = diff.max().item()
+                    #     mean_diff = diff.mean().item()
+                    #     logging.warning(f"   ⚠️ Embeddings DIFFER: max_diff={max_diff:.6f}, mean_diff={mean_diff:.6f}")
+                    #     logging.warning(f"   This explains why videos are different!")
+                    
+                    # Use the normal embeddings that we just generated for exact match
+                    # CRITICAL: This ensures step 0 uses EXACTLY what normal generation uses
+                    prompt_embeds = normal_prompt_embeds
+                    negative_prompt_embeds_for_cfg = normal_negative_embeds
+                    
+                    # Also update the dynamic wrapper so the callback uses consistent embeddings
+                    dynamic_prompt_embeddings.update(normal_prompt_embeds)
+                    logging.info(f"✅ Updated dynamic wrapper to use normal embeddings for exact match")
+                    
+                    logging.info(f"📊 Using embeddings from encode_prompt for consistency:")
+                    logging.info(f"   prompt_embeds: shape={prompt_embeds.shape}, dtype={prompt_embeds.dtype}, norm={torch.norm(prompt_embeds).item():.4f}")
+                    logging.info(f"   negative_prompt_embeds: shape={negative_prompt_embeds_for_cfg.shape}, dtype={negative_prompt_embeds_for_cfg.dtype}, norm={torch.norm(negative_prompt_embeds_for_cfg).item():.4f}")
+                    
+                    # Check if embeddings contain NaN or Inf
+                    if torch.isnan(prompt_embeds).any():
+                        logging.error("❌ WARNING: Dynamic embeddings contain NaN values!")
+                    if torch.isinf(prompt_embeds).any():
+                        logging.error("❌ WARNING: Dynamic embeddings contain Inf values!")
+                    
+                    # Generate using dynamic prompt_embeds with callback
+                    logging.info("🎬 Starting generation with dynamic prompt embeddings...")
+                    
+                    # Verify callback setup before generation
+                    logging.info(f"🔧 Pipeline call parameters:")
+                    logging.info(f"   callback_on_step_end: {callback_fn is not None}")
+                    logging.info(f"   callback_on_step_end_tensor_inputs: {callback_tensor_inputs}")
+                    if callback_fn:
+                        logging.info(f"   Callback type: {type(callback_fn).__name__}")
+                                        
+                 
+                    
+                    video_frames = self.pipe(
+                        prompt_embeds=prompt_embeds,
+                        negative_prompt_embeds=negative_prompt_embeds_for_cfg,  # Use embeddings instead of string
+                        width=width,
+                        height=height,
+                        num_frames=num_frames,
+                        num_inference_steps=num_inference_steps,
+                        guidance_scale=effective_guidance_scale,
+                        generator=generator,
+                        callback_on_step_end=callback_fn,
+                        callback_on_step_end_tensor_inputs=callback_tensor_inputs if callback_fn else None
+                    ).frames[0]
+                    
+                    logging.info(f"✅ Successfully generated video using dynamic prompt interpolation")
+                    # logging.info(f"🔔 Total callback invocations: {callback_call_count[0]} (expected: {num_inference_steps})")
+
+                    
+                elif use_weighted_embeddings:
                     try:
                         # Create weighted embeddings using configured method
                         embedding_method = getattr(self.config.prompt_settings, 'embedding_method', 'multiply')
@@ -1023,6 +1235,11 @@ class WanVideoGenerator:
                             max_sequence_length=512,
                             weighting_method=embedding_method
                         )
+                        
+                        # Log for comparison with dynamic embeddings
+                        logging.info(f"📊 Weighted prompt embeddings stats:")
+                        logging.info(f"   Shape: {prompt_embeds.shape}")
+                        logging.info(f"   Norm: {torch.norm(prompt_embeds).item():.4f}")
                         
                         # Generate using prompt_embeds with callback
                         video_frames = self.pipe(

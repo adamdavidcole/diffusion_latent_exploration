@@ -113,6 +113,15 @@ class CFGScheduleSettings:
 
 
 @dataclass
+class PromptScheduleSettings:
+    """Dynamic prompt interpolation schedule settings."""
+    enabled: bool = False
+    schedule: Dict[int, str] = field(default_factory=dict)  # step -> prompt mapping
+    interpolation: str = "slerp"  # "slerp" (spherical), "lerp" (linear), or "step"
+    verbose: bool = False  # Log prompt changes
+
+
+@dataclass
 class GenerationConfig:
     """Complete configuration for video generation batch."""
     model_settings: ModelSettings = field(default_factory=ModelSettings)
@@ -122,6 +131,7 @@ class GenerationConfig:
     latent_analysis_settings: LatentAnalysisSettings = field(default_factory=LatentAnalysisSettings)
     attention_analysis_settings: AttentionAnalysisSettings = field(default_factory=AttentionAnalysisSettings)
     cfg_schedule_settings: CFGScheduleSettings = field(default_factory=CFGScheduleSettings)
+    prompt_schedule_settings: PromptScheduleSettings = field(default_factory=PromptScheduleSettings)
     videos_per_variation: int = 3
     output_dir: str = "outputs"
     batch_name: Optional[str] = None
@@ -180,6 +190,7 @@ class ConfigManager:
         latent_data = config_data.get('latent_analysis_settings', {})
         attention_data = config_data.get('attention_analysis_settings', {})
         cfg_schedule_data = config_data.get('cfg_schedule_settings', {})
+        prompt_schedule_data = config_data.get('prompt_schedule_settings', {})
         
         model_settings = ModelSettings(
             seed=model_data.get('seed', 42),
@@ -259,6 +270,14 @@ class ConfigManager:
             force_cfg=cfg_schedule_data.get('force_cfg', False)
         )
         
+        # Parse Prompt schedule settings
+        prompt_schedule_settings = PromptScheduleSettings(
+            enabled=prompt_schedule_data.get('enabled', False),
+            schedule=prompt_schedule_data.get('schedule', {}),
+            interpolation=prompt_schedule_data.get('interpolation', 'slerp'),
+            verbose=prompt_schedule_data.get('verbose', False)
+        )
+        
         return GenerationConfig(
             model_settings=model_settings,
             memory_settings=memory_settings,
@@ -267,6 +286,7 @@ class ConfigManager:
             latent_analysis_settings=latent_analysis_settings,
             attention_analysis_settings=attention_analysis_settings,
             cfg_schedule_settings=cfg_schedule_settings,
+            prompt_schedule_settings=prompt_schedule_settings,
             videos_per_variation=config_data.get('videos_per_variation', 3),
             output_dir=config_data.get('output_dir', 'outputs'),
             batch_name=config_data.get('batch_name'),
@@ -339,6 +359,12 @@ class ConfigManager:
                 'apply_to_guidance_2': config.cfg_schedule_settings.apply_to_guidance_2,
                 'verbose': config.cfg_schedule_settings.verbose,
                 'force_cfg': config.cfg_schedule_settings.force_cfg 
+            },
+            'prompt_schedule_settings': {
+                'enabled': config.prompt_schedule_settings.enabled,
+                'schedule': config.prompt_schedule_settings.schedule,
+                'interpolation': config.prompt_schedule_settings.interpolation,
+                'verbose': config.prompt_schedule_settings.verbose
             },
             'videos_per_variation': config.videos_per_variation,
             'output_dir': config.output_dir,
