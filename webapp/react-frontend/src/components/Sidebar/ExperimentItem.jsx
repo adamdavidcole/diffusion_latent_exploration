@@ -93,6 +93,52 @@ const ExperimentItem = ({ experiment, isActive, onSelect }) => {
 
     const modelDisplayName = getModelDisplayName(experiment.model_id);
 
+    // Helper to render prompt or prompt schedule
+    const renderPromptText = () => {
+        if (experiment.prompt_schedule_data?.schedule && experiment.prompt_schedule_data?.interpolation) {
+            const schedule = experiment.prompt_schedule_data.schedule;
+            const interpolation = experiment.prompt_schedule_data.interpolation;
+            const keyframes = experiment.prompt_schedule_data.keyframes || 
+                Object.keys(schedule).map(Number).sort((a, b) => a - b);
+            
+            // Create a compact summary for the main view
+            const firstPrompt = schedule[keyframes[0]];
+            const lastPrompt = schedule[keyframes[keyframes.length - 1]];
+            
+            return `Prompt Interpolation (${interpolation}): ${keyframes.length} keyframes`;
+        }
+        return experiment.base_prompt;
+    };
+
+    // Helper to render full prompt schedule in tooltip
+    const renderTooltipPrompt = () => {
+        if (experiment.prompt_schedule_data?.schedule && experiment.prompt_schedule_data?.interpolation) {
+            const schedule = experiment.prompt_schedule_data.schedule;
+            const interpolation = experiment.prompt_schedule_data.interpolation;
+            const keyframes = experiment.prompt_schedule_data.keyframes || 
+                Object.keys(schedule).map(Number).sort((a, b) => a - b);
+            
+            return (
+                <>
+                    <strong>Prompt Schedule ({interpolation.toUpperCase()}):</strong>
+                    {keyframes.map((step, index) => (
+                        <React.Fragment key={step}>
+                            <br />• Step {step}: {schedule[step].length > 80 ? 
+                                schedule[step].substring(0, 80) + '...' : 
+                                schedule[step]}
+                        </React.Fragment>
+                    ))}
+                </>
+            );
+        }
+        return (
+            <>
+                <strong>Base Prompt:</strong>
+                <br />{truncatedPrompt}
+            </>
+        );
+    };
+
     return (
         <>
             <div
@@ -113,7 +159,7 @@ const ExperimentItem = ({ experiment, isActive, onSelect }) => {
                             <span>{parseFloat(experiment.duration_seconds.toFixed(1))}s</span>
                         )}
                     </div>
-                    <div className="experiment-prompt">{experiment.base_prompt}</div>
+                    <div className="experiment-prompt">{renderPromptText()}</div>
                 </div>
             </div>
 
@@ -145,8 +191,7 @@ const ExperimentItem = ({ experiment, isActive, onSelect }) => {
                         </>
                     )}
                     <br /><br />
-                    <strong>Base Prompt:</strong>
-                    <br />{truncatedPrompt}
+                    {renderTooltipPrompt()}
                 </div>
             )}
         </>

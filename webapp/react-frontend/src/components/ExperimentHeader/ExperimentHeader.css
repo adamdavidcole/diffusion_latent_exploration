@@ -78,6 +78,56 @@
   white-space: normal;
 }
 
+/* Prompt Schedule Display */
+.prompt-schedule-display {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background: rgba(74, 144, 226, 0.05);
+  border: 1px solid rgba(74, 144, 226, 0.2);
+  border-radius: 0.375rem;
+}
+
+.prompt-schedule-header {
+  font-size: 0.85rem;
+  color: var(--accent);
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.prompt-keyframe {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem;
+}
+
+.prompt-keyframe:last-child {
+  margin-bottom: 0;
+}
+
+.keyframe-step {
+  font-weight: 600;
+  color: var(--accent);
+  min-width: 60px;
+  flex-shrink: 0;
+}
+
+.keyframe-prompt {
+  font-style: italic;
+  flex: 1;
+  min-width: 200px;
+}
+
+.keyframe-arrow {
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-left: 0.5rem;
+  font-size: 1.1rem;
+}
+
 /* Mobile responsiveness */
 @media (max-width: 768px) {
   .experiment-header {
@@ -96,5 +146,29 @@
 
   .base-prompt {
     font-size: 0.85rem;
+  }
+
+  .prompt-schedule-display {
+    padding: 0.5rem;
+  }
+
+  .prompt-schedule-header {
+    font-size: 0.8rem;
+  }
+
+  .prompt-keyframe {
+    font-size: 0.85rem;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .keyframe-step {
+    min-width: auto;
+  }
+
+  .keyframe-arrow {
+    display: block;
+    margin-left: 0;
+    margin-top: 0.25rem;
   }
 }

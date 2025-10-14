@@ -35,6 +35,42 @@ const formatCfgInfo = (experiment) => {
   return null;
 };
 
+// Helper function to render prompt schedule or static prompt
+const renderPromptDisplay = (experiment) => {
+  const { prompt_schedule_data, base_prompt } = experiment;
+
+  // Check if prompt schedule is available
+  if (prompt_schedule_data?.schedule && prompt_schedule_data?.interpolation) {
+    const schedule = prompt_schedule_data.schedule;
+    const interpolation = prompt_schedule_data.interpolation;
+    const keyframes = prompt_schedule_data.keyframes || Object.keys(schedule).map(Number).sort((a, b) => a - b);
+
+    return (
+      <div className="prompt-schedule-display">
+        <div className="prompt-schedule-header">
+          <strong>Prompt Interpolation ({interpolation.toUpperCase()}):</strong>
+        </div>
+        {keyframes.map((step, index) => (
+          <div key={step} className="prompt-keyframe">
+            <span className="keyframe-step">Step {step}:</span>{' '}
+            <span className="keyframe-prompt">{schedule[step]}</span>
+            {index < keyframes.length - 1 && (
+              <span className="keyframe-arrow"> → </span>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Fallback to static prompt
+  return (
+    <p id="base-prompt" className="base-prompt" title={base_prompt}>
+      {base_prompt}
+    </p>
+  );
+};
+
 const ExperimentHeader = () => {
   const { state } = useApp();
   const { currentExperiment } = state;
@@ -72,13 +108,7 @@ const ExperimentHeader = () => {
         )}
       </div>
 
-      <p
-        id="base-prompt"
-        className="base-prompt"
-        title={currentExperiment.base_prompt}
-      >
-        {currentExperiment.base_prompt}
-      </p>
+      {renderPromptDisplay(currentExperiment)}
     </div>
   );
 };

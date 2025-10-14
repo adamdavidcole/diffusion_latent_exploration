@@ -180,15 +180,28 @@ class VideoAnalyzer:
                 except Exception as e:
                     print(f"Failed to load CFG schedule data: {e}")
                     cfg_schedule_data = None
-                    duration_seconds = video_settings.get('duration')
-                    if duration_seconds is None:
-                        frames = video_settings.get('frames')
-                        fps = video_settings.get('fps')
-                        if frames and fps:
-                            try:
-                                duration_seconds = float(frames) / float(fps)
-                            except Exception:
-                                duration_seconds = None
+            
+            # Load prompt schedule data if available
+            prompt_schedule_data = None
+            prompt_schedule_file = exp_dir / 'configs' / 'prompt_schedule.json'
+            if prompt_schedule_file.exists():
+                try:
+                    with open(prompt_schedule_file, 'r') as f:
+                        prompt_schedule_data = json.load(f)
+                except Exception as e:
+                    print(f"Failed to load prompt schedule data: {e}")
+                    prompt_schedule_data = None
+            
+            # Extract duration from config
+            duration_seconds = video_settings.get('duration')
+            if duration_seconds is None:
+                frames = video_settings.get('frames')
+                fps = video_settings.get('fps')
+                if frames and fps:
+                    try:
+                        duration_seconds = float(frames) / float(fps)
+                    except Exception:
+                        duration_seconds = None
             
             # Load prompt variations to get actual variation names
             variations_data = {}
@@ -276,6 +289,7 @@ class VideoAnalyzer:
                 'cfg_scale': cfg_scale,
                 'cfg_schedule_settings': cfg_schedule_settings,
                 'cfg_schedule_data': cfg_schedule_data,
+                'prompt_schedule_data': prompt_schedule_data,
                 'path': str(exp_dir),
                 'created_at': creation_datetime.isoformat(),
                 'created_timestamp': creation_time,
