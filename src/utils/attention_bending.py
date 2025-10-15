@@ -27,8 +27,8 @@ logger = logging.getLogger(__name__)
 
 class BendingMode(Enum):
     """Types of attention bending transformations."""
-    AMPLIFY = "amplify"  # Amplify/dampen attention weights (formerly SCALE)
-    SCALE = "scale"  # Scale in spatial domain - zoom in/out (formerly SPATIAL_SCALE)
+    AMPLIFY = "amplify"  # Amplify/dampen attention weights 
+    SCALE = "scale"  # Scale in spatial domain - zoom in/out 
     ROTATE = "rotate"  # Rotate attention pattern
     TRANSLATE = "translate"  # Shift attention pattern spatially
     FLIP = "flip"  # Mirror attention pattern
@@ -45,7 +45,7 @@ class BendingConfig:
     mode: BendingMode
     
     # Amplify parameters (for AMPLIFY mode - simple multiplier)
-    amplify_factor: float = 1.0  # For AMPLIFY mode (formerly scale_factor)
+    amplify_factor: float = 1.0  # For AMPLIFY mode 
     
     # Spatial transformation parameters
     angle: float = 0.0  # Rotation angle in degrees
@@ -53,7 +53,7 @@ class BendingConfig:
     translate_y: float = 0.0  # Translation in y (normalized -1 to 1)
     flip_horizontal: bool = False
     flip_vertical: bool = False
-    scale_factor: float = 1.0  # For SCALE mode - spatial zoom (formerly zoom_factor)
+    scale_factor: float = 1.0  # For SCALE mode - spatial zoom 
     
     # Blur/sharpen parameters
     kernel_size: int = 3  # Kernel size for blur/sharpen
@@ -68,6 +68,12 @@ class BendingConfig:
     strength: float = 1.0  # Blend factor: 0=original, 1=fully bent
     apply_to_layers: Optional[List[int]] = None  # Which transformer layers (None=all)
     apply_to_timesteps: Optional[Tuple[int, int]] = None  # (start, end) timestep range
+    
+    # Affine transformation padding mode (for scale, rotate, translate)
+    padding_mode: str = 'zeros'  # How to handle out-of-canvas areas:
+                                 # 'zeros': out-of-canvas becomes zero (transparent/empty - standard graphics)
+                                 # 'border': replicate edge pixels (extends image boundaries)
+                                 # 'reflection': mirror reflection at boundaries
     
     # Stability
     renormalize: bool = True  # Re-normalize after transformation
@@ -283,69 +289,57 @@ class AttentionBender:
     
     def _apply_scale(self, attention: torch.Tensor, config: BendingConfig) -> torch.Tensor:
         """
-        Zoom in/out on attention pattern (spatial scaling).
+        Scale (zoom) attention pattern using affine transformation matrix.
         
-        This scales the attention map so that features occupy more/fewer pixels.
-        - scale_factor > 1: Features get LARGER (zoom in, then crop to canvas)
-        - scale_factor < 1: Features get SMALLER (zoom out, with padding)
+        This uses the same transformation matrix approach as rotation and translation,
+        keeping the canvas size fixed while transforming the attention "image" content.
         
-        Think of it like free-transform in Photoshop on a fixed canvas.
+        - scale_factor > 1: Features get LARGER (zoom in, content scaled up on fixed canvas)
+        - scale_factor < 1: Features get SMALLER (zoom out, content scaled down on fixed canvas)
+        
+        The transformation is centered at the origin, so scaling happens from the center.
         """
-        logger.info(f"      🔍 _apply_scale: scale_factor={config.scale_factor}")
-        logger.info(f"         Input shape: {attention.shape}, mean: {attention.mean():.4f}")
-        
         if config.scale_factor == 1.0:
-            logger.info(f"         Scale factor is 1.0, returning unchanged")
             return attention
         
         batch_heads, H, W = attention.shape
-        logger.info(f"         Original canvas: {H}x{W}")
         
-        # Calculate the scaled size
-        H_scaled = int(H * config.scale_factor)
-        W_scaled = int(W * config.scale_factor)
-        logger.info(f"         Scaled size: {H_scaled}x{W_scaled}")
+        # Create scaling transformation matrix
+        # In affine transformations, scaling by s means dividing coordinates by s
+        # (inverse transformation for grid_sample)
+        s = 1.0 / config.scale_factor
         
-        # Step 1: Resize to the scaled size
-        attention_scaled = F.interpolate(
-            attention.unsqueeze(1),  # [B, 1, H, W]
-            size=(H_scaled, W_scaled),
+        theta = torch.tensor([
+            [s, 0, 0],
+            [0, s, 0]
+        ], dtype=attention.dtype, device=attention.device).unsqueeze(0).repeat(batch_heads, 1, 1)
+        
+        # Generate sampling grid and apply transformation
+        grid = F.affine_grid(theta, attention.unsqueeze(1).size(), align_corners=False)
+        scaled = F.grid_sample(
+            attention.unsqueeze(1), 
+            grid, 
             mode='bilinear',
+            padding_mode=config.padding_mode,  # Configurable: 'zeros', 'border', 'reflection'
             align_corners=False
-        ).squeeze(1)  # [B, H_scaled, W_scaled]
+        )
         
-        logger.info(f"         After resize: {attention_scaled.shape}")
-        
-        # Step 2: Crop or pad back to original size
-        if config.scale_factor > 1.0:
-            # Zoom in: Crop the center
-            crop_h = (H_scaled - H) // 2
-            crop_w = (W_scaled - W) // 2
-            result = attention_scaled[:, crop_h:crop_h+H, crop_w:crop_w+W]
-            logger.info(f"         Cropped center from {attention_scaled.shape} to {result.shape}")
-        else:
-            # Zoom out: Pad the edges
-            pad_h = (H - H_scaled) // 2
-            pad_w = (W - W_scaled) // 2
-            # Pad with zeros (or could use edge values)
-            result = F.pad(attention_scaled, (pad_w, W - W_scaled - pad_w, pad_h, H - H_scaled - pad_h), 
-                          mode='constant', value=0.0)
-            logger.info(f"         Padded from {attention_scaled.shape} to {result.shape}")
-        
-        logger.info(f"         Output shape: {result.shape}, mean: {result.mean():.4f}")
-        logger.info(f"         Min: {result.min():.4f}, Max: {result.max():.4f}")
-        
-        return result
+        return scaled.squeeze(1)
     
     def _apply_rotation(self, attention: torch.Tensor, config: BendingConfig) -> torch.Tensor:
-        """Rotate attention pattern."""
+        """
+        Rotate attention pattern using affine transformation matrix.
+        
+        Canvas size remains fixed. Rotation is centered at origin.
+        Areas that rotate outside the canvas become zero (transparent).
+        """
         if config.angle == 0:
             return attention
         
         batch_heads, H, W = attention.shape
         angle_rad = np.deg2rad(config.angle)
         
-        # Create rotation matrix
+        # Create rotation matrix (standard 2D rotation)
         cos_a = np.cos(angle_rad)
         sin_a = np.sin(angle_rad)
         theta = torch.tensor([
@@ -354,37 +348,57 @@ class AttentionBender:
         ], dtype=attention.dtype, device=attention.device).unsqueeze(0).repeat(batch_heads, 1, 1)
         
         grid = F.affine_grid(theta, attention.unsqueeze(1).size(), align_corners=False)
-        rotated = F.grid_sample(attention.unsqueeze(1), grid, mode='bilinear',
-                               padding_mode='border', align_corners=False)
+        rotated = F.grid_sample(
+            attention.unsqueeze(1), 
+            grid, 
+            mode='bilinear',
+            padding_mode=config.padding_mode,  # Configurable: 'zeros', 'border', 'reflection'
+            align_corners=False
+        )
         
         return rotated.squeeze(1)
     
     def _apply_translation(self, attention: torch.Tensor, config: BendingConfig) -> torch.Tensor:
-        """Translate attention pattern."""
+        """
+        Translate (shift) attention pattern using affine transformation matrix.
+        
+        Canvas size remains fixed. Translation values are normalized (-1 to 1).
+        Areas that shift outside the canvas become zero (transparent).
+        """
         if config.translate_x == 0 and config.translate_y == 0:
             return attention
         
         batch_heads, H, W = attention.shape
         
-        # Create translation matrix
+        # Create translation matrix (standard 2D translation)
         theta = torch.tensor([
             [1, 0, config.translate_x],
             [0, 1, config.translate_y]
         ], dtype=attention.dtype, device=attention.device).unsqueeze(0).repeat(batch_heads, 1, 1)
         
         grid = F.affine_grid(theta, attention.unsqueeze(1).size(), align_corners=False)
-        translated = F.grid_sample(attention.unsqueeze(1), grid, mode='bilinear',
-                                  padding_mode='border', align_corners=False)
+        translated = F.grid_sample(
+            attention.unsqueeze(1), 
+            grid, 
+            mode='bilinear',
+            padding_mode=config.padding_mode,  # Configurable: 'zeros', 'border', 'reflection'
+            align_corners=False
+        )
         
         return translated.squeeze(1)
     
     def _apply_flip(self, attention: torch.Tensor, config: BendingConfig) -> torch.Tensor:
-        """Flip attention pattern."""
+        """
+        Flip (mirror) attention pattern.
+        
+        Canvas size remains fixed. This is a simple pixel reordering operation.
+        Unlike affine transformations, flip operates directly on the tensor without sampling.
+        """
         result = attention
         if config.flip_horizontal:
-            result = torch.flip(result, dims=[2])  # Flip width
+            result = torch.flip(result, dims=[2])  # Flip along width dimension
         if config.flip_vertical:
-            result = torch.flip(result, dims=[1])  # Flip height
+            result = torch.flip(result, dims=[1])  # Flip along height dimension
         return result
     
     def _apply_blur(self, attention: torch.Tensor, config: BendingConfig) -> torch.Tensor:

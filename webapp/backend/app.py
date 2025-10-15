@@ -209,6 +209,7 @@ class VideoAnalyzer:
                                     'strength': cfg.get('strength'),
                                     'apply_to_layers': cfg.get('apply_to_layers'),
                                     'apply_to_timesteps': cfg.get('apply_to_timesteps'),
+                                    'padding_mode': cfg.get('padding_mode'),
                                     
                                     # Stability parameters
                                     'renormalize': cfg.get('renormalize'),
