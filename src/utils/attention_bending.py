@@ -49,6 +49,7 @@ class BendingConfig:
     
     # Spatial transformation parameters
     angle: float = 0.0  # Rotation angle in degrees
+    crop_rotated: bool = True  # If True, crop rotated content to original canvas (default). If False, stretch to fit.
     translate_x: float = 0.0  # Translation in x (normalized -1 to 1)
     translate_y: float = 0.0  # Translation in y (normalized -1 to 1)
     flip_horizontal: bool = False
@@ -386,10 +387,15 @@ class AttentionBender:
     
     def _apply_rotation(self, attention: torch.Tensor, config: BendingConfig) -> torch.Tensor:
         """
-        Rotate attention pattern using affine transformation matrix.
+        Rotate attention pattern around the center.
         
-        Canvas size remains fixed. Rotation is centered at origin.
-        Areas that rotate outside the canvas become zero (transparent).
+        Two modes:
+        - crop_rotated=True (default): Pure rotation. Rotate the image on a fixed canvas.
+          Parts outside canvas are clipped, empty areas filled with padding_mode.
+          No stretching - this is standard image rotation behavior.
+          
+        - crop_rotated=False: Rotate and inscribe. After rotation, zoom out just enough
+          so the entire original image fits in the canvas (inscribed rectangle).
         """
         if config.angle == 0:
             return attention
@@ -397,24 +403,65 @@ class AttentionBender:
         batch_heads, H, W = attention.shape
         angle_rad = np.deg2rad(config.angle)
         
-        # Create rotation matrix (standard 2D rotation)
-        cos_a = np.cos(angle_rad)
-        sin_a = np.sin(angle_rad)
-        theta = torch.tensor([
-            [cos_a, -sin_a, 0],
-            [sin_a, cos_a, 0]
-        ], dtype=attention.dtype, device=attention.device).unsqueeze(0).repeat(batch_heads, 1, 1)
+        # Create coordinate grids for the output
+        # These are in pixel coordinates [0, H-1] and [0, W-1]
+        y = torch.arange(H, dtype=attention.dtype, device=attention.device)
+        x = torch.arange(W, dtype=attention.dtype, device=attention.device)
+        yy, xx = torch.meshgrid(y, x, indexing='ij')
         
-        grid = F.affine_grid(theta, attention.unsqueeze(1).size(), align_corners=False)
+        # Center coordinates (rotation center)
+        cy, cx = (H - 1) / 2.0, (W - 1) / 2.0
+        
+        # Translate to origin
+        xx_centered = xx - cx
+        yy_centered = yy - cy
+        
+        if config.crop_rotated:
+            # Pure rotation: identity scale
+            scale = 1.0
+        else:
+            # Inscribed rectangle: zoom out to fit rotated content
+            # For a WxH rectangle rotated by θ, the bounding box is:
+            # width' = W|cos(θ)| + H|sin(θ)|
+            # height' = W|sin(θ)| + H|cos(θ)|
+            # We want to scale so this fits in original WxH
+            cos_a = abs(np.cos(angle_rad))
+            sin_a = abs(np.sin(angle_rad))
+            scale_w = W / (W * cos_a + H * sin_a)
+            scale_h = H / (W * sin_a + H * cos_a)
+            scale = min(scale_w, scale_h)
+        
+        # Apply inverse rotation (we're finding where each output pixel came from)
+        # R^-1(θ) = R(-θ) for rotation matrices
+        cos_a = np.cos(-angle_rad) * scale
+        sin_a = np.sin(-angle_rad) * scale
+        
+        # Rotate coordinates
+        xx_src = xx_centered * cos_a - yy_centered * sin_a + cx
+        yy_src = xx_centered * sin_a + yy_centered * cos_a + cy
+        
+        # Normalize to [-1, 1] for grid_sample
+        xx_norm = 2.0 * xx_src / (W - 1) - 1.0
+        yy_norm = 2.0 * yy_src / (H - 1) - 1.0
+        
+        # Stack to create grid [H, W, 2] where last dim is (x, y)
+        grid = torch.stack([xx_norm, yy_norm], dim=-1)  # [H, W, 2]
+        
+        # Expand for batch: grid_sample expects [N, H, W, 2] for [N, C, H, W] input
+        grid = grid.unsqueeze(0).expand(batch_heads, -1, -1, -1)  # [batch_heads, H, W, 2]
+        
+        # Apply grid sampling
+        # Input: [batch_heads, H, W] → add channel dim → [batch_heads, 1, H, W]
+        # Grid: [batch_heads, H, W, 2]
         rotated = F.grid_sample(
-            attention.unsqueeze(1), 
-            grid, 
+            attention.unsqueeze(1),  # [batch_heads, 1, H, W]
+            grid,  # [batch_heads, H, W, 2]
             mode='bilinear',
-            padding_mode=config.padding_mode,  # Configurable: 'zeros', 'border', 'reflection'
-            align_corners=False
+            padding_mode=config.padding_mode,
+            align_corners=True
         )
         
-        return rotated.squeeze(1)
+        return rotated.squeeze(1)  # [batch_heads, H, W]
     
     def _apply_translation(self, attention: torch.Tensor, config: BendingConfig) -> torch.Tensor:
         """

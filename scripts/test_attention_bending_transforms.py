@@ -399,6 +399,10 @@ def main():
     parser.add_argument("--amplify-factor", type=float, default=10.0, help="Amplify factor")
     parser.add_argument("--scale-factor", type=float, default=5.0, help="Scale factor (zoom)")
     parser.add_argument("--angle", type=float, default=45.0, help="Rotation angle in degrees")
+    parser.add_argument("--crop-rotated", action='store_true', default=True,
+                       help="Crop rotated content to canvas (default). If False, stretch to fit.")
+    parser.add_argument("--no-crop-rotated", dest='crop_rotated', action='store_false',
+                       help="Don't crop rotation - stretch rotated content to fit canvas")
     parser.add_argument("--translate-x", type=float, default=0.3, help="Translation in x (-1 to 1)")
     parser.add_argument("--translate-y", type=float, default=0.0, help="Translation in y (-1 to 1)")
     parser.add_argument("--flip-horizontal", action='store_true', help="Flip horizontally")
@@ -441,6 +445,7 @@ def main():
         kwargs['renormalize'] = args.renormalize
     elif args.mode == 'rotate':
         kwargs['angle'] = args.angle
+        kwargs['crop_rotated'] = args.crop_rotated
         kwargs['padding_mode'] = args.padding_mode
         kwargs['renormalize'] = args.renormalize
     elif args.mode == 'translate':
