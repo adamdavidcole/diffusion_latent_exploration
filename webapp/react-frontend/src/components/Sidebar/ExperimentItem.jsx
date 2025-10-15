@@ -5,44 +5,44 @@ import { formatDuration } from '../../utils/formatters';
 // Helper function to format CFG information for tooltip
 const formatCfgInfo = (experiment) => {
     const { cfg_scale, cfg_schedule_settings } = experiment;
-    
+
     // Check if CFG schedule is enabled and has a schedule
     if (cfg_schedule_settings?.enabled && cfg_schedule_settings?.schedule) {
         const schedule = cfg_schedule_settings.schedule;
         const interpolation = cfg_schedule_settings.interpolation || 'linear';
-        
+
         // Format schedule as compact string
         const scheduleStr = Object.entries(schedule)
             .map(([step, value]) => `${step}:${value}`)
             .join(', ');
-        
+
         return `CFG Schedule: {${scheduleStr}} (${interpolation})`;
     }
-    
+
     // Fall back to basic CFG scale
     if (cfg_scale !== null && cfg_scale !== undefined) {
         return `CFG: ${cfg_scale}`;
     }
-    
+
     return null;
 };
 
 // Helper function to format attention bending info
 const getAttentionBendingInfo = (experiment) => {
     const { attention_bending_settings } = experiment;
-    
+
     if (!attention_bending_settings?.enabled || !attention_bending_settings.configs?.length) {
         return null;
     }
-    
+
     const { configs, apply_to_output } = attention_bending_settings;
     const phase = apply_to_output ? 'Active' : 'Viz';
     const icon = apply_to_output ? '🎨' : '👁️';
-    
+
     // Helper to format parameter value intelligently
     const formatParamValue = (key, value) => {
         if (value === null || value === undefined) return null;
-        
+
         // Skip default values
         if (key === 'strength' && value === 1.0) return null;
         if (key === 'renormalize' && value === true) return null;
@@ -50,28 +50,28 @@ const getAttentionBendingInfo = (experiment) => {
         if (key === 'angle' && value === 0) return null;
         if (key === 'translate_x' && value === 0) return null;
         if (key === 'translate_y' && value === 0) return null;
-        
+
         // Format specific types
         if (typeof value === 'boolean') {
             return value ? key.replace(/_/g, ' ') : null;
         }
-        
+
         if (key === 'strength') {
             return `${(value * 100).toFixed(0)}%`;
         }
-        
+
         if (key === 'apply_to_timesteps' && Array.isArray(value) && value.length === 2) {
             return `steps ${value[0]}-${value[1]}`;
         }
-        
+
         if (key === 'apply_to_layers' && Array.isArray(value)) {
             return `layers [${value.join(', ')}]`;
         }
-        
+
         if (key === 'region' && Array.isArray(value) && value.length === 4) {
             return `[${value.map(v => v.toFixed(2)).join(', ')}]`;
         }
-        
+
         // Numeric values
         if (typeof value === 'number') {
             if (key.includes('factor') || key.includes('scale')) {
@@ -82,10 +82,10 @@ const getAttentionBendingInfo = (experiment) => {
             }
             return `${value}`;
         }
-        
+
         return `${value}`;
     };
-    
+
     // Mode-specific parameter relevance (same as ExperimentHeader)
     const getModeRelevantParams = (mode) => {
         const paramsByMode = {
@@ -97,18 +97,18 @@ const getAttentionBendingInfo = (experiment) => {
             'blur': ['kernel_size', 'sigma', 'strength', 'apply_to_timesteps'],
             'sharpen': ['kernel_size', 'sharpen_amount', 'strength', 'apply_to_timesteps'],
             'regional_mask': ['region', 'region_feather', 'strength', 'apply_to_timesteps'],
-            
+
             // Legacy support - in case old configs exist
             'spatial_scale': ['scale_factor', 'strength', 'apply_to_timesteps'],
         };
         return paramsByMode[mode] || ['strength', 'apply_to_timesteps'];
     };
-    
+
     return {
         badge: `${icon} ${configs.length}`,
         tooltip: configs.map(cfg => {
             const relevantParams = getModeRelevantParams(cfg.mode);
-            
+
             // Build parameter list
             const params = [];
             relevantParams.forEach(paramKey => {
@@ -117,13 +117,13 @@ const getAttentionBendingInfo = (experiment) => {
                     params.push(formatted);
                 }
             });
-            
+
             // Build the detail string
             let detail = `"${cfg.token}" → ${cfg.mode}`;
             if (params.length > 0) {
                 detail += ` (${params.join(', ')})`;
             }
-            
+
             return detail;
         }),
         phase: apply_to_output ? 'active' : 'viz'
@@ -202,13 +202,13 @@ const ExperimentItem = ({ experiment, isActive, onSelect }) => {
         if (experiment.prompt_schedule_data?.schedule && experiment.prompt_schedule_data?.interpolation) {
             const schedule = experiment.prompt_schedule_data.schedule;
             const interpolation = experiment.prompt_schedule_data.interpolation;
-            const keyframes = experiment.prompt_schedule_data.keyframes || 
+            const keyframes = experiment.prompt_schedule_data.keyframes ||
                 Object.keys(schedule).map(Number).sort((a, b) => a - b);
-            
+
             // Create a compact summary for the main view
             const firstPrompt = schedule[keyframes[0]];
             const lastPrompt = schedule[keyframes[keyframes.length - 1]];
-            
+
             return `Prompt Interpolation (${interpolation}): ${keyframes.length} keyframes`;
         }
         return experiment.base_prompt;
@@ -219,16 +219,16 @@ const ExperimentItem = ({ experiment, isActive, onSelect }) => {
         if (experiment.prompt_schedule_data?.schedule && experiment.prompt_schedule_data?.interpolation) {
             const schedule = experiment.prompt_schedule_data.schedule;
             const interpolation = experiment.prompt_schedule_data.interpolation;
-            const keyframes = experiment.prompt_schedule_data.keyframes || 
+            const keyframes = experiment.prompt_schedule_data.keyframes ||
                 Object.keys(schedule).map(Number).sort((a, b) => a - b);
-            
+
             return (
                 <>
                     <strong>Prompt Schedule ({interpolation.toUpperCase()}):</strong>
                     {keyframes.map((step, index) => (
                         <React.Fragment key={step}>
-                            <br />• Step {step}: {schedule[step].length > 80 ? 
-                                schedule[step].substring(0, 80) + '...' : 
+                            <br />• Step {step}: {schedule[step].length > 80 ?
+                                schedule[step].substring(0, 80) + '...' :
                                 schedule[step]}
                         </React.Fragment>
                     ))}
@@ -255,7 +255,7 @@ const ExperimentItem = ({ experiment, isActive, onSelect }) => {
                     <div className="experiment-name">
                         {experiment.name}
                         {attentionBendingInfo && (
-                            <span 
+                            <span
                                 className={`attention-bending-badge ${attentionBendingInfo.phase}`}
                                 title="Attention Bending enabled"
                             >

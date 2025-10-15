@@ -13,7 +13,7 @@ const TabNavigation = ({ experimentPath }) => {
   const isAnalysisTab = location.pathname.endsWith('/analysis');
   const isTrajectoryAnalysisTab = location.pathname.endsWith('/trajectory-analysis');
   const isLatentVideosTab = location.pathname.endsWith('/latent-videos');
-  
+
   let activeTab = 'videos';
   if (isAnalysisTab) activeTab = 'analysis';
   if (isTrajectoryAnalysisTab) activeTab = 'trajectory-analysis';
@@ -92,8 +92,8 @@ const TabNavigation = ({ experimentPath }) => {
             !currentExperiment?.has_latent_videos && !currentExperiment?.has_attention_videos
               ? 'Latent/attention videos not available for this experiment'
               : currentExperiment?.has_attention_videos && !currentExperiment?.has_latent_videos
-              ? 'View attention videos (latent videos not decoded)'
-              : 'View latent videos progression'
+                ? 'View attention videos (latent videos not decoded)'
+                : 'View latent videos progression'
           }
         >
           🎬 Latent Videos

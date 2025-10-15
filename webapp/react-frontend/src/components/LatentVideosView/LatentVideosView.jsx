@@ -9,7 +9,7 @@ import './LatentVideosView.css';
 const LatentVideosView = ({ experimentPath }) => {
   const { state, actions } = useApp();
   const { currentLatentVideos, latentVideosLoading, latentVideosError, currentExperiment } = state;
-  
+
   // View mode state
   const [viewMode, setViewMode] = useState('across-prompts'); // 'across-prompts' or 'by-prompt'
   const [selectedPrompt, setSelectedPrompt] = useState('prompt_000');
@@ -83,11 +83,11 @@ const LatentVideosView = ({ experimentPath }) => {
   // Helper function to get display text for prompts with truncation
   const getPromptDisplayText = (promptId, maxLength = 40) => {
     const fullText = getVariationTextFromPromptKey(promptId, currentExperiment);
-    
+
     if (fullText.length <= maxLength) {
       return { display: fullText, full: fullText };
     }
-    
+
     // Truncate and add ellipsis
     const truncated = fullText.substring(0, maxLength - 3) + '...';
     return { display: truncated, full: fullText };
@@ -98,20 +98,20 @@ const LatentVideosView = ({ experimentPath }) => {
     // Check if we have ANY data to display (latent videos or attention videos)
     const hasLatentVideos = currentLatentVideos?.latent_videos;
     const hasAttentionVideos = currentLatentVideos?.attention_videos;
-    
+
     if (!hasLatentVideos && !hasAttentionVideos) return null;
 
     // If we only have attention videos, use them to determine structure
     const dataSource = hasLatentVideos ? currentLatentVideos.latent_videos : currentLatentVideos.attention_videos;
     const attentionVideos = currentLatentVideos.attention_videos;
-    
+
     let allPrompts, allSeeds, allSteps;
-    
+
     if (hasLatentVideos) {
       // Use latent videos structure
       allPrompts = Object.keys(dataSource).sort();
       allSeeds = allPrompts.length > 0 ? Object.keys(dataSource[allPrompts[0]]).sort() : [];
-      
+
       if (allPrompts.length > 0 && allSeeds.length > 0) {
         const firstVideo = dataSource[allPrompts[0]][allSeeds[0]];
         allSteps = Object.keys(firstVideo).sort();
@@ -122,7 +122,7 @@ const LatentVideosView = ({ experimentPath }) => {
       // Use attention videos structure (first token)
       allPrompts = Object.keys(dataSource).sort();
       allSeeds = allPrompts.length > 0 ? Object.keys(dataSource[allPrompts[0]]).sort() : [];
-      
+
       if (allPrompts.length > 0 && allSeeds.length > 0) {
         // Get first token's data to determine steps
         const firstTokenData = dataSource[allPrompts[0]][allSeeds[0]];
@@ -219,16 +219,16 @@ const LatentVideosView = ({ experimentPath }) => {
     // Check if we have ANY data to display
     const hasLatentVideos = currentLatentVideos?.latent_videos;
     const hasAttentionVideos = currentLatentVideos?.attention_videos;
-    
+
     if (!hasLatentVideos && !hasAttentionVideos) {
       return { prompts: [], seeds: [], tokens: [] };
     }
 
     // Use whichever data source is available
     const dataSource = hasLatentVideos ? currentLatentVideos.latent_videos : currentLatentVideos.attention_videos;
-    
+
     let prompts, seeds;
-    
+
     if (hasLatentVideos) {
       prompts = Object.keys(dataSource).sort();
       seeds = prompts.length > 0 ? Object.keys(dataSource[prompts[0]]).sort() : [];
@@ -245,7 +245,7 @@ const LatentVideosView = ({ experimentPath }) => {
     // Get available attention tokens
     const attentionVideos = currentLatentVideos.attention_videos;
     const tokens = [];
-    
+
     if (attentionVideos) {
       const tokenSet = new Set();
       Object.values(attentionVideos).forEach(promptData => {
@@ -339,7 +339,7 @@ const LatentVideosView = ({ experimentPath }) => {
   }
 
   return (
-    <div 
+    <div
       className="latent-videos-view"
       style={{
         '--cell-size': `${cellSize}px`
@@ -361,7 +361,7 @@ const LatentVideosView = ({ experimentPath }) => {
             ℹ️ Latent videos not decoded. Showing attention videos only. Select a token from the "Attention" dropdown to view.
           </div>
         )}
-        
+
         <div className="latent-videos-controls">
           {/* View mode toggle */}
           <div className="control-group">
@@ -387,9 +387,9 @@ const LatentVideosView = ({ experimentPath }) => {
             {viewMode === 'across-prompts' ? (
               <>
                 <label htmlFor="seed-select">Seed:</label>
-                <select 
+                <select
                   id="seed-select"
-                  value={selectedSeed} 
+                  value={selectedSeed}
                   onChange={(e) => setSelectedSeed(e.target.value)}
                 >
                   {availableOptions.seeds.map(seedId => (
@@ -402,9 +402,9 @@ const LatentVideosView = ({ experimentPath }) => {
             ) : (
               <>
                 <label htmlFor="prompt-select">Prompt:</label>
-                <select 
+                <select
                   id="prompt-select"
-                  value={selectedPrompt} 
+                  value={selectedPrompt}
                   onChange={(e) => setSelectedPrompt(e.target.value)}
                 >
                   {availableOptions.prompts.map(promptId => {
@@ -429,9 +429,9 @@ const LatentVideosView = ({ experimentPath }) => {
                   <span style={{ color: '#ffc107', marginLeft: '4px' }}>*</span>
                 )}
               </label>
-              <select 
+              <select
                 id="attention-select"
-                value={selectedAttentionToken || ''} 
+                value={selectedAttentionToken || ''}
                 onChange={(e) => setSelectedAttentionToken(e.target.value || null)}
                 style={!currentLatentVideos?.has_latent_videos ? {
                   borderColor: '#ffc107',
@@ -496,8 +496,8 @@ const LatentVideosView = ({ experimentPath }) => {
         <div className="grid-rows">
           {gridData.rows.map((row, rowIndex) => (
             <div key={row.id} className="grid-row">
-              <div 
-                className="row-label" 
+              <div
+                className="row-label"
                 onMouseEnter={(e) => handleTooltipShow(e, row.fullLabel)}
                 onMouseLeave={handleTooltipHide}
               >
@@ -518,10 +518,10 @@ const LatentVideosView = ({ experimentPath }) => {
           ))}
         </div>
       </div>
-      
+
       {/* Custom tooltip */}
       {tooltip.show && (
-        <div 
+        <div
           className="custom-tooltip"
           style={{
             position: 'fixed',

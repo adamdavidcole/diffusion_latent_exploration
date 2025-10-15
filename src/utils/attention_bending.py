@@ -217,18 +217,23 @@ class AttentionBender:
             blended = (1 - config.strength) * token_attention + config.strength * transformed
             logger.info(f"      After blend (strength={config.strength}): mean: {blended.mean():.4f}, max: {blended.max():.4f}")
             
-            # Re-normalize if requested
-            if config.renormalize:
-                # Normalize across spatial dimension
-                blended = self._safe_normalize(blended, dim=1)
-                logger.info(f"      After renormalize: mean: {blended.mean():.4f}, max: {blended.max():.4f}")
-            
-            # Update bent attention
+            # Update bent attention BEFORE renormalization
             bent_attention[:, :, token_idx] = blended
             configs_applied += 1
             
             # Track stats
             self.stats["tokens_bent"][config.token] = self.stats["tokens_bent"].get(config.token, 0) + 1
+        
+        # Re-normalize AFTER all tokens modified (across sequence dimension to maintain probability distribution)
+        # NOTE: Renormalization forces attention to sum to 1 across all tokens, which can undo transformations!
+        # - AMPLIFY: Renormalization will scale back amplified values to maintain sum=1
+        # - SCALE/ROTATE/TRANSLATE: Renormalization redistributes probability mass
+        # For visualization purposes, you may want renormalize=False to see raw transformation effects
+        if configs_applied > 0 and any(cfg.renormalize for cfg in self.bending_configs):
+            # Normalize across the sequence dimension (dim=2) so all tokens sum to 1
+            bent_attention = self._safe_normalize(bent_attention, dim=2)
+            logger.info(f"   🔄 Renormalized attention across sequence dimension (sum={bent_attention.sum(dim=2).mean():.4f})")
+            logger.info(f"   ⚠️  NOTE: Renormalization forces sum=1, which scales back amplifications!")
         
         self.stats["applications"] += 1
         logger.info(f"   📊 Applied {configs_applied}/{len(self.bending_configs)} configs")
@@ -249,14 +254,22 @@ class AttentionBender:
         H, W = spatial_shape
         batch_heads = attention_map.shape[0]
         
+        logger.info(f"      🔧 _apply_transformation: mode={config.mode}, spatial_shape=({H}, {W})")
+        logger.info(f"         Input: shape={attention_map.shape}, mean={attention_map.mean():.6f}")
+        
         # Reshape to spatial grid [batch_heads, H, W]
         attention_2d = attention_map.reshape(batch_heads, H, W)
+        logger.info(f"         After reshape to 2D: shape={attention_2d.shape}")
         
         if config.mode == BendingMode.AMPLIFY:
-            return self._apply_amplify(attention_2d, config).reshape(batch_heads, -1)
+            result = self._apply_amplify(attention_2d, config).reshape(batch_heads, -1)
+            logger.info(f"         After amplify+reshape: shape={result.shape}, mean={result.mean():.6f}")
+            return result
         
         elif config.mode == BendingMode.SCALE:
-            return self._apply_scale(attention_2d, config).reshape(batch_heads, -1)
+            result = self._apply_scale(attention_2d, config).reshape(batch_heads, -1)
+            logger.info(f"         After scale+reshape: shape={result.shape}, mean={result.mean():.6f}")
+            return result
         
         elif config.mode == BendingMode.ROTATE:
             return self._apply_rotation(attention_2d, config).reshape(batch_heads, -1)
@@ -299,32 +312,77 @@ class AttentionBender:
         
         The transformation is centered at the origin, so scaling happens from the center.
         """
+        logger.info(f"      🔍 _apply_scale called: scale_factor={config.scale_factor}")
+        
         if config.scale_factor == 1.0:
+            logger.info(f"         Scale factor is 1.0, returning unchanged")
             return attention
         
         batch_heads, H, W = attention.shape
+        logger.info(f"         Input shape: {attention.shape}, mean: {attention.mean():.6f}, max: {attention.max():.6f}")
+        
+        # Check if attention has any spatial structure
+        spatial_std = attention.std()
+        spatial_range = attention.max() - attention.min()
+        logger.info(f"         ⚠️  Spatial variation: std={spatial_std:.6f}, range={spatial_range:.6f}")
+        if spatial_range < 0.001:
+            logger.warning(f"         ⚠️  Attention is nearly UNIFORM (range={spatial_range:.6f}) - spatial transform may have no visible effect!")
         
         # Create scaling transformation matrix
         # In affine transformations, scaling by s means dividing coordinates by s
         # (inverse transformation for grid_sample)
         s = 1.0 / config.scale_factor
+        logger.info(f"         Scaling matrix s = {s:.4f} (1/{config.scale_factor})")
         
         theta = torch.tensor([
             [s, 0, 0],
             [0, s, 0]
         ], dtype=attention.dtype, device=attention.device).unsqueeze(0).repeat(batch_heads, 1, 1)
         
+        logger.info(f"         Theta shape: {theta.shape}, theta[0]:\n{theta[0]}")
+        
         # Generate sampling grid and apply transformation
-        grid = F.affine_grid(theta, attention.unsqueeze(1).size(), align_corners=False)
+        input_for_grid = attention.unsqueeze(1)
+        logger.info(f"         Input for grid_sample: shape={input_for_grid.shape}")
+        
+        grid = F.affine_grid(theta, input_for_grid.size(), align_corners=False)
+        logger.info(f"         Grid shape: {grid.shape}, grid range: [{grid.min():.4f}, {grid.max():.4f}]")
+        logger.info(f"         Grid center sample (first head): {grid[0, H//2, W//2]}")
+        
         scaled = F.grid_sample(
-            attention.unsqueeze(1), 
+            input_for_grid, 
             grid, 
             mode='bilinear',
             padding_mode=config.padding_mode,  # Configurable: 'zeros', 'border', 'reflection'
             align_corners=False
         )
         
-        return scaled.squeeze(1)
+        logger.info(f"         After grid_sample: shape={scaled.shape}")
+        logger.info(f"         Attention statistics - Input: min={attention.min():.6f}, max={attention.max():.6f}, std={attention.std():.6f}")
+        logger.info(f"         Attention statistics - Output: min={scaled.squeeze(1).min():.6f}, max={scaled.squeeze(1).max():.6f}, std={scaled.squeeze(1).std():.6f}")
+        
+        # Show spatial statistics to verify transformation is affecting the pattern
+        result = scaled.squeeze(1)
+        
+        # Compare center vs edge regions to see if zoom is working
+        center_h_start, center_h_end = H // 4, 3 * H // 4
+        center_w_start, center_w_end = W // 4, 3 * W // 4
+        
+        input_center_mean = attention[:, center_h_start:center_h_end, center_w_start:center_w_end].mean()
+        output_center_mean = result[:, center_h_start:center_h_end, center_w_start:center_w_end].mean()
+        
+        input_edge_mean = attention[:, [0, -1], :].mean()  # Top and bottom edges
+        output_edge_mean = result[:, [0, -1], :].mean()
+        
+        logger.info(f"         📊 Spatial region analysis:")
+        logger.info(f"            Input  - Center: {input_center_mean:.6f}, Edge: {input_edge_mean:.6f}")
+        logger.info(f"            Output - Center: {output_center_mean:.6f}, Edge: {output_edge_mean:.6f}")
+        logger.info(f"            Change - Center: {output_center_mean - input_center_mean:.6f}, Edge: {output_edge_mean - input_edge_mean:.6f}")
+        
+        logger.info(f"         Output shape: {result.shape}, mean: {result.mean():.6f}, max: {result.max():.6f}")
+        logger.info(f"         Change: Δmean={result.mean() - attention.mean():.6f}, Δmax={result.max() - attention.max():.6f}")
+        
+        return result
     
     def _apply_rotation(self, attention: torch.Tensor, config: BendingConfig) -> torch.Tensor:
         """

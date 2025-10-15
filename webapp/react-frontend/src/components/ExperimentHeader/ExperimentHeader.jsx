@@ -13,46 +13,46 @@ const formatDuration = (seconds) => {
 // Helper function to format CFG information
 const formatCfgInfo = (experiment) => {
   const { cfg_scale, cfg_schedule_settings } = experiment;
-  
+
   // Check if CFG schedule is enabled and has a schedule
   if (cfg_schedule_settings?.enabled && cfg_schedule_settings?.schedule) {
     const schedule = cfg_schedule_settings.schedule;
     const interpolation = cfg_schedule_settings.interpolation || 'linear';
-    
+
     // Format schedule as compact string
     const scheduleStr = Object.entries(schedule)
       .map(([step, value]) => `${step}: ${value}`)
       .join(', ');
-    
+
     return `CFG Schedule: {${scheduleStr}} (${interpolation})`;
   }
-  
+
   // Fall back to basic CFG scale
   if (cfg_scale !== null && cfg_scale !== undefined) {
     return `CFG: ${cfg_scale}`;
   }
-  
+
   return null;
 };
 
 // Helper function to format attention bending information
 const formatAttentionBendingInfo = (experiment) => {
   const { attention_bending_settings } = experiment;
-  
+
   if (!attention_bending_settings?.enabled) {
     return null;
   }
-  
+
   const { configs, apply_to_output, num_configs } = attention_bending_settings;
-  
+
   if (!configs || configs.length === 0) {
     return null;
   }
-  
+
   // Helper to format parameter value intelligently
   const formatParamValue = (key, value) => {
     if (value === null || value === undefined) return null;
-    
+
     // Skip default values
     if (key === 'strength' && value === 1.0) return null;
     if (key === 'renormalize' && value === true) return null;
@@ -60,28 +60,28 @@ const formatAttentionBendingInfo = (experiment) => {
     if (key === 'angle' && value === 0) return null;
     if (key === 'translate_x' && value === 0) return null;
     if (key === 'translate_y' && value === 0) return null;
-    
+
     // Format specific types
     if (typeof value === 'boolean') {
       return value ? key.replace(/_/g, ' ') : null;
     }
-    
+
     if (key === 'strength') {
       return `${(value * 100).toFixed(0)}% strength`;
     }
-    
+
     if (key === 'apply_to_timesteps' && Array.isArray(value) && value.length === 2) {
       return `steps ${value[0]}-${value[1]}`;
     }
-    
+
     if (key === 'apply_to_layers' && Array.isArray(value)) {
       return `layers [${value.join(', ')}]`;
     }
-    
+
     if (key === 'region' && Array.isArray(value) && value.length === 4) {
       return `region [${value.map(v => v.toFixed(2)).join(', ')}]`;
     }
-    
+
     // Numeric values
     if (typeof value === 'number') {
       if (key.includes('factor') || key.includes('scale')) {
@@ -92,10 +92,10 @@ const formatAttentionBendingInfo = (experiment) => {
       }
       return `${key.replace(/_/g, ' ')}: ${value}`;
     }
-    
+
     return `${key.replace(/_/g, ' ')}: ${value}`;
   };
-  
+
   // Mode-specific parameter relevance
   const getModeRelevantParams = (mode) => {
     const paramsByMode = {
@@ -107,17 +107,17 @@ const formatAttentionBendingInfo = (experiment) => {
       'blur': ['kernel_size', 'sigma', 'strength', 'apply_to_timesteps', 'renormalize'],
       'sharpen': ['kernel_size', 'sharpen_amount', 'strength', 'apply_to_timesteps', 'renormalize'],
       'regional_mask': ['region', 'region_feather', 'strength', 'apply_to_timesteps', 'renormalize'],
-      
+
       // Legacy support - in case old configs exist
       'spatial_scale': ['scale_factor', 'strength', 'apply_to_timesteps', 'renormalize'],
     };
     return paramsByMode[mode] || ['strength', 'apply_to_timesteps', 'renormalize'];
   };
-  
+
   // Format config details
   const configSummaries = configs.map(cfg => {
     const relevantParams = getModeRelevantParams(cfg.mode);
-    
+
     // Build parameter list
     const params = [];
     relevantParams.forEach(paramKey => {
@@ -126,18 +126,18 @@ const formatAttentionBendingInfo = (experiment) => {
         params.push(formatted);
       }
     });
-    
+
     // Build the detail string
     let details = `"${cfg.token}" → ${cfg.mode}`;
     if (params.length > 0) {
       details += ` (${params.join(', ')})`;
     }
-    
+
     return details;
   });
-  
+
   const phase = apply_to_output ? 'Active' : 'Viz Only';
-  
+
   return {
     summary: `🎨 Attention Bending [${phase}]`,
     details: configSummaries,
@@ -217,7 +217,7 @@ const ExperimentHeader = () => {
           <span className="stat-item analysis-indicator">🎯 Trajectory Analysis</span>
         )}
         {formatAttentionBendingInfo(currentExperiment) && (
-          <span 
+          <span
             className={`stat-item attention-bending-indicator ${formatAttentionBendingInfo(currentExperiment).phase}`}
             title={formatAttentionBendingInfo(currentExperiment).details.join(' • ')}
           >
