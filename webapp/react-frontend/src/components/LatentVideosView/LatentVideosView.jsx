@@ -41,10 +41,34 @@ const LatentVideosView = ({ experimentPath }) => {
               setSelectedSeed(firstSeed);
             }
           }
+        } else if (latentVideosData?.attention_videos) {
+          // If no latent videos but we have attention videos, use those for structure
+          const firstPrompt = Object.keys(latentVideosData.attention_videos)[0];
+          if (firstPrompt) {
+            setSelectedPrompt(firstPrompt);
+            const firstSeed = Object.keys(latentVideosData.attention_videos[firstPrompt])[0];
+            if (firstSeed) {
+              setSelectedSeed(firstSeed);
+            }
+          }
         }
 
-        // Reset attention token selection when loading new data
-        setSelectedAttentionToken(null);
+        // Auto-select first attention token if no latent videos available
+        if (!latentVideosData?.has_latent_videos && latentVideosData?.attention_videos) {
+          const firstPrompt = Object.keys(latentVideosData.attention_videos)[0];
+          if (firstPrompt) {
+            const firstSeed = Object.keys(latentVideosData.attention_videos[firstPrompt])[0];
+            if (firstSeed) {
+              const tokens = Object.keys(latentVideosData.attention_videos[firstPrompt][firstSeed]);
+              if (tokens.length > 0) {
+                setSelectedAttentionToken(tokens[0]);
+              }
+            }
+          }
+        } else {
+          // Reset attention token selection when loading new data with latent videos
+          setSelectedAttentionToken(null);
+        }
       } catch (error) {
         console.error('Error loading latent videos:', error);
         actions.setLatentVideosError(error.message);
@@ -71,18 +95,42 @@ const LatentVideosView = ({ experimentPath }) => {
 
   // Organize data based on view mode
   const gridData = useMemo(() => {
-    if (!currentLatentVideos?.latent_videos) return null;
-
-    const latentVideos = currentLatentVideos.latent_videos;
-    const attentionVideos = currentLatentVideos.attention_videos;
-    const allPrompts = Object.keys(latentVideos).sort();
-    const allSeeds = allPrompts.length > 0 ? Object.keys(latentVideos[allPrompts[0]]).sort() : [];
+    // Check if we have ANY data to display (latent videos or attention videos)
+    const hasLatentVideos = currentLatentVideos?.latent_videos;
+    const hasAttentionVideos = currentLatentVideos?.attention_videos;
     
-    // Get all step numbers from the first available video
-    let allSteps = [];
-    if (allPrompts.length > 0 && allSeeds.length > 0) {
-      const firstVideo = latentVideos[allPrompts[0]][allSeeds[0]];
-      allSteps = Object.keys(firstVideo).sort();
+    if (!hasLatentVideos && !hasAttentionVideos) return null;
+
+    // If we only have attention videos, use them to determine structure
+    const dataSource = hasLatentVideos ? currentLatentVideos.latent_videos : currentLatentVideos.attention_videos;
+    const attentionVideos = currentLatentVideos.attention_videos;
+    
+    let allPrompts, allSeeds, allSteps;
+    
+    if (hasLatentVideos) {
+      // Use latent videos structure
+      allPrompts = Object.keys(dataSource).sort();
+      allSeeds = allPrompts.length > 0 ? Object.keys(dataSource[allPrompts[0]]).sort() : [];
+      
+      if (allPrompts.length > 0 && allSeeds.length > 0) {
+        const firstVideo = dataSource[allPrompts[0]][allSeeds[0]];
+        allSteps = Object.keys(firstVideo).sort();
+      } else {
+        allSteps = [];
+      }
+    } else {
+      // Use attention videos structure (first token)
+      allPrompts = Object.keys(dataSource).sort();
+      allSeeds = allPrompts.length > 0 ? Object.keys(dataSource[allPrompts[0]]).sort() : [];
+      
+      if (allPrompts.length > 0 && allSeeds.length > 0) {
+        // Get first token's data to determine steps
+        const firstTokenData = dataSource[allPrompts[0]][allSeeds[0]];
+        const firstToken = Object.keys(firstTokenData)[0];
+        allSteps = Object.keys(firstTokenData[firstToken]).sort();
+      } else {
+        allSteps = [];
+      }
     }
 
     // Helper function to get video/image paths with attention video fallback
@@ -100,8 +148,8 @@ const LatentVideosView = ({ experimentPath }) => {
       }
 
       // Fallback to latent videos if no attention video found
-      if (!videoPath) {
-        const latentData = latentVideos[promptId]?.[seedId]?.[stepId];
+      if (!videoPath && hasLatentVideos) {
+        const latentData = dataSource[promptId]?.[seedId]?.[stepId];
         if (latentData) {
           videoPath = latentData.video_path;
           imagePath = latentData.image_path;
@@ -168,11 +216,31 @@ const LatentVideosView = ({ experimentPath }) => {
 
   // Get available options for dropdowns
   const availableOptions = useMemo(() => {
-    if (!currentLatentVideos?.latent_videos) return { prompts: [], seeds: [], tokens: [] };
+    // Check if we have ANY data to display
+    const hasLatentVideos = currentLatentVideos?.latent_videos;
+    const hasAttentionVideos = currentLatentVideos?.attention_videos;
+    
+    if (!hasLatentVideos && !hasAttentionVideos) {
+      return { prompts: [], seeds: [], tokens: [] };
+    }
 
-    const latentVideos = currentLatentVideos.latent_videos;
-    const prompts = Object.keys(latentVideos).sort();
-    const seeds = prompts.length > 0 ? Object.keys(latentVideos[prompts[0]]).sort() : [];
+    // Use whichever data source is available
+    const dataSource = hasLatentVideos ? currentLatentVideos.latent_videos : currentLatentVideos.attention_videos;
+    
+    let prompts, seeds;
+    
+    if (hasLatentVideos) {
+      prompts = Object.keys(dataSource).sort();
+      seeds = prompts.length > 0 ? Object.keys(dataSource[prompts[0]]).sort() : [];
+    } else {
+      // For attention videos, need to navigate through token structure
+      prompts = Object.keys(dataSource).sort();
+      if (prompts.length > 0) {
+        seeds = Object.keys(dataSource[prompts[0]]).sort();
+      } else {
+        seeds = [];
+      }
+    }
 
     // Get available attention tokens
     const attentionVideos = currentLatentVideos.attention_videos;
@@ -248,12 +316,12 @@ const LatentVideosView = ({ experimentPath }) => {
   }
 
   // Render no data state
-  if (!currentLatentVideos?.has_latent_videos || !currentLatentVideos?.latent_videos) {
+  if (!currentLatentVideos?.has_latent_videos && !currentLatentVideos?.has_attention_videos) {
     return (
       <div className="latent-videos-view">
         <div className="empty-state">
-          <h3>No latent videos available</h3>
-          <p>This experiment doesn't contain latent video data.</p>
+          <h3>No latent or attention videos available</h3>
+          <p>This experiment doesn't contain latent video or attention video data.</p>
         </div>
       </div>
     );
@@ -279,6 +347,21 @@ const LatentVideosView = ({ experimentPath }) => {
     >
       {/* Fixed header with controls */}
       <div className="latent-videos-header-fixed">
+        {/* Info banner if latent videos missing but attention videos available */}
+        {!currentLatentVideos?.has_latent_videos && currentLatentVideos?.has_attention_videos && (
+          <div style={{
+            background: '#fff3cd',
+            border: '1px solid #ffc107',
+            borderRadius: '4px',
+            padding: '8px 12px',
+            marginBottom: '12px',
+            fontSize: '14px',
+            color: '#856404'
+          }}>
+            ℹ️ Latent videos not decoded. Showing attention videos only. Select a token from the "Attention" dropdown to view.
+          </div>
+        )}
+        
         <div className="latent-videos-controls">
           {/* View mode toggle */}
           <div className="control-group">
@@ -340,13 +423,27 @@ const LatentVideosView = ({ experimentPath }) => {
           {/* Attention token dropdown */}
           {availableOptions.tokens.length > 0 && (
             <div className="control-group">
-              <label htmlFor="attention-select">Attention:</label>
+              <label htmlFor="attention-select">
+                Attention:
+                {!currentLatentVideos?.has_latent_videos && (
+                  <span style={{ color: '#ffc107', marginLeft: '4px' }}>*</span>
+                )}
+              </label>
               <select 
                 id="attention-select"
                 value={selectedAttentionToken || ''} 
                 onChange={(e) => setSelectedAttentionToken(e.target.value || null)}
+                style={!currentLatentVideos?.has_latent_videos ? {
+                  borderColor: '#ffc107',
+                  borderWidth: '2px'
+                } : {}}
               >
-                <option value="">None (Latent Videos)</option>
+                {currentLatentVideos?.has_latent_videos && (
+                  <option value="">None (Latent Videos)</option>
+                )}
+                {!currentLatentVideos?.has_latent_videos && (
+                  <option value="" disabled>Select a token...</option>
+                )}
                 {availableOptions.tokens.map(token => {
                   // Token is already the clean text (without token_ prefix)
                   // Truncate long token names for display

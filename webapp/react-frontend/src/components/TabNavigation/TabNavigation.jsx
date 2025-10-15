@@ -82,20 +82,22 @@ const TabNavigation = ({ experimentPath }) => {
         </button>
 
         <button
-          className={`tab-button ${activeTab === 'latent-videos' ? 'active' : ''} ${!currentExperiment?.has_latent_videos ? 'disabled' : ''
+          className={`tab-button ${activeTab === 'latent-videos' ? 'active' : ''} ${!currentExperiment?.has_latent_videos && !currentExperiment?.has_attention_videos ? 'disabled' : ''
             }`}
           role="tab"
           aria-selected={activeTab === 'latent-videos'}
-          onClick={() => currentExperiment?.has_latent_videos && handleTabChange('latent-videos')}
-          disabled={!currentExperiment?.has_latent_videos}
+          onClick={() => (currentExperiment?.has_latent_videos || currentExperiment?.has_attention_videos) && handleTabChange('latent-videos')}
+          disabled={!currentExperiment?.has_latent_videos && !currentExperiment?.has_attention_videos}
           title={
-            !currentExperiment?.has_latent_videos
-              ? 'Latent videos not available for this experiment'
+            !currentExperiment?.has_latent_videos && !currentExperiment?.has_attention_videos
+              ? 'Latent/attention videos not available for this experiment'
+              : currentExperiment?.has_attention_videos && !currentExperiment?.has_latent_videos
+              ? 'View attention videos (latent videos not decoded)'
               : 'View latent videos progression'
           }
         >
           🎬 Latent Videos
-          {!currentExperiment?.has_latent_videos && (
+          {!currentExperiment?.has_latent_videos && !currentExperiment?.has_attention_videos && (
             <span className="disabled-indicator"> (unavailable)</span>
           )}
         </button>

@@ -35,6 +35,116 @@ const formatCfgInfo = (experiment) => {
   return null;
 };
 
+// Helper function to format attention bending information
+const formatAttentionBendingInfo = (experiment) => {
+  const { attention_bending_settings } = experiment;
+  
+  if (!attention_bending_settings?.enabled) {
+    return null;
+  }
+  
+  const { configs, apply_to_output, num_configs } = attention_bending_settings;
+  
+  if (!configs || configs.length === 0) {
+    return null;
+  }
+  
+  // Helper to format parameter value intelligently
+  const formatParamValue = (key, value) => {
+    if (value === null || value === undefined) return null;
+    
+    // Skip default values
+    if (key === 'strength' && value === 1.0) return null;
+    if (key === 'renormalize' && value === true) return null;
+    if (key === 'preserve_sparsity' && value === false) return null;
+    if (key === 'angle' && value === 0) return null;
+    if (key === 'translate_x' && value === 0) return null;
+    if (key === 'translate_y' && value === 0) return null;
+    
+    // Format specific types
+    if (typeof value === 'boolean') {
+      return value ? key.replace(/_/g, ' ') : null;
+    }
+    
+    if (key === 'strength') {
+      return `${(value * 100).toFixed(0)}% strength`;
+    }
+    
+    if (key === 'apply_to_timesteps' && Array.isArray(value) && value.length === 2) {
+      return `steps ${value[0]}-${value[1]}`;
+    }
+    
+    if (key === 'apply_to_layers' && Array.isArray(value)) {
+      return `layers [${value.join(', ')}]`;
+    }
+    
+    if (key === 'region' && Array.isArray(value) && value.length === 4) {
+      return `region [${value.map(v => v.toFixed(2)).join(', ')}]`;
+    }
+    
+    // Numeric values
+    if (typeof value === 'number') {
+      if (key.includes('factor') || key.includes('scale')) {
+        return `${key.replace(/_/g, ' ')}: ${value}x`;
+      }
+      if (key === 'angle') {
+        return `${value}°`;
+      }
+      return `${key.replace(/_/g, ' ')}: ${value}`;
+    }
+    
+    return `${key.replace(/_/g, ' ')}: ${value}`;
+  };
+  
+  // Mode-specific parameter relevance
+  const getModeRelevantParams = (mode) => {
+    const paramsByMode = {
+      'amplify': ['amplify_factor', 'strength', 'apply_to_timesteps', 'renormalize'],
+      'scale': ['scale_factor', 'strength', 'apply_to_timesteps', 'renormalize'],
+      'rotate': ['angle', 'strength', 'apply_to_timesteps', 'renormalize'],
+      'translate': ['translate_x', 'translate_y', 'strength', 'apply_to_timesteps', 'renormalize'],
+      'flip': ['flip_horizontal', 'flip_vertical', 'strength', 'apply_to_timesteps', 'renormalize'],
+      'blur': ['kernel_size', 'sigma', 'strength', 'apply_to_timesteps', 'renormalize'],
+      'sharpen': ['kernel_size', 'sharpen_amount', 'strength', 'apply_to_timesteps', 'renormalize'],
+      'regional_mask': ['region', 'region_feather', 'strength', 'apply_to_timesteps', 'renormalize'],
+      
+      // Legacy support - in case old configs exist
+      'spatial_scale': ['scale_factor', 'strength', 'apply_to_timesteps', 'renormalize'],
+    };
+    return paramsByMode[mode] || ['strength', 'apply_to_timesteps', 'renormalize'];
+  };
+  
+  // Format config details
+  const configSummaries = configs.map(cfg => {
+    const relevantParams = getModeRelevantParams(cfg.mode);
+    
+    // Build parameter list
+    const params = [];
+    relevantParams.forEach(paramKey => {
+      const formatted = formatParamValue(paramKey, cfg[paramKey]);
+      if (formatted) {
+        params.push(formatted);
+      }
+    });
+    
+    // Build the detail string
+    let details = `"${cfg.token}" → ${cfg.mode}`;
+    if (params.length > 0) {
+      details += ` (${params.join(', ')})`;
+    }
+    
+    return details;
+  });
+  
+  const phase = apply_to_output ? 'Active' : 'Viz Only';
+  
+  return {
+    summary: `🎨 Attention Bending [${phase}]`,
+    details: configSummaries,
+    phase: apply_to_output ? 'phase-2' : 'phase-1'
+  };
+};
+
 // Helper function to render prompt schedule or static prompt
 const renderPromptDisplay = (experiment) => {
   const { prompt_schedule_data, base_prompt } = experiment;
@@ -106,7 +216,26 @@ const ExperimentHeader = () => {
         {currentExperiment.has_trajectory_analysis && (
           <span className="stat-item analysis-indicator">🎯 Trajectory Analysis</span>
         )}
+        {formatAttentionBendingInfo(currentExperiment) && (
+          <span 
+            className={`stat-item attention-bending-indicator ${formatAttentionBendingInfo(currentExperiment).phase}`}
+            title={formatAttentionBendingInfo(currentExperiment).details.join(' • ')}
+          >
+            {formatAttentionBendingInfo(currentExperiment).summary}
+          </span>
+        )}
       </div>
+
+      {/* Attention Bending Details Section */}
+      {formatAttentionBendingInfo(currentExperiment) && (
+        <div className="attention-bending-details">
+          {formatAttentionBendingInfo(currentExperiment).details.map((detail, idx) => (
+            <span key={idx} className="bending-config-detail">
+              {detail}
+            </span>
+          ))}
+        </div>
+      )}
 
       {renderPromptDisplay(currentExperiment)}
     </div>

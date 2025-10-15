@@ -46,7 +46,7 @@ prompt_settings:
 
 # Latent trajectory analysis settings
 latent_analysis_settings:
-  store_latents: true                       # Enable latent storage
+  store_latents: false                       # Enable latent storage
   latent_storage_format: "numpy"           # "numpy" or "torch"
   storage_interval: 1                      # Store every N steps (1 = all steps)
   compress_latents: true                   # Use gzip compression

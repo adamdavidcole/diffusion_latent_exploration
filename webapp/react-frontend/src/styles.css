@@ -532,6 +532,38 @@ body {
     font-size: 0.95rem;
     text-overflow: ellipsis;
     overflow: hidden;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Attention Bending Badge */
+.attention-bending-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.15rem 0.35rem;
+    border-radius: 0.25rem;
+    border: 1px solid;
+    white-space: nowrap;
+}
+
+.attention-bending-badge.viz {
+    background: rgba(255, 193, 7, 0.15);
+    color: #f59e0b;
+    border-color: rgba(255, 193, 7, 0.4);
+}
+
+.attention-bending-badge.active {
+    background: rgba(236, 72, 153, 0.15);
+    color: #ec4899;
+    border-color: rgba(236, 72, 153, 0.4);
+}
+
+.sidebar.collapsed .attention-bending-badge {
+    font-size: 0.55rem;
+    padding: 0.1rem 0.25rem;
 }
 
 .experiment-stats {

@@ -27,8 +27,8 @@ logger = logging.getLogger(__name__)
 
 class BendingMode(Enum):
     """Types of attention bending transformations."""
-    SCALE = "scale"  # Amplify/dampen attention weights
-    SPATIAL_SCALE = "spatial_scale"  # Scale in spatial domain (zoom in/out)
+    AMPLIFY = "amplify"  # Amplify/dampen attention weights (formerly SCALE)
+    SCALE = "scale"  # Scale in spatial domain - zoom in/out (formerly SPATIAL_SCALE)
     ROTATE = "rotate"  # Rotate attention pattern
     TRANSLATE = "translate"  # Shift attention pattern spatially
     FLIP = "flip"  # Mirror attention pattern
@@ -44,8 +44,8 @@ class BendingConfig:
     token: str  # Token to apply bending to (e.g., "kiss")
     mode: BendingMode
     
-    # Scale parameters
-    scale_factor: float = 1.0  # For SCALE mode
+    # Amplify parameters (for AMPLIFY mode - simple multiplier)
+    amplify_factor: float = 1.0  # For AMPLIFY mode (formerly scale_factor)
     
     # Spatial transformation parameters
     angle: float = 0.0  # Rotation angle in degrees
@@ -53,7 +53,7 @@ class BendingConfig:
     translate_y: float = 0.0  # Translation in y (normalized -1 to 1)
     flip_horizontal: bool = False
     flip_vertical: bool = False
-    zoom_factor: float = 1.0  # For spatial scaling
+    scale_factor: float = 1.0  # For SCALE mode - spatial zoom (formerly zoom_factor)
     
     # Blur/sharpen parameters
     kernel_size: int = 3  # Kernel size for blur/sharpen
@@ -246,11 +246,11 @@ class AttentionBender:
         # Reshape to spatial grid [batch_heads, H, W]
         attention_2d = attention_map.reshape(batch_heads, H, W)
         
-        if config.mode == BendingMode.SCALE:
-            return self._apply_scale(attention_2d, config).reshape(batch_heads, -1)
+        if config.mode == BendingMode.AMPLIFY:
+            return self._apply_amplify(attention_2d, config).reshape(batch_heads, -1)
         
-        elif config.mode == BendingMode.SPATIAL_SCALE:
-            return self._apply_spatial_scale(attention_2d, config).reshape(batch_heads, -1)
+        elif config.mode == BendingMode.SCALE:
+            return self._apply_scale(attention_2d, config).reshape(batch_heads, -1)
         
         elif config.mode == BendingMode.ROTATE:
             return self._apply_rotation(attention_2d, config).reshape(batch_heads, -1)
@@ -277,37 +277,61 @@ class AttentionBender:
             logger.warning(f"Unknown bending mode: {config.mode}")
             return attention_map
     
-    def _apply_scale(self, attention: torch.Tensor, config: BendingConfig) -> torch.Tensor:
-        """Simple multiplicative scaling."""
-        return attention * config.scale_factor
+    def _apply_amplify(self, attention: torch.Tensor, config: BendingConfig) -> torch.Tensor:
+        """Simple multiplicative scaling (amplify/dampen attention weights)."""
+        return attention * config.amplify_factor
     
-    def _apply_spatial_scale(self, attention: torch.Tensor, config: BendingConfig) -> torch.Tensor:
-        """Zoom in/out on attention pattern."""
-        logger.info(f"      🔍 _apply_spatial_scale: zoom_factor={config.zoom_factor}")
+    def _apply_scale(self, attention: torch.Tensor, config: BendingConfig) -> torch.Tensor:
+        """
+        Zoom in/out on attention pattern (spatial scaling).
+        
+        This scales the attention map so that features occupy more/fewer pixels.
+        - scale_factor > 1: Features get LARGER (zoom in, then crop to canvas)
+        - scale_factor < 1: Features get SMALLER (zoom out, with padding)
+        
+        Think of it like free-transform in Photoshop on a fixed canvas.
+        """
+        logger.info(f"      🔍 _apply_scale: scale_factor={config.scale_factor}")
         logger.info(f"         Input shape: {attention.shape}, mean: {attention.mean():.4f}")
         
-        if config.zoom_factor == 1.0:
-            logger.info(f"         Zoom factor is 1.0, returning unchanged")
+        if config.scale_factor == 1.0:
+            logger.info(f"         Scale factor is 1.0, returning unchanged")
             return attention
         
-        # Use affine grid for zoom
         batch_heads, H, W = attention.shape
-        logger.info(f"         Spatial grid: {H}x{W}")
+        logger.info(f"         Original canvas: {H}x{W}")
         
-        # Create zoom matrix
-        scale = 1.0 / config.zoom_factor
-        logger.info(f"         Scale matrix value: {scale:.4f} (1/zoom_factor)")
+        # Calculate the scaled size
+        H_scaled = int(H * config.scale_factor)
+        W_scaled = int(W * config.scale_factor)
+        logger.info(f"         Scaled size: {H_scaled}x{W_scaled}")
         
-        theta = torch.tensor([
-            [scale, 0, 0],
-            [0, scale, 0]
-        ], dtype=attention.dtype, device=attention.device).unsqueeze(0).repeat(batch_heads, 1, 1)
+        # Step 1: Resize to the scaled size
+        attention_scaled = F.interpolate(
+            attention.unsqueeze(1),  # [B, 1, H, W]
+            size=(H_scaled, W_scaled),
+            mode='bilinear',
+            align_corners=False
+        ).squeeze(1)  # [B, H_scaled, W_scaled]
         
-        grid = F.affine_grid(theta, attention.unsqueeze(1).size(), align_corners=False)
-        zoomed = F.grid_sample(attention.unsqueeze(1), grid, mode='bilinear', 
-                              padding_mode='border', align_corners=False)
+        logger.info(f"         After resize: {attention_scaled.shape}")
         
-        result = zoomed.squeeze(1)
+        # Step 2: Crop or pad back to original size
+        if config.scale_factor > 1.0:
+            # Zoom in: Crop the center
+            crop_h = (H_scaled - H) // 2
+            crop_w = (W_scaled - W) // 2
+            result = attention_scaled[:, crop_h:crop_h+H, crop_w:crop_w+W]
+            logger.info(f"         Cropped center from {attention_scaled.shape} to {result.shape}")
+        else:
+            # Zoom out: Pad the edges
+            pad_h = (H - H_scaled) // 2
+            pad_w = (W - W_scaled) // 2
+            # Pad with zeros (or could use edge values)
+            result = F.pad(attention_scaled, (pad_w, W - W_scaled - pad_w, pad_h, H - H_scaled - pad_h), 
+                          mode='constant', value=0.0)
+            logger.info(f"         Padded from {attention_scaled.shape} to {result.shape}")
+        
         logger.info(f"         Output shape: {result.shape}, mean: {result.mean():.4f}")
         logger.info(f"         Min: {result.min():.4f}, Max: {result.max():.4f}")
         
@@ -521,8 +545,8 @@ def create_bending_from_config(config_dict: Dict) -> AttentionBender:
 EXAMPLE_CONFIGS = {
     "amplify_kiss": BendingConfig(
         token="kiss",
-        mode=BendingMode.SCALE,
-        scale_factor=2.0,
+        mode=BendingMode.AMPLIFY,
+        amplify_factor=2.0,
         strength=0.8,
         renormalize=True
     ),

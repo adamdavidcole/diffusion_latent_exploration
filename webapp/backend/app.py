@@ -153,6 +153,7 @@ class VideoAnalyzer:
             cfg_scale = None
             cfg_schedule_settings = None
             cfg_schedule_data = None
+            attention_bending_settings = None
             
             if config_path.exists():
                 with open(config_path, 'r') as f:
@@ -167,6 +168,55 @@ class VideoAnalyzer:
                     
                     # Extract CFG schedule settings if present
                     cfg_schedule_settings = config.get('cfg_schedule_settings')
+                    
+                    # Extract attention bending settings if present
+                    attention_bending_raw = config.get('attention_bending_settings')
+                    if attention_bending_raw and attention_bending_raw.get('enabled'):
+                        # Extract and format attention bending info - pass through ALL parameters
+                        configs = attention_bending_raw.get('configs', [])
+                        attention_bending_settings = {
+                            'enabled': True,
+                            'apply_to_output': attention_bending_raw.get('apply_to_output', False),
+                            'num_configs': len(configs),
+                            'configs': [
+                                {
+                                    # Core identification
+                                    'token': cfg.get('token'),
+                                    'mode': cfg.get('mode'),
+                                    
+                                    # Pass through all parameters dynamically
+                                    # Amplify parameters (for AMPLIFY mode)
+                                    'amplify_factor': cfg.get('amplify_factor'),
+                                    
+                                    # Spatial transformation parameters (scale_factor for SCALE mode)
+                                    'angle': cfg.get('angle'),
+                                    'translate_x': cfg.get('translate_x'),
+                                    'translate_y': cfg.get('translate_y'),
+                                    'flip_horizontal': cfg.get('flip_horizontal'),
+                                    'flip_vertical': cfg.get('flip_vertical'),
+                                    'scale_factor': cfg.get('scale_factor'),
+                                    
+                                    # Blur/sharpen parameters
+                                    'kernel_size': cfg.get('kernel_size'),
+                                    'sigma': cfg.get('sigma'),
+                                    'sharpen_amount': cfg.get('sharpen_amount'),
+                                    
+                                    # Regional mask parameters
+                                    'region': cfg.get('region'),
+                                    'region_feather': cfg.get('region_feather'),
+                                    
+                                    # Control parameters
+                                    'strength': cfg.get('strength'),
+                                    'apply_to_layers': cfg.get('apply_to_layers'),
+                                    'apply_to_timesteps': cfg.get('apply_to_timesteps'),
+                                    
+                                    # Stability parameters
+                                    'renormalize': cfg.get('renormalize'),
+                                    'preserve_sparsity': cfg.get('preserve_sparsity'),
+                                }
+                                for cfg in configs
+                            ]
+                        }
                     
                     # Extract duration from config
                     video_settings = config.get('video_settings', {})
@@ -290,6 +340,7 @@ class VideoAnalyzer:
                 'cfg_schedule_settings': cfg_schedule_settings,
                 'cfg_schedule_data': cfg_schedule_data,
                 'prompt_schedule_data': prompt_schedule_data,
+                'attention_bending_settings': attention_bending_settings,
                 'path': str(exp_dir),
                 'created_at': creation_datetime.isoformat(),
                 'created_timestamp': creation_time,

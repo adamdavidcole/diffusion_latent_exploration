@@ -124,7 +124,7 @@ const TreeNode = ({ node, level = 0, onSelect, currentExperiment, searchTerm, mo
 };
 
 // Helper function to check if experiment matches filters
-const isExperimentVisible = (experiment, searchTerm, modelFilter, minVideoCount = 1, minDuration = 0, currentExperiment = null, vlmAnalysisFilter = false, trajectoryAnalysisFilter = false, attentionVideosFilter = false) => {
+const isExperimentVisible = (experiment, searchTerm, modelFilter, minVideoCount = 1, minDuration = 0, currentExperiment = null, vlmAnalysisFilter = false, trajectoryAnalysisFilter = false, attentionVideosFilter = false, attentionBendingFilter = false) => {
     // Always show the currently selected experiment, regardless of filters
     if (currentExperiment && experiment.name === currentExperiment.name) {
         return true;
@@ -165,6 +165,11 @@ const isExperimentVisible = (experiment, searchTerm, modelFilter, minVideoCount 
 
     // Attention Videos filter
     if (attentionVideosFilter && !experiment.attention_videos?.available) {
+        return false;
+    }
+
+    // Attention Bending filter
+    if (attentionBendingFilter && !experiment.attention_bending_settings?.enabled) {
         return false;
     }
 
@@ -289,6 +294,7 @@ const TreeExperimentList = ({ onRescan }) => {
     const [vlmAnalysisFilter, setVlmAnalysisFilter] = useState(false); // VLM analysis filter
     const [trajectoryAnalysisFilter, setTrajectoryAnalysisFilter] = useState(false); // Trajectory analysis filter
     const [attentionVideosFilter, setAttentionVideosFilter] = useState(false); // Attention videos filter
+    const [attentionBendingFilter, setAttentionBendingFilter] = useState(false); // Attention bending filter
 
     const handleRescan = useCallback(async () => {
         try {
@@ -361,6 +367,10 @@ const TreeExperimentList = ({ onRescan }) => {
 
     const handleAttentionVideosFilterChange = useCallback(() => {
         setAttentionVideosFilter(prev => !prev);
+    }, []);
+
+    const handleAttentionBendingFilterChange = useCallback(() => {
+        setAttentionBendingFilter(prev => !prev);
     }, []);
 
     const handleSortOrderChange = useCallback((order) => {
@@ -499,6 +509,15 @@ const TreeExperimentList = ({ onRescan }) => {
                     >
                         Attn
                     </button>
+                    {/* TODO: Complete parameter threading for attention bending filter
+                    <button
+                        className={`analysis-filter-btn ${attentionBendingFilter ? 'active' : ''}`}
+                        onClick={handleAttentionBendingFilterChange}
+                        title="Filter experiments with attention bending enabled"
+                    >
+                        🎨 Bend
+                    </button>
+                    */}
                 </div>
 
                 {/* Sort Order Toggles */}

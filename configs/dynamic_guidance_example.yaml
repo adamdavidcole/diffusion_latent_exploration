@@ -33,11 +33,13 @@ cfg_schedule_settings:
   enabled: true
   schedule:
     0: 6.5  # zero guidance at start for no prompt following
-    10: 15.0
-    11: 6.5  # peak guidance mid-end
+    19: 100.0
   interpolation: "step"  # Options: "linear", "step", "cosine"
   apply_to_guidance_2: true  # Apply to both transformer and transformer_2 (if using dual-model WAN)
   verbose: true  # Log guidance scale changes during generation
+
+prompt_schedule_settings:
+  enabled: false
 
 # Batch settings
 videos_per_variation: 3
