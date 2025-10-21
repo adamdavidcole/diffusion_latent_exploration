@@ -53,9 +53,11 @@ class VideoGenerationOrchestrator:
         )
         
         # Setup enhanced logging for batch operations (but keep existing logger)
+        # Use the current root logger's level instead of hardcoding INFO
+        current_level = logging.getLevelName(logging.getLogger().level)
         batch_logger = LogManager.setup_logging(
             log_dir=str(self.batch_dirs["logs"]),
-            log_level="INFO"
+            log_level=current_level
         )
         # Update our logger to use the batch logger if it's different
         if batch_logger != self.logger:
@@ -425,9 +427,11 @@ class VideoGenerationOrchestrator:
         }
         
         # Setup enhanced logging for continuation (append to existing logs)
+        # Use the current root logger's level instead of hardcoding INFO
+        current_level = logging.getLevelName(logging.getLogger().level)
         batch_logger = LogManager.setup_logging(
             log_dir=str(self.batch_dirs["logs"]),
-            log_level="INFO"
+            log_level=current_level
         )
         self.logger = batch_logger
         

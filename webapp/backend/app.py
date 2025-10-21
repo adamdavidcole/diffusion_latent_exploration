@@ -154,6 +154,8 @@ class VideoAnalyzer:
             cfg_schedule_settings = None
             cfg_schedule_data = None
             attention_bending_settings = None
+            video_settings = {}  # Initialize with empty dict
+            model_settings = {}  # Initialize with empty dict
             
             if config_path.exists():
                 with open(config_path, 'r') as f:
@@ -288,7 +290,15 @@ class VideoAnalyzer:
                         
                         # Find video files in this prompt directory
                         for video_file in prompt_dir.glob('video_*.mp4'):  # Changed to match video_001.mp4 pattern
-                            video_info = self._extract_video_metadata(video_file, variation_num, variation_text, variation_id)
+                            video_info = self._extract_video_metadata(
+                                video_file, 
+                                variation_num, 
+                                variation_text, 
+                                variation_id,
+                                video_settings=video_settings,
+                                model_settings=model_settings,
+                                cfg_scale=cfg_scale
+                            )
                             if video_info:
                                 videos.append(video_info)
             
@@ -363,7 +373,8 @@ class VideoAnalyzer:
             print(f"Error analyzing experiment {exp_dir.name}: {e}")
             return None
     
-    def _extract_video_metadata(self, video_path, variation_num, variation_text, variation_id):
+    def _extract_video_metadata(self, video_path, variation_num, variation_text, variation_id, 
+                               video_settings=None, model_settings=None, cfg_scale=None):
         """Extract metadata from video filename and path"""
         try:
             # Parse filename for metadata (format: video_001.mp4, video_002.mp4, etc.)
@@ -377,6 +388,21 @@ class VideoAnalyzer:
                 except (IndexError, ValueError):
                     video_number = 1
             
+            # Extract actual values from config or use defaults
+            video_settings = video_settings or {}
+            model_settings = model_settings or {}
+            
+            width = video_settings.get('width', 1024)
+            height = video_settings.get('height', 576)
+            num_frames = video_settings.get('frames', 25)
+            steps = model_settings.get('steps', 20)
+            cfg_scale_value = cfg_scale if cfg_scale is not None else model_settings.get('cfg_scale', 6.5)
+            
+            # Calculate actual seed: starting_seed + (video_number - 1)
+            # video_number is 1-indexed, so subtract 1 to get 0-indexed offset
+            base_seed = model_settings.get('seed', 999)  # Default seed is 999
+            actual_seed = base_seed + (video_number - 1)
+            
             metadata = {
                 'video_path': str(video_path.relative_to(self.outputs_dir)),
                 'variation': variation_text,  # Use actual variation text instead of generic "Variation X"
@@ -384,12 +410,12 @@ class VideoAnalyzer:
                 'variation_num': variation_num,  # Keep the numeric identifier
                 'filename': video_path.name,
                 'video_number': video_number,
-                'seed': video_number,  # Use video number as seed for now
-                'steps': 20,  # Default from config
-                'cfg_scale': 6.5,  # Default from config
-                'width': 1024,
-                'height': 576,
-                'num_frames': 25
+                'seed': actual_seed,  # Calculated from base_seed + (video_number - 1)
+                'steps': steps,  # From model_settings
+                'cfg_scale': cfg_scale_value,  # From model_settings or passed parameter
+                'width': width,  # From video_settings
+                'height': height,  # From video_settings
+                'num_frames': num_frames  # From video_settings
             }
             
             return metadata

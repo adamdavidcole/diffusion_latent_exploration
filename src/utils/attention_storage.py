@@ -113,12 +113,73 @@ class WanAttentionWrapper(torch.nn.Module):
                         
                         # Apply bending transformation
                         # attention_maps shape: [batch, heads, spatial, text_seq]
-                        bent_attention = self.attention_bender.bend_attention(
-                            attention_probs=attention_maps,
-                            layer_idx=self.block_index,
-                            timestep=diffusion_step,  # Use the step index we already have
-                            spatial_shape=None  # Will be inferred from shape
-                        )
+                        if self.attention_bender is not None:
+                            # Compute proper spatial shape for video model
+                            # For WAN: spatial_tokens = frames × height × width (in latent space)
+                            spatial_shape = None
+                            
+                            # Get actual spatial dimension from attention tensor
+                            if len(attention_maps.shape) == 4:
+                                batch, heads, spatial_tokens, seq_len = attention_maps.shape
+                            else:
+                                batch_heads, spatial_tokens, seq_len = attention_maps.shape
+                            
+                            if (self.attention_storage.video_height is not None and 
+                                self.attention_storage.video_width is not None and
+                                self.attention_storage.num_frames is not None):
+                                # Calculate latent space dimensions for WAN video model:
+                                # Temporal compression: (F - 1) // 4 + 1
+                                # Spatial compression: 16x (H // 16, W // 16)
+                                latent_f = (self.attention_storage.num_frames - 1) // 4 + 1
+                                latent_h = self.attention_storage.video_height // 16
+                                latent_w = self.attention_storage.video_width // 16
+                                
+                                # Verify our calculation matches actual spatial_tokens
+                                expected_tokens = latent_f * latent_h * latent_w
+                                if expected_tokens != spatial_tokens:
+                                    self.attention_storage.logger.warning(
+                                        f"⚠️  Spatial token mismatch! Expected {expected_tokens} "
+                                        f"({latent_f}f × {latent_h}h × {latent_w}w) "
+                                        f"but got {spatial_tokens}. Using actual dimensions from tensor."
+                                    )
+                                    # Fall back to inference
+                                    spatial_shape = None
+                                else:
+                                    # For video, pass 3D spatial shape: (frames, height, width)
+                                    spatial_shape = (latent_f, latent_h, latent_w)
+                                    self.attention_storage.logger.info(
+                                        f"🎯 Using spatial shape: {spatial_shape} "
+                                        f"(from {latent_f}f × {latent_h}h × {latent_w}w = {expected_tokens} tokens)"
+                                    )
+                            
+                            # attention_maps shape: [batch, heads, spatial, text_seq]
+                            bent_attention = self.attention_bender.bend_attention(
+                                attention_probs=attention_maps,
+                                layer_idx=self.block_index,
+                                timestep=diffusion_step,  # Use the step index we already have
+                                spatial_shape=spatial_shape  # Pass computed spatial shape (or None to infer)
+                            )
+                        
+                        # DEBUG: IMMEDIATELY check what bend_attention returned
+                        token_idx = 273
+                        if bent_attention is not None and token_idx < attention_maps.shape[-1]:
+                            orig_tok = attention_maps[:, :, :, token_idx]
+                            bent_tok = bent_attention[:, :, :, token_idx]
+                            self.attention_storage.logger.info(
+                                f"🔍 IMMEDIATE POST-BENDING (block {self.block_index}, step {diffusion_step}):"
+                            )
+                            self.attention_storage.logger.info(
+                                f"   bent_attention shape: {bent_attention.shape}, dtype: {bent_attention.dtype}"
+                            )
+                            self.attention_storage.logger.info(
+                                f"   Token {token_idx} - Original: mean={orig_tok.mean():.6f}, std={orig_tok.std():.6f}"
+                            )
+                            self.attention_storage.logger.info(
+                                f"   Token {token_idx} - Bent: mean={bent_tok.mean():.6f}, std={bent_tok.std():.6f}"
+                            )
+                            self.attention_storage.logger.info(
+                                f"   Token {token_idx} - Difference: mean_abs={((bent_tok - orig_tok).abs().mean()):.6f}"
+                            )
                         
                         self.attention_storage.logger.info(
                             f"✅ Applied attention bending at block {self.block_index}, step {diffusion_step}"
@@ -129,6 +190,104 @@ class WanAttentionWrapper(torch.nn.Module):
                             f"Error applying attention bending: {e}, using original attention"
                         )
                         bent_attention = None
+
+                ## DEBUG: Visualize bent_attention before storage to verify transformation
+                if bent_attention is not None and self.block_index == 15:  # Only visualize first block to reduce noise
+                    try:
+                        from src.visualization.attention_visualizer import visualize_attention_tensor
+                        from datetime import datetime
+                        
+                        # # Get spatial shape for visualization
+                        # if (self.attention_storage.video_height is not None and 
+                        #     self.attention_storage.video_width is not None and
+                        #     self.attention_storage.num_frames is not None):
+                        #     # Calculate latent dimensions
+                        #     latent_f = (self.attention_storage.num_frames - 1) // 4 + 1
+                        #     latent_h = self.attention_storage.video_height // 16
+                        #     latent_w = self.attention_storage.video_width // 16
+                        #     spatial_shape = (latent_f, latent_h, latent_w)
+                            
+                        #     # Full video dimensions for upscaling
+                        #     target_size = (self.attention_storage.video_width, self.attention_storage.video_height)
+                            
+                        #     # Create debug output directory - use video_id to group all steps from same run
+                        #     # Initialize run directory on first use
+                        #     if not hasattr(self.attention_storage, '_debug_run_dir') or self.attention_storage._debug_run_dir is None:
+                        #         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        #         video_id = self.attention_storage.current_video_id or "unknown"
+                        #         self.attention_storage._debug_run_dir = Path("outputs/debug_storage_visualization") / f"{video_id}_{timestamp}"
+                        #         self.attention_storage._debug_run_dir.mkdir(parents=True, exist_ok=True)
+                        #         self.attention_storage.logger.info(f"🎨 DEBUG: Created run directory: {self.attention_storage._debug_run_dir}")
+                            
+                        #     # Create step-specific subdirectory within run
+                        #     debug_dir = self.attention_storage._debug_run_dir / f"step_{diffusion_step:03d}_block_{self.block_index}"
+                        #     debug_dir.mkdir(parents=True, exist_ok=True)
+                            
+                        #     # Get token index to visualize (e.g., "car" token)
+                        #     token_idx = 273  # TODO: Make this dynamic based on target token
+                            
+                        #     # Visualize original attention for this token
+                        #     # attention_maps shape: [batch, heads, spatial, text_seq]
+                            
+                        #     # DEBUG: Log the full attention_maps shape and a sample
+                        #     self.attention_storage.logger.info(f"🔍 ATTENTION_MAPS full shape: {attention_maps.shape}")
+                        #     self.attention_storage.logger.info(f"🔍 Token {token_idx} column stats: min={attention_maps[:,:,:,token_idx].min():.6f}, max={attention_maps[:,:,:,token_idx].max():.6f}, mean={attention_maps[:,:,:,token_idx].mean():.6f}")
+                            
+                        #     # Check if we're extracting from the RIGHT dimension
+                        #     # attention_maps is [batch=1, heads=12, spatial=20670, seq=512]
+                        #     # We want spatial attention for token_idx
+                        #     # So we select [:, :, :, token_idx] to get [1, 12, 20670]
+                        #     orig_token_attn = attention_maps[:, :, :, token_idx]  # [batch, heads, spatial]
+                            
+                        #     self.attention_storage.logger.info(f"🔍 After extraction orig_token_attn shape: {orig_token_attn.shape}")
+                            
+                        #     # Average across heads and remove batch dimension
+                        #     # [batch, heads, spatial] -> [spatial]
+                        #     orig_token_attn_avg = orig_token_attn.mean(dim=1).squeeze(0)  # [spatial]
+                            
+                        #     self.attention_storage.logger.info(
+                        #         f"🎨 DEBUG VIZ: Visualizing ORIGINAL token {token_idx} attention before storage"
+                        #     )
+                        #     self.attention_storage.logger.info(f"   Shape after averaging heads: {orig_token_attn_avg.shape}, Spatial shape: {spatial_shape}")
+                        #     self.attention_storage.logger.info(f"   VALUE STATS: min={orig_token_attn_avg.min():.6f}, max={orig_token_attn_avg.max():.6f}, mean={orig_token_attn_avg.mean():.6f}, std={orig_token_attn_avg.std():.6f}")
+                            
+                        #     visualize_attention_tensor(
+                        #         attention_tensor=orig_token_attn_avg,
+                        #         spatial_shape=spatial_shape,
+                        #         output_path=debug_dir / "original_token",
+                        #         format='both',
+                        #         aggregate_heads=True,  # Already averaged, but won't hurt
+                        #         target_size=target_size,
+                        #         title=f"Original - Step {diffusion_step} - Token {token_idx}"
+                        #     )
+                            
+                        #     # Visualize bent attention for this token
+                        #     bent_token_attn = bent_attention[:, :, :, token_idx]  # [batch, heads, spatial]
+                            
+                        #     # Average across heads and remove batch dimension
+                        #     # [batch, heads, spatial] -> [spatial]
+                        #     bent_token_attn_avg = bent_token_attn.mean(dim=1).squeeze(0)  # [spatial]
+                            
+                        #     self.attention_storage.logger.info(
+                        #         f"🎨 DEBUG VIZ: Visualizing BENT token {token_idx} attention before storage"
+                        #     )
+                        #     self.attention_storage.logger.info(f"   Shape after averaging heads: {bent_token_attn_avg.shape}, Spatial shape: {spatial_shape}")
+                        #     self.attention_storage.logger.info(f"   VALUE STATS: min={bent_token_attn_avg.min():.6f}, max={bent_token_attn_avg.max():.6f}, mean={bent_token_attn_avg.mean():.6f}, std={bent_token_attn_avg.std():.6f}")
+                            
+                        #     visualize_attention_tensor(
+                        #         attention_tensor=bent_token_attn_avg,
+                        #         spatial_shape=spatial_shape,
+                        #         output_path=debug_dir / "bent_token",
+                        #         format='both',
+                        #         aggregate_heads=True,  # Already averaged, but won't hurt
+                        #         target_size=target_size,
+                        #         title=f"Bent - Step {diffusion_step} - Token {token_idx}"
+                        #     )
+                            
+                            # self.attention_storage.logger.info(f"✅ Debug visualizations saved to: {debug_dir}")
+                            
+                    except Exception as viz_error:
+                        self.attention_storage.logger.warning(f"Debug visualization failed: {viz_error}")
                 
                 # Store bent attention if available, otherwise store original
                 # This allows visualization of bent attention even if not applied to output
@@ -141,8 +300,27 @@ class WanAttentionWrapper(torch.nn.Module):
                     f"shape {attention_to_store.shape} [{bending_status}]"
                 )
                 if bent_attention is not None:
+                    # Compare ONLY the bent token column, not the full tensor!
+                    token_idx = 273  # TODO: Get this dynamically
+                    if token_idx < attention_maps.shape[-1]:
+                        orig_token = attention_maps[:, :, :, token_idx]
+                        bent_token = bent_attention[:, :, :, token_idx]
+                        self.attention_storage.logger.info(
+                            f"   🎯 TOKEN {token_idx} - Original mean: {orig_token.mean():.6f}, Bent mean: {bent_token.mean():.6f}"
+                        )
+                        self.attention_storage.logger.info(
+                            f"   🎯 TOKEN {token_idx} - Original range: [{orig_token.min():.6f}, {orig_token.max():.6f}]"
+                        )
+                        self.attention_storage.logger.info(
+                            f"   🎯 TOKEN {token_idx} - Bent range: [{bent_token.min():.6f}, {bent_token.max():.6f}]"
+                        )
+                        self.attention_storage.logger.info(
+                            f"   🎯 TOKEN {token_idx} - Change: {(bent_token - orig_token).abs().mean():.6f}"
+                        )
+                    
+                    # Also show full tensor comparison (for reference)
                     self.attention_storage.logger.info(
-                        f"   Original mean: {attention_maps.mean():.6f}, Bent mean: {bent_attention.mean():.6f}"
+                        f"   📊 FULL TENSOR - Original mean: {attention_maps.mean():.6f}, Bent mean: {bent_attention.mean():.6f} (across all {attention_maps.shape[-1]} tokens)"
                     )
                 
                 # PHASE 1 vs PHASE 2: Decide whether to actually use bent attention
@@ -270,6 +448,11 @@ class AttentionStorage:
         self.current_prompt = None
         self.current_generation_params = {}
         self.stored_steps = []
+        
+        # Video dimensions for proper spatial reshaping
+        self.video_height = None
+        self.video_width = None
+        self.num_frames = None
         
         # Attention extraction state
         self.target_tokens = {}  # word -> token_ids mapping
@@ -419,17 +602,30 @@ class AttentionStorage:
             video_id: Unique identifier for this video
             prompt: Final processed prompt that will be sent to the model
             target_words: List of specific words/phrases to track attention for (e.g., ["flower", "tree"])
-            **generation_params: Additional generation parameters
+            **generation_params: Additional generation parameters (including height, width, num_frames)
         """
         self.current_video_id = video_id
         self.current_prompt = prompt
         self.current_generation_params = generation_params
         self.stored_steps = []
         
+        # Extract video dimensions for proper spatial reshaping during attention bending
+        self.video_height = generation_params.get('height')
+        self.video_width = generation_params.get('width')
+        self.num_frames = generation_params.get('num_frames')
+        
+        if self.video_height and self.video_width and self.num_frames:
+            self.logger.info(f"Video dimensions: {self.num_frames} frames × {self.video_height}h × {self.video_width}w")
+        else:
+            self.logger.warning(f"Video dimensions not provided in generation_params")
+        
         # Clear previous state
         self.target_tokens = {}
         self.current_attention_maps = {}
         self.steps_processed = set()
+        
+        # Clear debug visualization directory for new run
+        self._debug_run_dir = None
         
         # Create nested video directory structure: prompt_xxx/vidyyy/
         self.current_video_dir = self._get_video_dir_path(video_id)

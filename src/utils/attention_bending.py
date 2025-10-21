@@ -20,6 +20,7 @@ import numpy as np
 from typing import Dict, List, Optional, Tuple, Callable, Union
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
@@ -71,14 +72,16 @@ class BendingConfig:
     apply_to_timesteps: Optional[Tuple[int, int]] = None  # (start, end) timestep range
     
     # Affine transformation padding mode (for scale, rotate, translate)
-    padding_mode: str = 'zeros'  # How to handle out-of-canvas areas:
+    padding_mode: str = 'border'  # How to handle out-of-canvas areas:
                                  # 'zeros': out-of-canvas becomes zero (transparent/empty - standard graphics)
                                  # 'border': replicate edge pixels (extends image boundaries)
                                  # 'reflection': mirror reflection at boundaries
     
     # Stability
-    renormalize: bool = True  # Re-normalize after transformation
+    renormalize: bool = False  # Re-normalize after transformation
     preserve_sparsity: bool = False  # Try to maintain attention sparsity pattern
+
+    should_debug_visualize: bool = False  # Whether to generate debug visualizations
 
 
 class AttentionBender:
@@ -102,6 +105,7 @@ class AttentionBender:
             device: Device for tensor operations
         """
         self.bending_configs = bending_configs
+        logger.info("INITIAL TOKEN TO INDEX MAP:", token_to_index_map)    
         self.token_to_index_map = token_to_index_map or {}
         self.device = device
         
@@ -111,6 +115,9 @@ class AttentionBender:
             "tokens_bent": {},
             "norm_changes": [],
         }
+        
+        # Debug visualization tracking - group all steps from same run
+        self._debug_batch_dir = None  # Will be initialized on first use
         
         logger.info(f"AttentionBender initialized with {len(bending_configs)} configs")
         for config in bending_configs:
@@ -165,6 +172,7 @@ class AttentionBender:
         # Handle different input shapes
         original_shape = attention_probs.shape
         if len(original_shape) == 4:
+            # TODO: maybe just squeeze to 3 dims?
             # [B, heads, spatial, seq] -> [B*heads, spatial, seq]
             B, H, S, T = original_shape
             attention_probs = attention_probs.reshape(B * H, S, T)
@@ -177,6 +185,7 @@ class AttentionBender:
         
         # Infer spatial shape if not provided
         if spatial_shape is None:
+            # TODO: probably just fail here...
             spatial_shape = self._infer_spatial_shape(spatial_tokens)
         logger.info(f"   Spatial shape: {spatial_shape}")
         
@@ -214,6 +223,61 @@ class AttentionBender:
             )
             logger.info(f"      After transform: mean: {transformed.mean():.4f}, max: {transformed.max():.4f}")
             
+            # DEBUG: Visualize original vs transformed attention
+            if config.should_debug_visualize:
+                try:
+                    from datetime import datetime
+                    from ..visualization.attention_visualizer import visualize_attention_tensor
+                    
+                    # Initialize batch directory on first use
+                    if self._debug_batch_dir is None:
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        self._debug_batch_dir = Path("debug_bent_attention") / f"batch_{timestamp}"
+                        self._debug_batch_dir.mkdir(parents=True, exist_ok=True)
+                        logger.info(f"      🎨 DEBUG: Created batch directory: {self._debug_batch_dir}")
+                    
+                    # Create subdirectory for this step and token
+                    debug_subdir = self._debug_batch_dir / f"step_{timestep:03d}-layer_{layer_idx}-token_{config.token}"
+                    debug_subdir.mkdir(parents=True, exist_ok=True)
+                    
+                    logger.info(f"      🔍 DEBUG: Visualizing attention to {debug_subdir}")
+                    
+                    # Determine target size from video dimensions if available
+                    target_size = None  # Will use latent size by default
+                    
+                    # Visualize original attention
+                    orig_results = visualize_attention_tensor(
+                        attention_tensor=token_attention,
+                        spatial_shape=spatial_shape,
+                        output_path=debug_subdir / "original",
+                        format='both',
+                        colormap='jet',
+                        fps=15,
+                        aggregate_heads=True,
+                        target_size=target_size,
+                        title=f"Original - Token '{config.token}' Step {timestep}"
+                    )
+                    logger.info(f"      ✅ Original visualization: {orig_results}")
+                    
+                    # Visualize transformed attention
+                    transformed_results = visualize_attention_tensor(
+                        attention_tensor=transformed,
+                        spatial_shape=spatial_shape,
+                        output_path=debug_subdir / "transformed",
+                        format='both',
+                        colormap='jet',
+                        fps=15,
+                        aggregate_heads=True,
+                        target_size=target_size,
+                        title=f"Transformed - Token '{config.token}' Step {timestep} ({config.mode.value})"
+                    )
+                    logger.info(f"      ✅ Transformed visualization: {transformed_results}")
+                    
+                except Exception as viz_error:
+                    logger.warning(f"      ⚠️  Debug visualization failed: {viz_error}")
+                    import traceback
+                    traceback.print_exc()
+            
             # Blend with original based on strength
             blended = (1 - config.strength) * token_attention + config.strength * transformed
             logger.info(f"      After blend (strength={config.strength}): mean: {blended.mean():.4f}, max: {blended.max():.4f}")
@@ -250,52 +314,93 @@ class AttentionBender:
     def _apply_transformation(self,
                             attention_map: torch.Tensor,
                             config: BendingConfig,
-                            spatial_shape: Tuple[int, int]) -> torch.Tensor:
-        """Apply the specific transformation defined by config."""
-        H, W = spatial_shape
+                            spatial_shape: Union[Tuple[int, int], Tuple[int, int, int]]) -> torch.Tensor:
+        """
+        Apply the specific transformation defined by config.
+        
+        Args:
+            attention_map: Attention tensor [batch_heads, spatial_tokens]
+            config: Bending configuration
+            spatial_shape: Either (H, W) for images or (F, H, W) for videos
+        """
         batch_heads = attention_map.shape[0]
         
-        logger.info(f"      🔧 _apply_transformation: mode={config.mode}, spatial_shape=({H}, {W})")
-        logger.info(f"         Input: shape={attention_map.shape}, mean={attention_map.mean():.6f}")
+        # Check if we have 3D (video) or 2D (image) spatial shape
+        is_video = len(spatial_shape) == 3
         
-        # Reshape to spatial grid [batch_heads, H, W]
-        attention_2d = attention_map.reshape(batch_heads, H, W)
-        logger.info(f"         After reshape to 2D: shape={attention_2d.shape}")
-        
-        if config.mode == BendingMode.AMPLIFY:
-            result = self._apply_amplify(attention_2d, config).reshape(batch_heads, -1)
-            logger.info(f"         After amplify+reshape: shape={result.shape}, mean={result.mean():.6f}")
+        if is_video:
+            F, H, W = spatial_shape
+            # logger.info(f"      🔧 _apply_transformation: mode={config.mode}, spatial_shape=({F}f, {H}h, {W}w) [VIDEO]")
+            # logger.info(f"         Input: shape={attention_map.shape}, mean={attention_map.mean():.6f}")
+            
+            # Reshape to 4D video format: [batch_heads, F, H, W]
+            attention_4d = attention_map.reshape(batch_heads, F, H, W)
+            # logger.info(f"         After reshape to 4D: shape={attention_4d.shape}")
+            
+            # Apply transformation frame-by-frame
+            # TODO: can we do transformations in parallel across frames tensor?
+            transformed_frames = []
+            for frame_idx in range(F):
+                frame = attention_4d[:, frame_idx, :, :]  # [batch_heads, H, W]
+                # logger.info(f"         📹 Processing frame {frame_idx+1}/{F}: shape={frame.shape} (all {frame.shape[0]} heads)")
+                transformed_frame = self._apply_2d_transformation(frame, config)
+                transformed_frames.append(transformed_frame)
+            
+            # Stack back to 4D and flatten to 1D
+            transformed_4d = torch.stack(transformed_frames, dim=1)  # [batch_heads, F, H, W]
+            result = transformed_4d.reshape(batch_heads, -1)
+            
+            # logger.info(f"         After frame-by-frame transform: shape={result.shape}, mean={result.mean():.6f}")
             return result
+            
+        else:
+            # 2D image case
+            H, W = spatial_shape
+            # logger.info(f"      🔧 _apply_transformation: mode={config.mode}, spatial_shape=({H}, {W}) [IMAGE]")
+            # logger.info(f"         Input: shape={attention_map.shape}, mean={attention_map.mean():.6f}")
+            
+            # Reshape to spatial grid [batch_heads, H, W]
+            attention_2d = attention_map.reshape(batch_heads, H, W)
+            # logger.info(f"         After reshape to 2D: shape={attention_2d.shape}")
+            
+            result = self._apply_2d_transformation(attention_2d, config).reshape(batch_heads, -1)
+            # logger.info(f"         After transform+reshape: shape={result.shape}, mean={result.mean():.6f}")
+            return result
+    
+    def _apply_2d_transformation(self,
+                                attention_2d: torch.Tensor,
+                                config: BendingConfig) -> torch.Tensor:
+        """Apply transformation to 2D attention map [batch_heads, H, W]."""
+        if config.mode == BendingMode.AMPLIFY:
+            return self._apply_amplify(attention_2d, config)
         
         elif config.mode == BendingMode.SCALE:
-            result = self._apply_scale(attention_2d, config).reshape(batch_heads, -1)
-            logger.info(f"         After scale+reshape: shape={result.shape}, mean={result.mean():.6f}")
-            return result
+            return self._apply_scale(attention_2d, config)
         
         elif config.mode == BendingMode.ROTATE:
-            return self._apply_rotation(attention_2d, config).reshape(batch_heads, -1)
+            return self._apply_rotation(attention_2d, config)
         
         elif config.mode == BendingMode.TRANSLATE:
-            return self._apply_translation(attention_2d, config).reshape(batch_heads, -1)
+            return self._apply_translation(attention_2d, config)
         
         elif config.mode == BendingMode.FLIP:
-            return self._apply_flip(attention_2d, config).reshape(batch_heads, -1)
+            return self._apply_flip(attention_2d, config)
         
         elif config.mode == BendingMode.BLUR:
-            return self._apply_blur(attention_2d, config).reshape(batch_heads, -1)
+            return self._apply_blur(attention_2d, config)
         
         elif config.mode == BendingMode.SHARPEN:
-            return self._apply_sharpen(attention_2d, config).reshape(batch_heads, -1)
+            return self._apply_sharpen(attention_2d, config)
         
         elif config.mode == BendingMode.REGIONAL_MASK:
-            return self._apply_regional_mask(attention_2d, config).reshape(batch_heads, -1)
+            return self._apply_regional_mask(attention_2d, config)
         
         elif config.mode == BendingMode.FREQUENCY_FILTER:
-            return self._apply_frequency_filter(attention_2d, config).reshape(batch_heads, -1)
+            return self._apply_frequency_filter(attention_2d, config)
         
         else:
             logger.warning(f"Unknown bending mode: {config.mode}")
-            return attention_map
+            return attention_2d
     
     def _apply_amplify(self, attention: torch.Tensor, config: BendingConfig) -> torch.Tensor:
         """Simple multiplicative scaling (amplify/dampen attention weights)."""
@@ -313,42 +418,44 @@ class AttentionBender:
         
         The transformation is centered at the origin, so scaling happens from the center.
         """
-        logger.info(f"      🔍 _apply_scale called: scale_factor={config.scale_factor}")
+        # logger.info(f"      🔍 _apply_scale called: scale_factor={config.scale_factor}")
         
         if config.scale_factor == 1.0:
-            logger.info(f"         Scale factor is 1.0, returning unchanged")
+            # logger.info(f"         Scale factor is 1.0, returning unchanged")
             return attention
         
         batch_heads, H, W = attention.shape
-        logger.info(f"         Input shape: {attention.shape}, mean: {attention.mean():.6f}, max: {attention.max():.6f}")
+        # logger.info(f"         Input shape: {attention.shape} ({batch_heads} heads × {H}h × {W}w)")
+        # logger.info(f"         ✨ Applying scale to ALL {batch_heads} heads in parallel via batch processing")
+        # logger.info(f"         Statistics: mean={attention.mean():.6f}, max={attention.max():.6f}")
         
         # Check if attention has any spatial structure
-        spatial_std = attention.std()
-        spatial_range = attention.max() - attention.min()
-        logger.info(f"         ⚠️  Spatial variation: std={spatial_std:.6f}, range={spatial_range:.6f}")
-        if spatial_range < 0.001:
-            logger.warning(f"         ⚠️  Attention is nearly UNIFORM (range={spatial_range:.6f}) - spatial transform may have no visible effect!")
+        # spatial_std = attention.std()
+        # spatial_range = attention.max() - attention.min()
+        # logger.info(f"         ⚠️  Spatial variation: std={spatial_std:.6f}, range={spatial_range:.6f}")
+        # if spatial_range < 0.001:
+            # logger.warning(f"         ⚠️  Attention is nearly UNIFORM (range={spatial_range:.6f}) - spatial transform may have no visible effect!")
         
         # Create scaling transformation matrix
         # In affine transformations, scaling by s means dividing coordinates by s
         # (inverse transformation for grid_sample)
         s = 1.0 / config.scale_factor
-        logger.info(f"         Scaling matrix s = {s:.4f} (1/{config.scale_factor})")
+        # logger.info(f"         Scaling matrix s = {s:.4f} (1/{config.scale_factor})")
         
         theta = torch.tensor([
             [s, 0, 0],
             [0, s, 0]
         ], dtype=attention.dtype, device=attention.device).unsqueeze(0).repeat(batch_heads, 1, 1)
         
-        logger.info(f"         Theta shape: {theta.shape}, theta[0]:\n{theta[0]}")
+        # logger.info(f"         Theta shape: {theta.shape}, theta[0]:\n{theta[0]}")
         
         # Generate sampling grid and apply transformation
         input_for_grid = attention.unsqueeze(1)
-        logger.info(f"         Input for grid_sample: shape={input_for_grid.shape}")
+        # logger.info(f"         Input for grid_sample: shape={input_for_grid.shape}")
         
         grid = F.affine_grid(theta, input_for_grid.size(), align_corners=False)
-        logger.info(f"         Grid shape: {grid.shape}, grid range: [{grid.min():.4f}, {grid.max():.4f}]")
-        logger.info(f"         Grid center sample (first head): {grid[0, H//2, W//2]}")
+        # logger.info(f"         Grid shape: {grid.shape}, grid range: [{grid.min():.4f}, {grid.max():.4f}]")
+        # logger.info(f"         Grid center sample (first head): {grid[0, H//2, W//2]}")
         
         scaled = F.grid_sample(
             input_for_grid, 
@@ -358,30 +465,30 @@ class AttentionBender:
             align_corners=False
         )
         
-        logger.info(f"         After grid_sample: shape={scaled.shape}")
-        logger.info(f"         Attention statistics - Input: min={attention.min():.6f}, max={attention.max():.6f}, std={attention.std():.6f}")
-        logger.info(f"         Attention statistics - Output: min={scaled.squeeze(1).min():.6f}, max={scaled.squeeze(1).max():.6f}, std={scaled.squeeze(1).std():.6f}")
+        # logger.info(f"         After grid_sample: shape={scaled.shape}")
+        # logger.info(f"         Attention statistics - Input: min={attention.min():.6f}, max={attention.max():.6f}, std={attention.std():.6f}")
+        # logger.info(f"         Attention statistics - Output: min={scaled.squeeze(1).min():.6f}, max={scaled.squeeze(1).max():.6f}, std={scaled.squeeze(1).std():.6f}")
         
         # Show spatial statistics to verify transformation is affecting the pattern
         result = scaled.squeeze(1)
         
         # Compare center vs edge regions to see if zoom is working
-        center_h_start, center_h_end = H // 4, 3 * H // 4
-        center_w_start, center_w_end = W // 4, 3 * W // 4
+        # center_h_start, center_h_end = H // 4, 3 * H // 4
+        # center_w_start, center_w_end = W // 4, 3 * W // 4
         
-        input_center_mean = attention[:, center_h_start:center_h_end, center_w_start:center_w_end].mean()
-        output_center_mean = result[:, center_h_start:center_h_end, center_w_start:center_w_end].mean()
+        # input_center_mean = attention[:, center_h_start:center_h_end, center_w_start:center_w_end].mean()
+        # output_center_mean = result[:, center_h_start:center_h_end, center_w_start:center_w_end].mean()
         
-        input_edge_mean = attention[:, [0, -1], :].mean()  # Top and bottom edges
-        output_edge_mean = result[:, [0, -1], :].mean()
+        # input_edge_mean = attention[:, [0, -1], :].mean()  # Top and bottom edges
+        # output_edge_mean = result[:, [0, -1], :].mean()
         
-        logger.info(f"         📊 Spatial region analysis:")
-        logger.info(f"            Input  - Center: {input_center_mean:.6f}, Edge: {input_edge_mean:.6f}")
-        logger.info(f"            Output - Center: {output_center_mean:.6f}, Edge: {output_edge_mean:.6f}")
-        logger.info(f"            Change - Center: {output_center_mean - input_center_mean:.6f}, Edge: {output_edge_mean - input_edge_mean:.6f}")
+        # logger.info(f"         📊 Spatial region analysis:")
+        # logger.info(f"            Input  - Center: {input_center_mean:.6f}, Edge: {input_edge_mean:.6f}")
+        # logger.info(f"            Output - Center: {output_center_mean:.6f}, Edge: {output_edge_mean:.6f}")
+        # logger.info(f"            Change - Center: {output_center_mean - input_center_mean:.6f}, Edge: {output_edge_mean - input_edge_mean:.6f}")
         
-        logger.info(f"         Output shape: {result.shape}, mean: {result.mean():.6f}, max: {result.max():.6f}")
-        logger.info(f"         Change: Δmean={result.mean() - attention.mean():.6f}, Δmax={result.max() - attention.max():.6f}")
+        # logger.info(f"         Output shape: {result.shape}, mean: {result.mean():.6f}, max: {result.max():.6f}")
+        # logger.info(f"         Change: Δmean={result.mean() - attention.mean():.6f}, Δmax={result.max() - attention.max():.6f}")
         
         return result
     
@@ -588,6 +695,7 @@ class AttentionBender:
     
     def _safe_normalize(self, tensor: torch.Tensor, dim: int) -> torch.Tensor:
         """Safely normalize tensor along dimension."""
+        # TODO: Just SOFTMAX? OR... Do transform then softmax?
         sum_vals = tensor.sum(dim=dim, keepdim=True)
         # Avoid division by zero
         sum_vals = torch.where(sum_vals > 1e-8, sum_vals, torch.ones_like(sum_vals))
@@ -606,6 +714,8 @@ class AttentionBender:
                     w = num_tokens // h
                     break
         
+        logger.info(f"📐 Inferred spatial shape: ({h}, {w}) from {num_tokens} tokens")
+        logger.info(f"   Factorization: {h} × {w} = {h*w}")
         return (h, w)
     
     def get_stats(self) -> Dict:
@@ -613,12 +723,14 @@ class AttentionBender:
         return self.stats.copy()
     
     def reset_stats(self):
-        """Reset statistics tracking."""
+        """Reset statistics tracking and debug batch directory for new run."""
         self.stats = {
             "applications": 0,
             "tokens_bent": {},
             "norm_changes": [],
         }
+        # Reset batch directory so next run gets a new timestamp
+        self._debug_batch_dir = None
 
 
 def create_bending_from_config(config_dict: Dict) -> AttentionBender:

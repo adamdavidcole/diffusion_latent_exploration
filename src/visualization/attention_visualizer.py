@@ -995,6 +995,371 @@ class AttentionVisualizer:
             raise RuntimeError(f"Error creating static video from aggregated attention: {e}")
 
 
+# ============================================================================
+# Static Helper Methods for Direct Tensor Visualization
+# ============================================================================
+
+@staticmethod
+def prepare_attention_for_visualization(
+    attention_tensor: Union[torch.Tensor, np.ndarray],
+    spatial_shape: Union[Tuple[int, int], Tuple[int, int, int]],
+    aggregate_heads: bool = True
+) -> np.ndarray:
+    """
+    Prepare attention tensor for visualization by reshaping and aggregating.
+    
+    This is a core helper used by both class methods and external callers.
+    
+    Args:
+        attention_tensor: Attention tensor in various formats:
+            - [batch_heads, spatial_tokens]: Multi-head attention (needs aggregation)
+            - [spatial_tokens]: Single aggregated attention
+            - [F, H, W]: Video format (already spatial)
+            - [H, W]: Image format (already spatial)
+        spatial_shape: Expected spatial dimensions:
+            - (F, H, W) for videos: frames × height × width
+            - (H, W) for images: height × width
+        aggregate_heads: If True, average across heads dimension
+        
+    Returns:
+        np.ndarray in format [F, H, W] for video or [H, W] for image
+    """
+    logger = logging.getLogger(__name__)
+    
+    # Convert to numpy if needed
+    if isinstance(attention_tensor, torch.Tensor):
+        # Convert bfloat16 to float32 first (numpy doesn't support bfloat16)
+        if attention_tensor.dtype == torch.bfloat16:
+            attention_np = attention_tensor.detach().cpu().float().numpy()
+        else:
+            attention_np = attention_tensor.detach().cpu().numpy()
+    else:
+        attention_np = attention_tensor
+    
+    is_video = len(spatial_shape) == 3
+    
+    # Reshape based on input format
+    if attention_np.ndim == 1:
+        # [spatial_tokens] -> reshape to spatial format
+        if is_video:
+            F, H, W = spatial_shape
+            attention_np = attention_np.reshape(F, H, W)
+        else:
+            H, W = spatial_shape
+            attention_np = attention_np.reshape(H, W)
+            
+    elif attention_np.ndim == 2:
+        # Could be [batch_heads, spatial_tokens] or [H, W]
+        expected_spatial = np.prod(spatial_shape)
+        
+        if attention_np.shape[1] == expected_spatial and attention_np.shape[0] > 1:
+            # Looks like [batch_heads, spatial_tokens]
+            if aggregate_heads:
+                attention_np = attention_np.mean(axis=0)  # -> [spatial_tokens]
+            else:
+                attention_np = attention_np[0]  # Take first head
+            
+            # Now reshape to spatial format
+            if is_video:
+                F, H, W = spatial_shape
+                attention_np = attention_np.reshape(F, H, W)
+            else:
+                H, W = spatial_shape
+                attention_np = attention_np.reshape(H, W)
+        else:
+            # Already [H, W] format
+            if is_video:
+                # Add frame dimension
+                attention_np = attention_np[np.newaxis, :, :]
+                
+    elif attention_np.ndim == 3:
+        # Could be [F, H, W] for video or [batch_heads, H, W]
+        if is_video and attention_np.shape == spatial_shape:
+            pass  # Already correct format
+        elif attention_np.shape[0] > 1 and attention_np.shape[1:] == spatial_shape[1:]:
+            # Looks like [batch_heads, H, W]
+            if aggregate_heads:
+                attention_np = attention_np.mean(axis=0)  # -> [H, W]
+            else:
+                attention_np = attention_np[0]
+            
+            # Add frame dimension if video
+            if is_video:
+                attention_np = attention_np[np.newaxis, :, :]
+    
+    logger.debug(f"prepare_attention_for_visualization: {attention_tensor.shape if hasattr(attention_tensor, 'shape') else 'array'} -> {attention_np.shape}")
+    
+    return attention_np
+
+
+@staticmethod
+def render_attention_frame(
+    attention_frame: np.ndarray,
+    colormap: Union[ColorMap, int] = ColorMap.JET,
+    normalize: bool = True,
+    target_size: Optional[Tuple[int, int]] = None,
+    title: Optional[str] = None
+) -> np.ndarray:
+    """
+    Render a single attention frame as a colored image.
+    
+    This is a core helper used by both class methods and external callers.
+    
+    Args:
+        attention_frame: 2D attention map [H, W]
+        colormap: ColorMap enum or cv2 colormap constant
+        normalize: Whether to normalize to [0, 255] range
+        target_size: Optional (width, height) to resize to
+        title: Optional title text to overlay
+        
+    Returns:
+        RGB image as np.ndarray [H, W, 3]
+    """
+    logger = logging.getLogger(__name__)
+    
+    # Normalize if requested
+    if normalize:
+        att_min = attention_frame.min()
+        att_max = attention_frame.max()
+        if att_max > att_min:
+            attention_normalized = ((attention_frame - att_min) / (att_max - att_min) * 255).astype(np.uint8)
+        else:
+            attention_normalized = np.zeros_like(attention_frame, dtype=np.uint8)
+    else:
+        attention_normalized = attention_frame.astype(np.uint8)
+    
+    # Get colormap
+    if isinstance(colormap, ColorMap):
+        if colormap == ColorMap.JET:
+            cv_colormap = cv2.COLORMAP_JET
+        elif colormap == ColorMap.HOT:
+            cv_colormap = cv2.COLORMAP_HOT
+        elif colormap == ColorMap.VIRIDIS:
+            cv_colormap = cv2.COLORMAP_VIRIDIS
+        elif colormap == ColorMap.PLASMA:
+            cv_colormap = cv2.COLORMAP_PLASMA
+        elif colormap == ColorMap.INFERNO:
+            cv_colormap = cv2.COLORMAP_INFERNO
+        elif colormap == ColorMap.MAGMA:
+            cv_colormap = cv2.COLORMAP_MAGMA
+        elif colormap == ColorMap.TURBO:
+            cv_colormap = cv2.COLORMAP_TURBO
+        elif colormap == ColorMap.COOL:
+            cv_colormap = cv2.COLORMAP_COOL
+        else:
+            cv_colormap = cv2.COLORMAP_JET
+    else:
+        cv_colormap = colormap
+    
+    # Apply colormap
+    colored_frame = cv2.applyColorMap(attention_normalized, cv_colormap)
+    
+    # Resize if requested
+    if target_size is not None:
+        width, height = target_size
+        colored_frame = cv2.resize(colored_frame, (width, height), interpolation=cv2.INTER_LINEAR)
+    
+    # Add title if provided
+    if title:
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.7
+        thickness = 2
+        text_size = cv2.getTextSize(title, font, font_scale, thickness)[0]
+        text_x = (colored_frame.shape[1] - text_size[0]) // 2
+        text_y = 30
+        cv2.putText(colored_frame, title, (text_x, text_y), font, font_scale, 
+                   (255, 255, 255), thickness, cv2.LINE_AA)
+    
+    return colored_frame
+
+
+def visualize_attention_tensor(
+    attention_tensor: Union[torch.Tensor, np.ndarray],
+    spatial_shape: Union[Tuple[int, int], Tuple[int, int, int]],
+    output_path: Union[str, Path],
+    format: str = 'both',  # 'image', 'video', or 'both'
+    colormap: Union[ColorMap, str] = ColorMap.JET,
+    fps: int = 15,
+    quality: int = 8,
+    aggregate_heads: bool = True,
+    target_size: Optional[Tuple[int, int]] = None,  # (width, height) - FULL VIDEO DIMENSIONS
+    title: Optional[str] = None
+) -> Dict[str, Path]:
+    """
+    Visualize attention tensor directly without requiring AttentionAnalyzer.
+    
+    This function follows the same upscaling logic as the main class:
+    1. Reshape attention to LATENT dimensions (e.g., [13, 30, 53])
+    2. Interpolate latent frames: (F-1)*4+1 (e.g., 13 → 49 frames)
+    3. Upscale spatial dimensions: H*16, W*16 (e.g., 30×53 → 480×848)
+    
+    Example flow for WAN video:
+        Input: [12, 20670] (heads × spatial_tokens)
+        → Reshape: [13, 30, 53] (latent frames × height × width)
+        → Interpolate: [49, 30, 53] (real frames at latent resolution)
+        → Upscale: [49, 480, 848] (real frames at full resolution)
+    
+    Args:
+        attention_tensor: Attention tensor (various formats supported)
+        spatial_shape: LATENT spatial dimensions - (F, H, W) for video or (H, W) for image
+        output_path: Where to save (without extension)
+        format: 'image' (first frame), 'video' (all frames), or 'both'
+        colormap: Color scheme (ColorMap enum or string)
+        fps: Frame rate for video
+        quality: Video quality (0-10, lower=higher quality)
+        aggregate_heads: If True, average across heads
+        target_size: (width, height) of FULL VIDEO (defaults to spatial_shape * 16)
+        title: Optional title text
+        
+    Returns:
+        Dictionary with paths to generated files
+    """
+    logger = logging.getLogger(__name__)
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Convert colormap string to enum if needed
+    if isinstance(colormap, str):
+        try:
+            colormap = ColorMap(colormap.lower())
+        except ValueError:
+            logger.warning(f"Unknown colormap '{colormap}', using JET")
+            colormap = ColorMap.JET
+    
+    # Prepare attention using static helper - this gives us latent dimensions
+    attention_latent = prepare_attention_for_visualization(
+        attention_tensor=attention_tensor,
+        spatial_shape=spatial_shape,
+        aggregate_heads=aggregate_heads
+    )
+    
+    logger.info(f"visualize_attention_tensor: latent shape={attention_latent.shape}")
+    
+    is_video = attention_latent.ndim == 3
+    
+    # Get latent dimensions from spatial_shape parameter
+    if is_video:
+        if len(spatial_shape) != 3:
+            raise ValueError(f"Video format requires 3D spatial_shape (F, H, W), got {spatial_shape}")
+        latent_frames, latent_h, latent_w = spatial_shape
+        # Verify reshaped tensor matches expected latent dimensions
+        if attention_latent.shape != spatial_shape:
+            logger.warning(f"Attention shape mismatch: got {attention_latent.shape}, expected {spatial_shape}")
+    else:
+        if len(spatial_shape) != 2:
+            raise ValueError(f"Image format requires 2D spatial_shape (H, W), got {spatial_shape}")
+        latent_h, latent_w = spatial_shape
+    
+    # Default target size if not provided (upscale by 16x for spatial, 4x for temporal)
+    if target_size is None:
+        target_width = latent_w * 16
+        target_height = latent_h * 16
+        logger.info(f"No target_size provided, using 16x spatial upscaling: {latent_w}×{latent_h} → {target_width}×{target_height}")
+    else:
+        target_width, target_height = target_size
+        logger.info(f"Using provided target_size: {target_width}×{target_height}")
+    
+    # For video: interpolate frames and upscale to full resolution
+    # This matches the logic in _generate_attention_video_from_data()
+    if is_video:
+        latent_frames, latent_h, latent_w = attention_latent.shape
+        
+        # Calculate target frame count: (latent_frames - 1) * 4 + 1
+        # Example: 13 latent frames → (13-1)*4+1 = 49 frames
+        target_frames = (latent_frames - 1) * 4 + 1
+        logger.info(f"Interpolating frames: {latent_frames} latent → {target_frames} real")
+        
+        # Create upscaled video frames
+        attention_upscaled = np.zeros((target_frames, target_height, target_width), dtype=np.float32)
+        
+        # Interpolate and upscale each target frame
+        for frame_idx in range(target_frames):
+            # Map target frame to latent frame (with interpolation)
+            if latent_frames > 1:
+                latent_frame_idx = frame_idx * (latent_frames - 1) / (target_frames - 1) if target_frames > 1 else 0
+                lower_idx = int(np.floor(latent_frame_idx))
+                upper_idx = min(lower_idx + 1, latent_frames - 1)
+                alpha = latent_frame_idx - lower_idx
+                
+                if lower_idx == upper_idx:
+                    latent_attention = attention_latent[lower_idx]
+                else:
+                    latent_attention = (1 - alpha) * attention_latent[lower_idx] + alpha * attention_latent[upper_idx]
+            else:
+                latent_attention = attention_latent[0]
+            
+            # Upscale from latent to full resolution
+            upscaled_frame = cv2.resize(
+                latent_attention.astype(np.float32),
+                (target_width, target_height),
+                interpolation=cv2.INTER_LINEAR
+            )
+            attention_upscaled[frame_idx] = upscaled_frame
+        
+        attention_spatial = attention_upscaled
+        logger.info(f"Upscaled to full resolution: {attention_spatial.shape}")
+        
+    else:
+        # For single image: just upscale
+        attention_spatial = cv2.resize(
+            attention_latent.astype(np.float32),
+            (target_width, target_height),
+            interpolation=cv2.INTER_LINEAR
+        )
+        logger.info(f"Upscaled single frame: {attention_latent.shape} → {attention_spatial.shape}")
+    
+    results = {}
+    
+    # Generate image (first frame)
+    if format in ['image', 'both']:
+        if is_video:
+            first_frame = attention_spatial[0]
+        else:
+            first_frame = attention_spatial
+        
+        # Render using static helper (no additional resize needed - already at target size)
+        colored_frame = render_attention_frame(
+            attention_frame=first_frame,
+            colormap=colormap,
+            normalize=True,
+            target_size=None,  # Already at correct size
+            title=title
+        )
+        
+        image_path = output_path.with_suffix('.png')
+        cv2.imwrite(str(image_path), colored_frame)
+        results['image'] = image_path
+        logger.info(f"   ✅ Saved image: {image_path} ({target_height}×{target_width})")
+    
+    # Generate video (all frames)
+    if format in ['video', 'both'] and is_video:
+        num_frames = attention_spatial.shape[0]
+        video_path = output_path.with_suffix('.mp4')
+        
+        # Create video writer
+        with imageio.get_writer(str(video_path), fps=fps, codec='libx264', quality=quality) as writer:
+            for frame_idx in range(num_frames):
+                frame = attention_spatial[frame_idx]
+                
+                # Render using static helper (no additional resize needed)
+                colored_frame = render_attention_frame(
+                    attention_frame=frame,
+                    colormap=colormap,
+                    normalize=True,
+                    target_size=None,  # Already at correct size
+                    title=title if frame_idx == 0 else None  # Title only on first frame
+                )
+                
+                # Convert BGR to RGB for imageio
+                colored_frame_rgb = cv2.cvtColor(colored_frame, cv2.COLOR_BGR2RGB)
+                writer.append_data(colored_frame_rgb)
+        
+        results['video'] = video_path
+        logger.info(f"   ✅ Saved video: {video_path} ({num_frames} frames @ {target_height}×{target_width})")
+    
+    return results
+
+
 # Example usage and testing
 if __name__ == "__main__":
     import sys

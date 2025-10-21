@@ -12,6 +12,7 @@ import argparse
 import sys
 from pathlib import Path
 import json
+import logging
 
 from src.config import ConfigManager, GenerationConfig
 from src.orchestrator import VideoGenerationOrchestrator
@@ -131,9 +132,14 @@ Examples:
     parser.add_argument('--store-attention', action='store_true',
                        help='Store attention maps for tokens in parentheses in prompts (e.g., "(kiss)" in "romantic (kiss)")')
     
-    # Verbose output
+    # Logging and output
+    parser.add_argument('--log-level', type=str, 
+                       choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+                       default='INFO',
+                       help='Set logging level (default: INFO)')
+    
     parser.add_argument('--verbose', '-v', action='store_true',
-                       help='Verbose output')
+                       help='Verbose output (sets log level to DEBUG)')
     
     return parser
 
@@ -285,6 +291,19 @@ def main():
     """Main entry point."""
     parser = create_parser()
     args = parser.parse_args()
+    
+    # Configure logging for all modules
+    # If --verbose is set, override log level to DEBUG
+    log_level = logging.DEBUG if args.verbose else getattr(logging, args.log_level)
+    
+    logging.basicConfig(
+        level=log_level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    # Also set the root logger level to ensure all child loggers inherit it
+    logging.getLogger().setLevel(log_level)
     
     # Handle utility commands first
     if args.create_examples:
