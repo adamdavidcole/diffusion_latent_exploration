@@ -147,7 +147,7 @@ class WanAttentionWrapper(torch.nn.Module):
                                 else:
                                     # For video, pass 3D spatial shape: (frames, height, width)
                                     spatial_shape = (latent_f, latent_h, latent_w)
-                                    self.attention_storage.logger.info(
+                                    self.attention_storage.logger.debug(
                                         f"🎯 Using spatial shape: {spatial_shape} "
                                         f"(from {latent_f}f × {latent_h}h × {latent_w}w = {expected_tokens} tokens)"
                                     )
@@ -162,36 +162,36 @@ class WanAttentionWrapper(torch.nn.Module):
                         
                         # DEBUG: IMMEDIATELY check what bend_attention returned
                         # Use actual target token positions from the token map
-                        debug_token_positions = []
-                        if self.attention_storage.target_tokens:
-                            for word, token_info in list(self.attention_storage.target_tokens.items())[:1]:  # Just check first token
-                                if token_info.get("positions"):
-                                    debug_token_positions.append((word, token_info["positions"][0]))
+                        # debug_token_positions = []
+                        # if self.attention_storage.target_tokens:
+                        #     for word, token_info in list(self.attention_storage.target_tokens.items())[:1]:  # Just check first token
+                        #         if token_info.get("positions"):
+                        #             debug_token_positions.append((word, token_info["positions"][0]))
                         
-                        if bent_attention is not None and debug_token_positions:
-                            word, token_idx = debug_token_positions[0]
-                            if token_idx < attention_maps.shape[-1]:
-                                orig_tok = attention_maps[:, :, :, token_idx]
-                                bent_tok = bent_attention[:, :, :, token_idx]
-                                self.attention_storage.logger.info(
-                                    f"🔍 IMMEDIATE POST-BENDING (block {self.block_index}, step {diffusion_step}):"
-                                )
-                                self.attention_storage.logger.info(
-                                    f"   bent_attention shape: {bent_attention.shape}, dtype: {bent_attention.dtype}"
-                                )
-                                self.attention_storage.logger.info(
-                                    f"   Token '{word}' (pos {token_idx}) - Original: mean={orig_tok.mean():.6f}, std={orig_tok.std():.6f}"
-                                )
-                                self.attention_storage.logger.info(
-                                    f"   Token '{word}' (pos {token_idx}) - Bent: mean={bent_tok.mean():.6f}, std={bent_tok.std():.6f}"
-                                )
-                                self.attention_storage.logger.info(
-                                    f"   Token '{word}' (pos {token_idx}) - Difference: mean_abs={((bent_tok - orig_tok).abs().mean()):.6f}"
-                                )
+                        # if bent_attention is not None and debug_token_positions:
+                        #     word, token_idx = debug_token_positions[0]
+                        #     if token_idx < attention_maps.shape[-1]:
+                        #         orig_tok = attention_maps[:, :, :, token_idx]
+                        #         bent_tok = bent_attention[:, :, :, token_idx]
+                        #         self.attention_storage.logger.info(
+                        #             f"🔍 IMMEDIATE POST-BENDING (block {self.block_index}, step {diffusion_step}):"
+                        #         )
+                        #         self.attention_storage.logger.info(
+                        #             f"   bent_attention shape: {bent_attention.shape}, dtype: {bent_attention.dtype}"
+                        #         )
+                        #         self.attention_storage.logger.info(
+                        #             f"   Token '{word}' (pos {token_idx}) - Original: mean={orig_tok.mean():.6f}, std={orig_tok.std():.6f}"
+                        #         )
+                        #         self.attention_storage.logger.info(
+                        #             f"   Token '{word}' (pos {token_idx}) - Bent: mean={bent_tok.mean():.6f}, std={bent_tok.std():.6f}"
+                        #         )
+                        #         self.attention_storage.logger.info(
+                        #             f"   Token '{word}' (pos {token_idx}) - Difference: mean_abs={((bent_tok - orig_tok).abs().mean()):.6f}"
+                        #         )
                         
-                        self.attention_storage.logger.info(
-                            f"✅ Applied attention bending at block {self.block_index}, step {diffusion_step}"
-                        )
+                        # self.attention_storage.logger.info(
+                        #     f"✅ Applied attention bending at block {self.block_index}, step {diffusion_step}"
+                        # )
                         
                     except Exception as e:
                         self.attention_storage.logger.warning(
@@ -199,161 +199,54 @@ class WanAttentionWrapper(torch.nn.Module):
                         )
                         bent_attention = None
 
-                ## DEBUG: Visualize bent_attention before storage to verify transformation
-                if bent_attention is not None and self.block_index == 15:  # Only visualize first block to reduce noise
-                    try:
-                        from src.visualization.attention_visualizer import visualize_attention_tensor
-                        from datetime import datetime
-                        
-                        # Get spatial shape for visualization
-                        if (self.attention_storage.video_height is not None and 
-                            self.attention_storage.video_width is not None and
-                            self.attention_storage.num_frames is not None):
-                            # Calculate latent dimensions
-                            latent_f = (self.attention_storage.num_frames - 1) // 4 + 1
-                            latent_h = self.attention_storage.video_height // 16
-                            latent_w = self.attention_storage.video_width // 16
-                            spatial_shape = (latent_f, latent_h, latent_w)
-                            
-                            # Full video dimensions for upscaling
-                            target_size = (self.attention_storage.video_width, self.attention_storage.video_height)
-                            
-                            # Create debug output directory - use video_id to group all steps from same run
-                            # Initialize run directory on first use
-                            if not hasattr(self.attention_storage, '_debug_run_dir') or self.attention_storage._debug_run_dir is None:
-                                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                                video_id = self.attention_storage.current_video_id or "unknown"
-                                self.attention_storage._debug_run_dir = Path("outputs/debug_storage_visualization") / f"{video_id}_{timestamp}"
-                                self.attention_storage._debug_run_dir.mkdir(parents=True, exist_ok=True)
-                                self.attention_storage.logger.info(f"🎨 DEBUG: Created run directory: {self.attention_storage._debug_run_dir}")
-                            
-                            # Create step-specific subdirectory within run
-                            debug_dir = self.attention_storage._debug_run_dir / f"step_{diffusion_step:03d}_block_{self.block_index}"
-                            debug_dir.mkdir(parents=True, exist_ok=True)
-                            
-                            # Get token index to visualize from actual target tokens
-                            token_idx = None
-                            if self.attention_storage.target_tokens:
-                                # Use the first target token's position
-                                first_word = list(self.attention_storage.target_tokens.keys())[0]
-                                token_info = self.attention_storage.target_tokens[first_word]
-                                if token_info.get("positions"):
-                                    token_idx = token_info["positions"][0]
-                            
-                            if token_idx is None:
-                                token_idx = 0  # Fallback to first token if no targets
-                            
-                            # Visualize original attention for this token
-                            # attention_maps shape: [batch, heads, spatial, text_seq]
-                            
-                            # DEBUG: Log the full attention_maps shape and a sample
-                            self.attention_storage.logger.info(f"🔍 ATTENTION_MAPS full shape: {attention_maps.shape}")
-                            self.attention_storage.logger.info(f"🔍 Token {token_idx} column stats: min={attention_maps[:,:,:,token_idx].min():.6f}, max={attention_maps[:,:,:,token_idx].max():.6f}, mean={attention_maps[:,:,:,token_idx].mean():.6f}")
-                            
-                            # Check if we're extracting from the RIGHT dimension
-                            # attention_maps is [batch=1, heads=12, spatial=20670, seq=512]
-                            # We want spatial attention for token_idx
-                            # So we select [:, :, :, token_idx] to get [1, 12, 20670]
-                            orig_token_attn = attention_maps[:, :, :, token_idx]  # [batch, heads, spatial]
-                            
-                            self.attention_storage.logger.info(f"🔍 After extraction orig_token_attn shape: {orig_token_attn.shape}")
-                            
-                            # Average across heads and remove batch dimension
-                            # [batch, heads, spatial] -> [spatial]
-                            orig_token_attn_avg = orig_token_attn.mean(dim=1).squeeze(0)  # [spatial]
-                            
-                            self.attention_storage.logger.info(
-                                f"🎨 DEBUG VIZ: Visualizing ORIGINAL token {token_idx} attention before storage"
-                            )
-                            self.attention_storage.logger.info(f"   Shape after averaging heads: {orig_token_attn_avg.shape}, Spatial shape: {spatial_shape}")
-                            self.attention_storage.logger.info(f"   VALUE STATS: min={orig_token_attn_avg.min():.6f}, max={orig_token_attn_avg.max():.6f}, mean={orig_token_attn_avg.mean():.6f}, std={orig_token_attn_avg.std():.6f}")
-                            
-                            visualize_attention_tensor(
-                                attention_tensor=orig_token_attn_avg,
-                                spatial_shape=spatial_shape,
-                                output_path=debug_dir / "original_token",
-                                format='both',
-                                aggregate_heads=True,  # Already averaged, but won't hurt
-                                target_size=target_size,
-                                title=f"Original - Step {diffusion_step} - Token {token_idx}"
-                            )
-                            
-                            # Visualize bent attention for this token
-                            bent_token_attn = bent_attention[:, :, :, token_idx]  # [batch, heads, spatial]
-                            
-                            # Average across heads and remove batch dimension
-                            # [batch, heads, spatial] -> [spatial]
-                            bent_token_attn_avg = bent_token_attn.mean(dim=1).squeeze(0)  # [spatial]
-                            
-                            self.attention_storage.logger.info(
-                                f"🎨 DEBUG VIZ: Visualizing BENT token {token_idx} attention before storage"
-                            )
-                            self.attention_storage.logger.info(f"   Shape after averaging heads: {bent_token_attn_avg.shape}, Spatial shape: {spatial_shape}")
-                            self.attention_storage.logger.info(f"   VALUE STATS: min={bent_token_attn_avg.min():.6f}, max={bent_token_attn_avg.max():.6f}, mean={bent_token_attn_avg.mean():.6f}, std={bent_token_attn_avg.std():.6f}")
-                            
-                            visualize_attention_tensor(
-                                attention_tensor=bent_token_attn_avg,
-                                spatial_shape=spatial_shape,
-                                output_path=debug_dir / "bent_token",
-                                format='both',
-                                aggregate_heads=True,  # Already averaged, but won't hurt
-                                target_size=target_size,
-                                title=f"Bent - Step {diffusion_step} - Token {token_idx}"
-                            )
-                            
-                            self.attention_storage.logger.info(f"✅ Debug visualizations saved to: {debug_dir}")
-                            
-                    except Exception as viz_error:
-                        self.attention_storage.logger.warning(f"Debug visualization failed: {viz_error}")
-                
                 # Store bent attention if available, otherwise store original
                 # This allows visualization of bent attention even if not applied to output
                 attention_to_store = bent_attention if bent_attention is not None else attention_maps
                 self.attention_storage.current_attention_maps[self.block_index] = attention_to_store.detach().cpu()
                 
                 bending_status = "BENT" if bent_attention is not None else "ORIGINAL"
-                self.attention_storage.logger.info(
+                self.attention_storage.logger.debug(
                     f"💾 Stored attention for block {self.block_index}, step {diffusion_step}: "
                     f"shape {attention_to_store.shape} [{bending_status}]"
                 )
-                if bent_attention is not None:
-                    # Compare ONLY the bent token column, not the full tensor!
-                    # Get token position from actual target tokens
-                    debug_word = None
-                    token_idx = None
-                    if self.attention_storage.target_tokens:
-                        for word, token_info in list(self.attention_storage.target_tokens.items())[:1]:
-                            if token_info.get("positions"):
-                                debug_word = word
-                                token_idx = token_info["positions"][0]
-                                break
+                # if bent_attention is not None:
+                    # # Compare ONLY the bent token column, not the full tensor!
+                    # # Get token position from actual target tokens
+                    # debug_word = None
+                    # token_idx = None
+                    # if self.attention_storage.target_tokens:
+                    #     for word, token_info in list(self.attention_storage.target_tokens.items())[:1]:
+                    #         if token_info.get("positions"):
+                    #             debug_word = word
+                    #             token_idx = token_info["positions"][0]
+                    #             break
                     
-                    if token_idx is not None and token_idx < attention_maps.shape[-1]:
-                        orig_token = attention_maps[:, :, :, token_idx]
-                        bent_token = bent_attention[:, :, :, token_idx]
-                        self.attention_storage.logger.info(
-                            f"   🎯 TOKEN '{debug_word}' (pos {token_idx}) - Original mean: {orig_token.mean():.6f}, Bent mean: {bent_token.mean():.6f}"
-                        )
-                        self.attention_storage.logger.info(
-                            f"   🎯 TOKEN '{debug_word}' (pos {token_idx}) - Original range: [{orig_token.min():.6f}, {orig_token.max():.6f}]"
-                        )
-                        self.attention_storage.logger.info(
-                            f"   🎯 TOKEN '{debug_word}' (pos {token_idx}) - Bent range: [{bent_token.min():.6f}, {bent_token.max():.6f}]"
-                        )
-                        self.attention_storage.logger.info(
-                            f"   🎯 TOKEN '{debug_word}' (pos {token_idx}) - Change: {(bent_token - orig_token).abs().mean():.6f}"
-                        )
+                    # if token_idx is not None and token_idx < attention_maps.shape[-1]:
+                    #     orig_token = attention_maps[:, :, :, token_idx]
+                    #     bent_token = bent_attention[:, :, :, token_idx]
+                    #     self.attention_storage.logger.info(
+                    #         f"   🎯 TOKEN '{debug_word}' (pos {token_idx}) - Original mean: {orig_token.mean():.6f}, Bent mean: {bent_token.mean():.6f}"
+                    #     )
+                    #     self.attention_storage.logger.info(
+                    #         f"   🎯 TOKEN '{debug_word}' (pos {token_idx}) - Original range: [{orig_token.min():.6f}, {orig_token.max():.6f}]"
+                    #     )
+                    #     self.attention_storage.logger.info(
+                    #         f"   🎯 TOKEN '{debug_word}' (pos {token_idx}) - Bent range: [{bent_token.min():.6f}, {bent_token.max():.6f}]"
+                    #     )
+                    #     self.attention_storage.logger.info(
+                    #         f"   🎯 TOKEN '{debug_word}' (pos {token_idx}) - Change: {(bent_token - orig_token).abs().mean():.6f}"
+                    #     )
                     
-                    # Also show full tensor comparison (for reference)
-                    self.attention_storage.logger.info(
-                        f"   📊 FULL TENSOR - Original mean: {attention_maps.mean():.6f}, Bent mean: {bent_attention.mean():.6f} (across all {attention_maps.shape[-1]} tokens)"
-                    )
+                    # # Also show full tensor comparison (for reference)
+                    # self.attention_storage.logger.info(
+                    #     f"   📊 FULL TENSOR - Original mean: {attention_maps.mean():.6f}, Bent mean: {bent_attention.mean():.6f} (across all {attention_maps.shape[-1]} tokens)"
+                    # )
                 
                 # PHASE 1 vs PHASE 2: Decide whether to actually use bent attention
                 if self.apply_bending_to_output and bent_attention is not None:
                     # PHASE 2: Complete attention computation with bent attention
                     # This actually affects generation!
-                    self.attention_storage.logger.info(
+                    self.attention_storage.logger.debug(
                         f"🎨 PHASE 2: Using bent attention for generation output"
                     )
                     
@@ -362,7 +255,7 @@ class WanAttentionWrapper(torch.nn.Module):
                     value = value.view(batch_size, seq_len_k, num_heads, head_dim).transpose(1, 2)
                     
                     # Apply bent attention to value: [batch, heads, spatial, text_seq] @ [batch, heads, text_seq, head_dim]
-                    attention_output = torch.matmul(bent_attention, value)  # [batch, heads, spatial, head_dim]
+                    attention_output = torch.matmul(attention_maps, value)  # [batch, heads, spatial, head_dim]
                     
                     # Reshape back: [batch, heads, spatial, head_dim] -> [batch, spatial, heads * head_dim]
                     attention_output = attention_output.transpose(1, 2).contiguous()
@@ -489,7 +382,7 @@ class AttentionStorage:
         # NEW: Attention bending
         self.attention_bender = None  # Optional AttentionBender instance
         self._current_timestep = None  # Track current timestep for bending
-        self.apply_bending_to_output = False  # PHASE 1 (visualization only) vs PHASE 2 (affects generation)
+        self.apply_bending_to_output = True  # PHASE 1 (visualization only) vs PHASE 2 (affects generation)
         
     def parse_parenthetical_tokens(self, prompt: str) -> Dict[str, Dict[str, List[int]]]:
         """Parse prompt to find words in parentheses and get their token IDs and positions."""

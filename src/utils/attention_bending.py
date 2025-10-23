@@ -162,12 +162,12 @@ class AttentionBender:
         if not self.bending_configs:
             return attention_probs
         
-        logger.info(f"🎨 === ATTENTION BENDING START ===")
-        logger.info(f"   Layer: {layer_idx}, Timestep: {timestep}")
-        logger.info(f"   Input shape: {attention_probs.shape}")
-        logger.info(f"   Device: {attention_probs.device}, Dtype: {attention_probs.dtype}")
-        logger.info(f"   Number of configs: {len(self.bending_configs)}")
-        logger.info(f"   Token map: {self.token_to_index_map}")
+        # logger.info(f"🎨 === ATTENTION BENDING START ===")
+        # logger.info(f"   Layer: {layer_idx}, Timestep: {timestep}")
+        # logger.info(f"   Input shape: {attention_probs.shape}")
+        # logger.info(f"   Device: {attention_probs.device}, Dtype: {attention_probs.dtype}")
+        # logger.info(f"   Number of configs: {len(self.bending_configs)}")
+        # logger.info(f"   Token map: {self.token_to_index_map}")
         
         # Handle different input shapes
         original_shape = attention_probs.shape
@@ -176,7 +176,7 @@ class AttentionBender:
             # [B, heads, spatial, seq] -> [B*heads, spatial, seq]
             B, H, S, T = original_shape
             attention_probs = attention_probs.reshape(B * H, S, T)
-            logger.info(f"   Reshaped from {original_shape} to {attention_probs.shape}")
+            # logger.info(f"   Reshaped from {original_shape} to {attention_probs.shape}")
         elif len(original_shape) != 3:
             logger.warning(f"Unexpected attention shape: {original_shape}")
             return attention_probs
@@ -187,7 +187,7 @@ class AttentionBender:
         if spatial_shape is None:
             # TODO: probably just fail here...
             spatial_shape = self._infer_spatial_shape(spatial_tokens)
-        logger.info(f"   Spatial shape: {spatial_shape}")
+        # logger.info(f"   Spatial shape: {spatial_shape}")
         
         # Clone to avoid modifying original
         bent_attention = attention_probs.clone()
@@ -196,7 +196,7 @@ class AttentionBender:
         configs_applied = 0
         for config in self.bending_configs:
             if not self.should_apply(config, layer_idx, timestep):
-                logger.info(f"   ⏭️  Skipping config for '{config.token}' (conditions not met)")
+                # logger.info(f"   ⏭️  Skipping config for '{config.token}' (conditions not met)")
                 continue
             
             # Find token index
@@ -205,7 +205,7 @@ class AttentionBender:
                 logger.warning(f"   ❌ Token '{config.token}' not found in map: {self.token_to_index_map}")
                 continue
             
-            logger.info(f"   ✅ Applying {config.mode.value} to token '{config.token}' (idx={token_idx})")
+            # logger.info(f"   ✅ Applying {config.mode.value} to token '{config.token}' (idx={token_idx})")
             
             if token_idx >= seq_len:
                 logger.warning(f"   ❌ Token index {token_idx} >= seq_len {seq_len}, skipping")
@@ -213,7 +213,7 @@ class AttentionBender:
             
             # Extract attention for this token [batch_heads, spatial_tokens]
             token_attention = bent_attention[:, :, token_idx]
-            logger.info(f"      Token attention shape: {token_attention.shape}, mean: {token_attention.mean():.4f}, max: {token_attention.max():.4f}")
+            # logger.info(f"      Token attention shape: {token_attention.shape}, mean: {token_attention.mean():.4f}, max: {token_attention.max():.4f}")
             
             # Apply transformation
             transformed = self._apply_transformation(
@@ -221,66 +221,66 @@ class AttentionBender:
                 config,
                 spatial_shape
             )
-            logger.info(f"      After transform: mean: {transformed.mean():.4f}, max: {transformed.max():.4f}")
+            # logger.info(f"      After transform: mean: {transformed.mean():.4f}, max: {transformed.max():.4f}")
             
             # DEBUG: Visualize original vs transformed attention
-            if config.should_debug_visualize:
-                try:
-                    from datetime import datetime
-                    from ..visualization.attention_visualizer import visualize_attention_tensor
+            # if config.should_debug_visualize:
+            #     try:
+            #         from datetime import datetime
+            #         from ..visualization.attention_visualizer import visualize_attention_tensor
                     
-                    # Initialize batch directory on first use
-                    if self._debug_batch_dir is None:
-                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                        self._debug_batch_dir = Path("debug_bent_attention") / f"batch_{timestamp}"
-                        self._debug_batch_dir.mkdir(parents=True, exist_ok=True)
-                        logger.info(f"      🎨 DEBUG: Created batch directory: {self._debug_batch_dir}")
+            #         # Initialize batch directory on first use
+            #         if self._debug_batch_dir is None:
+            #             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            #             self._debug_batch_dir = Path("debug_bent_attention") / f"batch_{timestamp}"
+            #             self._debug_batch_dir.mkdir(parents=True, exist_ok=True)
+            #             # logger.info(f"      🎨 DEBUG: Created batch directory: {self._debug_batch_dir}")
                     
-                    # Create subdirectory for this step and token
-                    debug_subdir = self._debug_batch_dir / f"step_{timestep:03d}-layer_{layer_idx}-token_{config.token}"
-                    debug_subdir.mkdir(parents=True, exist_ok=True)
+            #         # Create subdirectory for this step and token
+            #         debug_subdir = self._debug_batch_dir / f"step_{timestep:03d}-layer_{layer_idx}-token_{config.token}"
+            #         debug_subdir.mkdir(parents=True, exist_ok=True)
                     
-                    logger.info(f"      🔍 DEBUG: Visualizing attention to {debug_subdir}")
+            #         # logger.info(f"      🔍 DEBUG: Visualizing attention to {debug_subdir}")
                     
-                    # Determine target size from video dimensions if available
-                    target_size = None  # Will use latent size by default
+            #         # Determine target size from video dimensions if available
+            #         target_size = None  # Will use latent size by default
                     
-                    # Visualize original attention
-                    orig_results = visualize_attention_tensor(
-                        attention_tensor=token_attention,
-                        spatial_shape=spatial_shape,
-                        output_path=debug_subdir / "original",
-                        format='both',
-                        colormap='jet',
-                        fps=15,
-                        aggregate_heads=True,
-                        target_size=target_size,
-                        title=f"Original - Token '{config.token}' Step {timestep}"
-                    )
-                    logger.info(f"      ✅ Original visualization: {orig_results}")
+            #         # Visualize original attention
+            #         orig_results = visualize_attention_tensor(
+            #             attention_tensor=token_attention,
+            #             spatial_shape=spatial_shape,
+            #             output_path=debug_subdir / "original",
+            #             format='both',
+            #             colormap='jet',
+            #             fps=15,
+            #             aggregate_heads=True,
+            #             target_size=target_size,
+            #             title=f"Original - Token '{config.token}' Step {timestep}"
+            #         )
+            #         logger.info(f"      ✅ Original visualization: {orig_results}")
                     
-                    # Visualize transformed attention
-                    transformed_results = visualize_attention_tensor(
-                        attention_tensor=transformed,
-                        spatial_shape=spatial_shape,
-                        output_path=debug_subdir / "transformed",
-                        format='both',
-                        colormap='jet',
-                        fps=15,
-                        aggregate_heads=True,
-                        target_size=target_size,
-                        title=f"Transformed - Token '{config.token}' Step {timestep} ({config.mode.value})"
-                    )
-                    logger.info(f"      ✅ Transformed visualization: {transformed_results}")
+            #         # Visualize transformed attention
+            #         transformed_results = visualize_attention_tensor(
+            #             attention_tensor=transformed,
+            #             spatial_shape=spatial_shape,
+            #             output_path=debug_subdir / "transformed",
+            #             format='both',
+            #             colormap='jet',
+            #             fps=15,
+            #             aggregate_heads=True,
+            #             target_size=target_size,
+            #             title=f"Transformed - Token '{config.token}' Step {timestep} ({config.mode.value})"
+            #         )
+            #         logger.info(f"      ✅ Transformed visualization: {transformed_results}")
                     
-                except Exception as viz_error:
-                    logger.warning(f"      ⚠️  Debug visualization failed: {viz_error}")
-                    import traceback
-                    traceback.print_exc()
+            #     except Exception as viz_error:
+            #         logger.warning(f"      ⚠️  Debug visualization failed: {viz_error}")
+            #         import traceback
+            #         traceback.print_exc()
             
             # Blend with original based on strength
             blended = (1 - config.strength) * token_attention + config.strength * transformed
-            logger.info(f"      After blend (strength={config.strength}): mean: {blended.mean():.4f}, max: {blended.max():.4f}")
+            # logger.info(f"      After blend (strength={config.strength}): mean: {blended.mean():.4f}, max: {blended.max():.4f}")
             
             # Update bent attention BEFORE renormalization
             bent_attention[:, :, token_idx] = blended
@@ -297,12 +297,12 @@ class AttentionBender:
         if configs_applied > 0 and any(cfg.renormalize for cfg in self.bending_configs):
             # Normalize across the sequence dimension (dim=2) so all tokens sum to 1
             bent_attention = self._safe_normalize(bent_attention, dim=2)
-            logger.info(f"   🔄 Renormalized attention across sequence dimension (sum={bent_attention.sum(dim=2).mean():.4f})")
-            logger.info(f"   ⚠️  NOTE: Renormalization forces sum=1, which scales back amplifications!")
+            # logger.info(f"   🔄 Renormalized attention across sequence dimension (sum={bent_attention.sum(dim=2).mean():.4f})")
+            # logger.info(f"   ⚠️  NOTE: Renormalization forces sum=1, which scales back amplifications!")
         
         self.stats["applications"] += 1
-        logger.info(f"   📊 Applied {configs_applied}/{len(self.bending_configs)} configs")
-        logger.info(f"🎨 === ATTENTION BENDING END ===")
+        # logger.info(f"   📊 Applied {configs_applied}/{len(self.bending_configs)} configs")
+        # logger.info(f"🎨 === ATTENTION BENDING END ===")
 
         
         # Restore original shape if needed
