@@ -1259,6 +1259,21 @@ class WanVideoGenerator:
                             weighting_method=embedding_method
                         )
                         
+                        # Log tokenization for comparison with attention_storage
+                        if hasattr(self.pipe, 'tokenizer'):
+                            # Tokenize the clean prompt (without weight syntax) to match attention_storage
+                            clean_prompt_for_tokenization = clean_prompt_for_attention(processed_prompt)
+                            tokens = self.pipe.tokenizer.encode(clean_prompt_for_tokenization, add_special_tokens=False)
+                            token_texts = [self.pipe.tokenizer.decode([tid]) for tid in tokens]
+                            
+                            logging.info(f"🔍 VIDEO_GENERATOR tokenization (for comparison with attention_storage):")
+                            logging.info(f"   Clean prompt: '{clean_prompt_for_tokenization}'")
+                            logging.info(f"   Tokenized to {len(tokens)} tokens (WITHOUT special tokens):")
+                            for i, (tid, text) in enumerate(zip(tokens[:20], token_texts[:20])):  # Show first 20
+                                logging.info(f"     Pos {i}: ID={tid}, Text='{text}'")
+                            if len(tokens) > 20:
+                                logging.info(f"     ... and {len(tokens) - 20} more tokens")
+                        
                         # Log for comparison with dynamic embeddings
                         logging.info(f"📊 Weighted prompt embeddings stats:")
                         logging.info(f"   Shape: {prompt_embeds.shape}")
@@ -1298,6 +1313,22 @@ class WanVideoGenerator:
                             callback_on_step_end_tensor_inputs=callback_tensor_inputs if callback_fn else None
                         ).frames[0]
                 else:
+                    # Log tokenization for standard prompt path
+                    # TODO: DELETE this block after confirming attention_storage matches other methods
+                    if hasattr(self.pipe, 'tokenizer'):
+                        # Tokenize the clean prompt (without weight syntax) to match attention_storage
+                        clean_prompt_for_tokenization = clean_prompt_for_attention(processed_prompt)
+                        tokens = self.pipe.tokenizer.encode(clean_prompt_for_tokenization, add_special_tokens=False)
+                        token_texts = [self.pipe.tokenizer.decode([tid]) for tid in tokens]
+                        
+                        logging.info(f"🔍 VIDEO_GENERATOR tokenization (standard path, for comparison with attention_storage):")
+                        logging.info(f"   Clean prompt: '{clean_prompt_for_tokenization}'")
+                        logging.info(f"   Tokenized to {len(tokens)} tokens (WITHOUT special tokens):")
+                        for i, (tid, text) in enumerate(zip(tokens[:20], token_texts[:20])):  # Show first 20
+                            logging.info(f"     Pos {i}: ID={tid}, Text='{text}'")
+                        if len(tokens) > 20:
+                            logging.info(f"     ... and {len(tokens) - 20} more tokens")
+                    
                     # Use processed prompt (repetition, enhanced language, or clean) with callback
                     video_frames = self.pipe(
                         prompt=processed_prompt,

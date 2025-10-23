@@ -161,25 +161,33 @@ class WanAttentionWrapper(torch.nn.Module):
                             )
                         
                         # DEBUG: IMMEDIATELY check what bend_attention returned
-                        token_idx = 273
-                        if bent_attention is not None and token_idx < attention_maps.shape[-1]:
-                            orig_tok = attention_maps[:, :, :, token_idx]
-                            bent_tok = bent_attention[:, :, :, token_idx]
-                            self.attention_storage.logger.info(
-                                f"🔍 IMMEDIATE POST-BENDING (block {self.block_index}, step {diffusion_step}):"
-                            )
-                            self.attention_storage.logger.info(
-                                f"   bent_attention shape: {bent_attention.shape}, dtype: {bent_attention.dtype}"
-                            )
-                            self.attention_storage.logger.info(
-                                f"   Token {token_idx} - Original: mean={orig_tok.mean():.6f}, std={orig_tok.std():.6f}"
-                            )
-                            self.attention_storage.logger.info(
-                                f"   Token {token_idx} - Bent: mean={bent_tok.mean():.6f}, std={bent_tok.std():.6f}"
-                            )
-                            self.attention_storage.logger.info(
-                                f"   Token {token_idx} - Difference: mean_abs={((bent_tok - orig_tok).abs().mean()):.6f}"
-                            )
+                        # Use actual target token positions from the token map
+                        debug_token_positions = []
+                        if self.attention_storage.target_tokens:
+                            for word, token_info in list(self.attention_storage.target_tokens.items())[:1]:  # Just check first token
+                                if token_info.get("positions"):
+                                    debug_token_positions.append((word, token_info["positions"][0]))
+                        
+                        if bent_attention is not None and debug_token_positions:
+                            word, token_idx = debug_token_positions[0]
+                            if token_idx < attention_maps.shape[-1]:
+                                orig_tok = attention_maps[:, :, :, token_idx]
+                                bent_tok = bent_attention[:, :, :, token_idx]
+                                self.attention_storage.logger.info(
+                                    f"🔍 IMMEDIATE POST-BENDING (block {self.block_index}, step {diffusion_step}):"
+                                )
+                                self.attention_storage.logger.info(
+                                    f"   bent_attention shape: {bent_attention.shape}, dtype: {bent_attention.dtype}"
+                                )
+                                self.attention_storage.logger.info(
+                                    f"   Token '{word}' (pos {token_idx}) - Original: mean={orig_tok.mean():.6f}, std={orig_tok.std():.6f}"
+                                )
+                                self.attention_storage.logger.info(
+                                    f"   Token '{word}' (pos {token_idx}) - Bent: mean={bent_tok.mean():.6f}, std={bent_tok.std():.6f}"
+                                )
+                                self.attention_storage.logger.info(
+                                    f"   Token '{word}' (pos {token_idx}) - Difference: mean_abs={((bent_tok - orig_tok).abs().mean()):.6f}"
+                                )
                         
                         self.attention_storage.logger.info(
                             f"✅ Applied attention bending at block {self.block_index}, step {diffusion_step}"
@@ -197,94 +205,103 @@ class WanAttentionWrapper(torch.nn.Module):
                         from src.visualization.attention_visualizer import visualize_attention_tensor
                         from datetime import datetime
                         
-                        # # Get spatial shape for visualization
-                        # if (self.attention_storage.video_height is not None and 
-                        #     self.attention_storage.video_width is not None and
-                        #     self.attention_storage.num_frames is not None):
-                        #     # Calculate latent dimensions
-                        #     latent_f = (self.attention_storage.num_frames - 1) // 4 + 1
-                        #     latent_h = self.attention_storage.video_height // 16
-                        #     latent_w = self.attention_storage.video_width // 16
-                        #     spatial_shape = (latent_f, latent_h, latent_w)
+                        # Get spatial shape for visualization
+                        if (self.attention_storage.video_height is not None and 
+                            self.attention_storage.video_width is not None and
+                            self.attention_storage.num_frames is not None):
+                            # Calculate latent dimensions
+                            latent_f = (self.attention_storage.num_frames - 1) // 4 + 1
+                            latent_h = self.attention_storage.video_height // 16
+                            latent_w = self.attention_storage.video_width // 16
+                            spatial_shape = (latent_f, latent_h, latent_w)
                             
-                        #     # Full video dimensions for upscaling
-                        #     target_size = (self.attention_storage.video_width, self.attention_storage.video_height)
+                            # Full video dimensions for upscaling
+                            target_size = (self.attention_storage.video_width, self.attention_storage.video_height)
                             
-                        #     # Create debug output directory - use video_id to group all steps from same run
-                        #     # Initialize run directory on first use
-                        #     if not hasattr(self.attention_storage, '_debug_run_dir') or self.attention_storage._debug_run_dir is None:
-                        #         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                        #         video_id = self.attention_storage.current_video_id or "unknown"
-                        #         self.attention_storage._debug_run_dir = Path("outputs/debug_storage_visualization") / f"{video_id}_{timestamp}"
-                        #         self.attention_storage._debug_run_dir.mkdir(parents=True, exist_ok=True)
-                        #         self.attention_storage.logger.info(f"🎨 DEBUG: Created run directory: {self.attention_storage._debug_run_dir}")
+                            # Create debug output directory - use video_id to group all steps from same run
+                            # Initialize run directory on first use
+                            if not hasattr(self.attention_storage, '_debug_run_dir') or self.attention_storage._debug_run_dir is None:
+                                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                video_id = self.attention_storage.current_video_id or "unknown"
+                                self.attention_storage._debug_run_dir = Path("outputs/debug_storage_visualization") / f"{video_id}_{timestamp}"
+                                self.attention_storage._debug_run_dir.mkdir(parents=True, exist_ok=True)
+                                self.attention_storage.logger.info(f"🎨 DEBUG: Created run directory: {self.attention_storage._debug_run_dir}")
                             
-                        #     # Create step-specific subdirectory within run
-                        #     debug_dir = self.attention_storage._debug_run_dir / f"step_{diffusion_step:03d}_block_{self.block_index}"
-                        #     debug_dir.mkdir(parents=True, exist_ok=True)
+                            # Create step-specific subdirectory within run
+                            debug_dir = self.attention_storage._debug_run_dir / f"step_{diffusion_step:03d}_block_{self.block_index}"
+                            debug_dir.mkdir(parents=True, exist_ok=True)
                             
-                        #     # Get token index to visualize (e.g., "car" token)
-                        #     token_idx = 273  # TODO: Make this dynamic based on target token
+                            # Get token index to visualize from actual target tokens
+                            token_idx = None
+                            if self.attention_storage.target_tokens:
+                                # Use the first target token's position
+                                first_word = list(self.attention_storage.target_tokens.keys())[0]
+                                token_info = self.attention_storage.target_tokens[first_word]
+                                if token_info.get("positions"):
+                                    token_idx = token_info["positions"][0]
                             
-                        #     # Visualize original attention for this token
-                        #     # attention_maps shape: [batch, heads, spatial, text_seq]
+                            if token_idx is None:
+                                token_idx = 0  # Fallback to first token if no targets
                             
-                        #     # DEBUG: Log the full attention_maps shape and a sample
-                        #     self.attention_storage.logger.info(f"🔍 ATTENTION_MAPS full shape: {attention_maps.shape}")
-                        #     self.attention_storage.logger.info(f"🔍 Token {token_idx} column stats: min={attention_maps[:,:,:,token_idx].min():.6f}, max={attention_maps[:,:,:,token_idx].max():.6f}, mean={attention_maps[:,:,:,token_idx].mean():.6f}")
+                            # Visualize original attention for this token
+                            # attention_maps shape: [batch, heads, spatial, text_seq]
                             
-                        #     # Check if we're extracting from the RIGHT dimension
-                        #     # attention_maps is [batch=1, heads=12, spatial=20670, seq=512]
-                        #     # We want spatial attention for token_idx
-                        #     # So we select [:, :, :, token_idx] to get [1, 12, 20670]
-                        #     orig_token_attn = attention_maps[:, :, :, token_idx]  # [batch, heads, spatial]
+                            # DEBUG: Log the full attention_maps shape and a sample
+                            self.attention_storage.logger.info(f"🔍 ATTENTION_MAPS full shape: {attention_maps.shape}")
+                            self.attention_storage.logger.info(f"🔍 Token {token_idx} column stats: min={attention_maps[:,:,:,token_idx].min():.6f}, max={attention_maps[:,:,:,token_idx].max():.6f}, mean={attention_maps[:,:,:,token_idx].mean():.6f}")
                             
-                        #     self.attention_storage.logger.info(f"🔍 After extraction orig_token_attn shape: {orig_token_attn.shape}")
+                            # Check if we're extracting from the RIGHT dimension
+                            # attention_maps is [batch=1, heads=12, spatial=20670, seq=512]
+                            # We want spatial attention for token_idx
+                            # So we select [:, :, :, token_idx] to get [1, 12, 20670]
+                            orig_token_attn = attention_maps[:, :, :, token_idx]  # [batch, heads, spatial]
                             
-                        #     # Average across heads and remove batch dimension
-                        #     # [batch, heads, spatial] -> [spatial]
-                        #     orig_token_attn_avg = orig_token_attn.mean(dim=1).squeeze(0)  # [spatial]
+                            self.attention_storage.logger.info(f"🔍 After extraction orig_token_attn shape: {orig_token_attn.shape}")
                             
-                        #     self.attention_storage.logger.info(
-                        #         f"🎨 DEBUG VIZ: Visualizing ORIGINAL token {token_idx} attention before storage"
-                        #     )
-                        #     self.attention_storage.logger.info(f"   Shape after averaging heads: {orig_token_attn_avg.shape}, Spatial shape: {spatial_shape}")
-                        #     self.attention_storage.logger.info(f"   VALUE STATS: min={orig_token_attn_avg.min():.6f}, max={orig_token_attn_avg.max():.6f}, mean={orig_token_attn_avg.mean():.6f}, std={orig_token_attn_avg.std():.6f}")
+                            # Average across heads and remove batch dimension
+                            # [batch, heads, spatial] -> [spatial]
+                            orig_token_attn_avg = orig_token_attn.mean(dim=1).squeeze(0)  # [spatial]
                             
-                        #     visualize_attention_tensor(
-                        #         attention_tensor=orig_token_attn_avg,
-                        #         spatial_shape=spatial_shape,
-                        #         output_path=debug_dir / "original_token",
-                        #         format='both',
-                        #         aggregate_heads=True,  # Already averaged, but won't hurt
-                        #         target_size=target_size,
-                        #         title=f"Original - Step {diffusion_step} - Token {token_idx}"
-                        #     )
+                            self.attention_storage.logger.info(
+                                f"🎨 DEBUG VIZ: Visualizing ORIGINAL token {token_idx} attention before storage"
+                            )
+                            self.attention_storage.logger.info(f"   Shape after averaging heads: {orig_token_attn_avg.shape}, Spatial shape: {spatial_shape}")
+                            self.attention_storage.logger.info(f"   VALUE STATS: min={orig_token_attn_avg.min():.6f}, max={orig_token_attn_avg.max():.6f}, mean={orig_token_attn_avg.mean():.6f}, std={orig_token_attn_avg.std():.6f}")
                             
-                        #     # Visualize bent attention for this token
-                        #     bent_token_attn = bent_attention[:, :, :, token_idx]  # [batch, heads, spatial]
+                            visualize_attention_tensor(
+                                attention_tensor=orig_token_attn_avg,
+                                spatial_shape=spatial_shape,
+                                output_path=debug_dir / "original_token",
+                                format='both',
+                                aggregate_heads=True,  # Already averaged, but won't hurt
+                                target_size=target_size,
+                                title=f"Original - Step {diffusion_step} - Token {token_idx}"
+                            )
                             
-                        #     # Average across heads and remove batch dimension
-                        #     # [batch, heads, spatial] -> [spatial]
-                        #     bent_token_attn_avg = bent_token_attn.mean(dim=1).squeeze(0)  # [spatial]
+                            # Visualize bent attention for this token
+                            bent_token_attn = bent_attention[:, :, :, token_idx]  # [batch, heads, spatial]
                             
-                        #     self.attention_storage.logger.info(
-                        #         f"🎨 DEBUG VIZ: Visualizing BENT token {token_idx} attention before storage"
-                        #     )
-                        #     self.attention_storage.logger.info(f"   Shape after averaging heads: {bent_token_attn_avg.shape}, Spatial shape: {spatial_shape}")
-                        #     self.attention_storage.logger.info(f"   VALUE STATS: min={bent_token_attn_avg.min():.6f}, max={bent_token_attn_avg.max():.6f}, mean={bent_token_attn_avg.mean():.6f}, std={bent_token_attn_avg.std():.6f}")
+                            # Average across heads and remove batch dimension
+                            # [batch, heads, spatial] -> [spatial]
+                            bent_token_attn_avg = bent_token_attn.mean(dim=1).squeeze(0)  # [spatial]
                             
-                        #     visualize_attention_tensor(
-                        #         attention_tensor=bent_token_attn_avg,
-                        #         spatial_shape=spatial_shape,
-                        #         output_path=debug_dir / "bent_token",
-                        #         format='both',
-                        #         aggregate_heads=True,  # Already averaged, but won't hurt
-                        #         target_size=target_size,
-                        #         title=f"Bent - Step {diffusion_step} - Token {token_idx}"
-                        #     )
+                            self.attention_storage.logger.info(
+                                f"🎨 DEBUG VIZ: Visualizing BENT token {token_idx} attention before storage"
+                            )
+                            self.attention_storage.logger.info(f"   Shape after averaging heads: {bent_token_attn_avg.shape}, Spatial shape: {spatial_shape}")
+                            self.attention_storage.logger.info(f"   VALUE STATS: min={bent_token_attn_avg.min():.6f}, max={bent_token_attn_avg.max():.6f}, mean={bent_token_attn_avg.mean():.6f}, std={bent_token_attn_avg.std():.6f}")
                             
-                            # self.attention_storage.logger.info(f"✅ Debug visualizations saved to: {debug_dir}")
+                            visualize_attention_tensor(
+                                attention_tensor=bent_token_attn_avg,
+                                spatial_shape=spatial_shape,
+                                output_path=debug_dir / "bent_token",
+                                format='both',
+                                aggregate_heads=True,  # Already averaged, but won't hurt
+                                target_size=target_size,
+                                title=f"Bent - Step {diffusion_step} - Token {token_idx}"
+                            )
+                            
+                            self.attention_storage.logger.info(f"✅ Debug visualizations saved to: {debug_dir}")
                             
                     except Exception as viz_error:
                         self.attention_storage.logger.warning(f"Debug visualization failed: {viz_error}")
@@ -301,21 +318,30 @@ class WanAttentionWrapper(torch.nn.Module):
                 )
                 if bent_attention is not None:
                     # Compare ONLY the bent token column, not the full tensor!
-                    token_idx = 273  # TODO: Get this dynamically
-                    if token_idx < attention_maps.shape[-1]:
+                    # Get token position from actual target tokens
+                    debug_word = None
+                    token_idx = None
+                    if self.attention_storage.target_tokens:
+                        for word, token_info in list(self.attention_storage.target_tokens.items())[:1]:
+                            if token_info.get("positions"):
+                                debug_word = word
+                                token_idx = token_info["positions"][0]
+                                break
+                    
+                    if token_idx is not None and token_idx < attention_maps.shape[-1]:
                         orig_token = attention_maps[:, :, :, token_idx]
                         bent_token = bent_attention[:, :, :, token_idx]
                         self.attention_storage.logger.info(
-                            f"   🎯 TOKEN {token_idx} - Original mean: {orig_token.mean():.6f}, Bent mean: {bent_token.mean():.6f}"
+                            f"   🎯 TOKEN '{debug_word}' (pos {token_idx}) - Original mean: {orig_token.mean():.6f}, Bent mean: {bent_token.mean():.6f}"
                         )
                         self.attention_storage.logger.info(
-                            f"   🎯 TOKEN {token_idx} - Original range: [{orig_token.min():.6f}, {orig_token.max():.6f}]"
+                            f"   🎯 TOKEN '{debug_word}' (pos {token_idx}) - Original range: [{orig_token.min():.6f}, {orig_token.max():.6f}]"
                         )
                         self.attention_storage.logger.info(
-                            f"   🎯 TOKEN {token_idx} - Bent range: [{bent_token.min():.6f}, {bent_token.max():.6f}]"
+                            f"   🎯 TOKEN '{debug_word}' (pos {token_idx}) - Bent range: [{bent_token.min():.6f}, {bent_token.max():.6f}]"
                         )
                         self.attention_storage.logger.info(
-                            f"   🎯 TOKEN {token_idx} - Change: {(bent_token - orig_token).abs().mean():.6f}"
+                            f"   🎯 TOKEN '{debug_word}' (pos {token_idx}) - Change: {(bent_token - orig_token).abs().mean():.6f}"
                         )
                     
                     # Also show full tensor comparison (for reference)
@@ -465,8 +491,8 @@ class AttentionStorage:
         self._current_timestep = None  # Track current timestep for bending
         self.apply_bending_to_output = False  # PHASE 1 (visualization only) vs PHASE 2 (affects generation)
         
-    def parse_parenthetical_tokens(self, prompt: str) -> Dict[str, List[int]]:
-        """Parse prompt to find words in parentheses and get their token IDs."""
+    def parse_parenthetical_tokens(self, prompt: str) -> Dict[str, Dict[str, List[int]]]:
+        """Parse prompt to find words in parentheses and get their token IDs and positions."""
         if not self.tokenizer:
             self.logger.warning("No tokenizer available for token parsing")
             return {}
@@ -484,42 +510,40 @@ class AttentionStorage:
         for word in matches:
             word = word.strip()
             
-            # Find the token positions for this word in the context
+            # Tokenize the word to get its token sequence
+            word_tokens = self.tokenizer.encode(word, add_special_tokens=False)
+            word_token_texts = [self.tokenizer.decode([tid]) for tid in word_tokens]
+            
+            # Find where this token sequence appears in the prompt
             word_token_ids = []
             word_positions = []
             
-            # Look for the word in the tokenized sequence
-            for i, token_text in enumerate(full_text_tokens):
-                if word.lower() in token_text.lower() or token_text.lower() in word.lower():
-                    word_token_ids.append(full_tokens[i])
-                    word_positions.append(i)
+            # Search for exact sequence match
+            word_len = len(word_tokens)
+            for i in range(len(full_tokens) - word_len + 1):
+                if full_tokens[i:i+word_len] == word_tokens:
+                    word_token_ids = word_tokens.copy()
+                    word_positions = list(range(i, i+word_len))
+                    break
             
-            # If we didn't find it by text matching, try a different approach
+            # If still no match, use individual tokenization as fallback
             if not word_token_ids:
-                # Tokenize just the word to see what we get
-                individual_tokens = self.tokenizer.encode(word, add_special_tokens=False)
-                
-                # Try to find these tokens in the full sequence
-                for token_id in individual_tokens:
-                    if token_id in full_tokens:
-                        idx = full_tokens.index(token_id)
-                        word_token_ids.append(token_id)
-                        word_positions.append(idx)
+                word_token_ids = word_tokens
+                word_positions = []  # Unknown positions
+                self.logger.warning(f"Could not find '{word}' in context, using individual tokenization: {word_tokens}")
             
-            # Still no match? Log what we found and use individual tokenization as fallback
-            if not word_token_ids:
-                individual_tokens = self.tokenizer.encode(word, add_special_tokens=False)
-                word_token_ids = individual_tokens
-                self.logger.warning(f"Could not find '{word}' in context, using individual tokenization: {individual_tokens}")
-            
-            token_mapping[word] = word_token_ids
+            # Store in new format: {"token_ids": [...], "positions": [...]}
+            token_mapping[word] = {
+                "token_ids": word_token_ids,
+                "positions": word_positions
+            }
             
             self.logger.info(f"Found parenthetical word '{word}' -> tokens {word_token_ids} at positions {word_positions}")
             self.logger.debug(f"Full prompt tokens: {list(zip(full_tokens, full_text_tokens))}")
         
         return token_mapping
     
-    def _map_target_words_to_tokens(self, target_words: List[str], prompt: str) -> Dict[str, List[int]]:
+    def _map_target_words_to_tokens(self, target_words: List[str], prompt: str) -> Dict[str, Dict[str, List[int]]]:
         """
         Map target words to their token positions in the processed prompt.
         
@@ -528,50 +552,76 @@ class AttentionStorage:
             prompt: Final processed prompt that will be sent to the model
             
         Returns:
-            Mapped tokens: word -> token_ids
+            Mapped tokens: word -> {"token_ids": [...], "positions": [...]}
+            
+        Note:
+            This function finds the exact token positions where each target word appears
+            in the prompt by matching the tokenization of the word with the tokenization
+            of the full prompt. 
+            
+            CRITICAL: We tokenize WITH special tokens (add_special_tokens=True) to match 
+            the WAN pipeline's behavior. This means positions include the offset from 
+            special tokens at the beginning of the sequence.
         """
         if not self.tokenizer or not target_words:
             return {}
         
         mapped_tokens = {}
         
-        # Tokenize the prompt to get the actual context
-        prompt_tokens = self.tokenizer.encode(prompt, add_special_tokens=False)
+        # Tokenize the full prompt WITH special tokens to match WAN pipeline
+        # This matches: pipe._get_t5_prompt_embeds() which uses add_special_tokens=True
+        prompt_tokens = self.tokenizer.encode(prompt, add_special_tokens=True)
         prompt_text_tokens = [self.tokenizer.decode([tid]) for tid in prompt_tokens]
         
         self.logger.debug(f"Mapping target words to prompt tokens:")
         self.logger.debug(f"  Prompt: '{prompt}'")
         self.logger.debug(f"  Target words: {target_words}")
+        self.logger.debug(f"  Full tokenization ({len(prompt_tokens)} tokens, WITH special tokens to match WAN):")
+        for i, (tid, text) in enumerate(zip(prompt_tokens, prompt_text_tokens)):
+            self.logger.debug(f"    Pos {i}: ID={tid}, Text='{text}'")
         
         for target_word in target_words:
             # Clean the target word (remove weight syntax if any)
             clean_word = target_word.split(':')[0].strip()
             
-            # Find the word in the prompt tokens
+            # Tokenize the target word to get its token sequence
+            word_tokens = self.tokenizer.encode(clean_word, add_special_tokens=False)
+            word_token_texts = [self.tokenizer.decode([tid]) for tid in word_tokens]
+            
+            self.logger.debug(f"  Target word '{clean_word}' tokenizes to {len(word_tokens)} tokens: {word_tokens}")
+            self.logger.debug(f"    Token texts: {word_token_texts}")
+            
+            # Find where this token sequence appears in the prompt
             word_token_ids = []
             word_positions = []
             
-            # Method 1: Look for the word in the tokenized sequence
-            for i, token_text in enumerate(prompt_text_tokens):
-                if clean_word.lower() in token_text.lower() or token_text.lower() in clean_word.lower():
-                    word_token_ids.append(prompt_tokens[i])
-                    word_positions.append(i)
-            
-            # Method 2: If not found, try tokenizing the word and finding matches
-            if not word_token_ids:
-                individual_tokens = self.tokenizer.encode(clean_word, add_special_tokens=False)
-                for token_id in individual_tokens:
-                    if token_id in prompt_tokens:
-                        idx = prompt_tokens.index(token_id)
-                        word_token_ids.append(token_id)
-                        word_positions.append(idx)
+            # Search for the exact token sequence in the prompt
+            # This handles both single-token and multi-token words correctly
+            word_len = len(word_tokens)
+            for i in range(len(prompt_tokens) - word_len + 1):
+                # Check if token sequence matches
+                if prompt_tokens[i:i+word_len] == word_tokens:
+                    # Found a match!
+                    word_token_ids = word_tokens.copy()
+                    word_positions = list(range(i, i+word_len))
+                    self.logger.debug(f"    Found match at positions {word_positions} (WITHOUT special tokens)")
+                    break  # Only take first occurrence
             
             if word_token_ids:
-                # Use original target_word as key to preserve any weight info for metadata
-                mapped_tokens[target_word] = word_token_ids
-                self.logger.info(f"Mapped target word '{target_word}' -> '{clean_word}' -> tokens {word_token_ids} at positions {word_positions}")
+                # Store both token IDs AND positions
+                mapped_tokens[target_word] = {
+                    "token_ids": word_token_ids,
+                    "positions": word_positions
+                }
+                self.logger.info(f"Mapped target word '{target_word}' -> '{clean_word}':")
+                self.logger.info(f"  Token IDs: {word_token_ids}")
+                self.logger.info(f"  Positions (no special tokens): {word_positions}")
+                self.logger.info(f"  Token texts: {[self.tokenizer.decode([tid]) for tid in word_token_ids]}")
             else:
                 self.logger.warning(f"Could not find target word '{target_word}' in prompt '{prompt}'")
+                self.logger.warning(f"  Word tokenizes to: {word_tokens} ({word_token_texts})")
+                self.logger.warning(f"  Full prompt tokenizes to: {prompt_tokens}")
+                self.logger.warning(f"  Consider checking that the word appears exactly as written in the prompt")
         
         return mapped_tokens
     
@@ -645,8 +695,8 @@ class AttentionStorage:
         
         if self.target_tokens:
             self.logger.info(f"Found {len(self.target_tokens)} target tokens for attention tracking:")
-            for word, token_ids in self.target_tokens.items():
-                self.logger.info(f"  '{word}' -> tokens {token_ids}")
+            for word, token_info in self.target_tokens.items():
+                self.logger.info(f"  '{word}' -> token IDs {token_info['token_ids']} at positions {token_info['positions']}")
         else:
             self.logger.info("No target words or parenthetical tokens found - no attention maps will be stored")
     
@@ -820,12 +870,12 @@ class AttentionStorage:
         
         try:
             # Process each target word
-            for word, token_ids in self.target_tokens.items():
+            for word, token_info in self.target_tokens.items():
                 word_dir = self.current_video_dir / f"token_{word}"
                 word_dir.mkdir(exist_ok=True)
                 
-                # Process attention maps for this word
-                self._process_word_attention(word, token_ids, step, timestep, total_steps, word_dir)
+                # Pass the full token_info dict (with both token_ids and positions)
+                self._process_word_attention(word, token_info, step, timestep, total_steps, word_dir)
             
             self.stored_steps.append(step)
             self.current_attention_maps = {}  # Clear for next step
@@ -837,11 +887,23 @@ class AttentionStorage:
             self.logger.error(f"Error storing attention maps for step {step}: {e}")
             return False
     
-    def _process_word_attention(self, word: str, token_ids: List[int], 
+    def _process_word_attention(self, word: str, token_info: Dict[str, List[int]], 
                                step: int, timestep: float, total_steps: int,
                                word_dir: Path):
-        """Process and store attention maps for a specific word."""
-        self.logger.debug(f"Processing attention for word '{word}' with token IDs {token_ids}")
+        """Process and store attention maps for a specific word.
+        
+        Args:
+            word: The target word
+            token_info: Dict with "token_ids" and "positions" (WITH special tokens offset)
+            step: Current denoising step
+            timestep: Current timestep value
+            total_steps: Total number of denoising steps
+            word_dir: Directory to store attention maps for this word
+        """
+        token_ids = token_info["token_ids"]
+        token_positions = token_info["positions"]
+        
+        self.logger.debug(f"Processing attention for word '{word}' with token IDs {token_ids} at positions {token_positions}")
         self.logger.debug(f"Available attention map blocks: {list(self.current_attention_maps.keys())}")
         
         filename_base = f"step_{step:03d}"
@@ -853,8 +915,8 @@ class AttentionStorage:
             
             self.logger.debug(f"Block {block_idx} raw attention shape: {attention.shape}")
             
-            # Extract attention for target tokens
-            token_attention = self._extract_token_attention(attention, token_ids)
+            # Extract attention for target token positions (not IDs!)
+            token_attention = self._extract_token_attention(attention, token_positions)
             self.logger.debug(f"Block {block_idx} token attention shape after extraction: {token_attention.shape}")
             
             block_attentions.append(token_attention)
@@ -900,8 +962,16 @@ class AttentionStorage:
                 aggregation_method=aggregation_method
             )
     
-    def _extract_token_attention(self, attention: torch.Tensor, token_ids: List[int]) -> torch.Tensor:
-        """Extract attention weights for specific tokens."""
+    def _extract_token_attention(self, attention: torch.Tensor, token_positions: List[int]) -> torch.Tensor:
+        """Extract attention weights for specific token positions.
+        
+        Args:
+            attention: Attention tensor [batch, heads, seq_len_spatial, seq_len_text]
+            token_positions: List of token positions (WITH special tokens offset) to extract
+            
+        Returns:
+            Extracted attention tensor [batch, heads, seq_len_spatial, 1]
+        """
         # attention shape: [batch, heads, seq_len_spatial, seq_len_text]
         # We want cross-attention from spatial positions to specific text tokens
         
@@ -910,55 +980,19 @@ class AttentionStorage:
             # This would require a more complex storage structure
             pass
         
-        # Find token positions in the current prompt's tokenized sequence
-        token_positions = []
-        if self.tokenizer and self.current_prompt:
-            # Tokenize the current prompt to get the sequence
-            tokens = self.tokenizer(
-                self.current_prompt, 
-                return_tensors="pt", 
-                padding="max_length", 
-                max_length=512, 
-                truncation=True
-            )
-            token_sequence = tokens["input_ids"][0].tolist()
-            
-            # Debug: Log tokenization details
-            self.logger.debug(f"Current prompt: '{self.current_prompt}'")
-            self.logger.debug(f"Token sequence length: {len(token_sequence)}")
-            self.logger.debug(f"First 20 tokens: {token_sequence[:20]}")
-            self.logger.debug(f"Looking for token IDs: {token_ids}")
-            
-            # Also check without special tokens
-            tokens_no_special = self.tokenizer(
-                self.current_prompt, 
-                return_tensors="pt", 
-                add_special_tokens=False
-            )
-            token_sequence_no_special = tokens_no_special["input_ids"][0].tolist()
-            self.logger.debug(f"Tokens without special tokens: {token_sequence_no_special}")
-            
-            # Find positions of our target token IDs in the sequence
-            for token_id in token_ids:
-                positions = [i for i, tid in enumerate(token_sequence) if tid == token_id]
-                positions_no_special = [i for i, tid in enumerate(token_sequence_no_special) if tid == token_id]
-                token_positions.extend(positions)
-                
-                self.logger.debug(f"Token ID {token_id} found at positions {positions} (with special) and {positions_no_special} (without special)")
-            
-            self.logger.debug(f"Token IDs {token_ids} found at positions {token_positions} in sequence")
-        
         if not token_positions:
-            self.logger.warning(f"Token IDs {token_ids} not found in tokenized sequence")
+            self.logger.warning(f"No token positions provided for extraction")
             # Return zeros with correct shape
             return torch.zeros(attention.shape[0], attention.shape[1], attention.shape[2], 1, 
                              dtype=attention.dtype, device=attention.device)
         
-        # Extract attention for the found token positions
+        # Extract attention for the provided token positions
         token_attentions = []
         for pos in token_positions:
             if pos < attention.shape[-1]:  # Check if position is within sequence length
                 token_attentions.append(attention[:, :, :, pos:pos+1])
+            else:
+                self.logger.warning(f"Position {pos} >= sequence length {attention.shape[-1]}, skipping")
         
         if token_attentions:
             if len(token_attentions) == 1:
@@ -967,7 +1001,7 @@ class AttentionStorage:
                 # Average attention across multiple token positions
                 return torch.cat(token_attentions, dim=-1).mean(dim=-1, keepdim=True)
         else:
-            self.logger.error(f"No valid token positions found for token IDs {token_ids}")
+            self.logger.error(f"No valid token positions found in {token_positions}")
             return torch.zeros(attention.shape[0], attention.shape[1], attention.shape[2], 1,
                              dtype=attention.dtype, device=attention.device)
     
@@ -1361,15 +1395,19 @@ class AttentionStorage:
         """
         Update the attention bender's token map with current target tokens.
         Should be called after tokens are parsed from the prompt.
+        
+        IMPORTANT: Maps word -> POSITION in sequence (not token ID!)
+        The attention maps use positions to index into the sequence dimension.
         """
         if self.attention_bender is not None and self.target_tokens:
-            # Create index map: token_text -> position in sequence
-            token_to_index = {
-                word.lower(): min(token_ids) if token_ids else 0 
-                for word, token_ids in self.target_tokens.items()
+            # Create index map: token_text -> POSITION in sequence (not token ID!)
+            # For multi-token words, use the first position
+            token_to_position = {
+                word.lower(): token_info["positions"][0] if token_info["positions"] else 0
+                for word, token_info in self.target_tokens.items()
             }
-            self.attention_bender.update_token_map(token_to_index)
-            self.logger.debug(f"Updated bender token map: {token_to_index}")
+            self.attention_bender.update_token_map(token_to_position)
+            self.logger.debug(f"Updated bender token map (word -> position): {token_to_position}")
     
     def set_current_timestep(self, timestep: Optional[Union[int, float, torch.Tensor]]):
         """

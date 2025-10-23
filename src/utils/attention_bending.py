@@ -105,7 +105,7 @@ class AttentionBender:
             device: Device for tensor operations
         """
         self.bending_configs = bending_configs
-        logger.info("INITIAL TOKEN TO INDEX MAP:", token_to_index_map)    
+        logger.info(f"INITIAL TOKEN TO INDEX MAP: {token_to_index_map}")    
         self.token_to_index_map = token_to_index_map or {}
         self.device = device
         
