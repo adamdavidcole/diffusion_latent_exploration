@@ -5,6 +5,7 @@ import os
 import re
 import numpy as np
 import torch
+import torch.nn.functional as F
 from pathlib import Path
 from typing import Optional, Union, Dict, Any, List, Tuple
 import logging
@@ -86,22 +87,66 @@ class WanAttentionWrapper(torch.nn.Module):
                 hidden_states_copy = torch.empty_like(hidden_states).copy_(hidden_states)
                 encoder_hidden_states_copy = torch.empty_like(encoder_hidden_states).copy_(encoder_hidden_states)
                 
-                # Prepare query, key, and value tensors
+                # Prepare query, key, and value tensors (matching WAN implementation)
                 query = self.original_module.to_q(hidden_states_copy)
                 key = self.original_module.to_k(encoder_hidden_states_copy)
+                value = self.original_module.to_v(encoder_hidden_states_copy)
                 
-                # Reshape query, key tensors
+                # Apply normalization (RMSNorm) - critical for WAN!
+                if hasattr(self.original_module, 'norm_q') and self.original_module.norm_q is not None:
+                    query = self.original_module.norm_q(query)
+                if hasattr(self.original_module, 'norm_k') and self.original_module.norm_k is not None:
+                    key = self.original_module.norm_k(key)
+                
+                # Reshape using unflatten (matching WAN exactly)
                 batch_size, seq_len_q, embed_dim = query.size()
                 seq_len_k = key.size(1)
                 num_heads = self.original_module.heads
                 head_dim = embed_dim // num_heads
                 
-                query = query.view(batch_size, seq_len_q, num_heads, head_dim).transpose(1, 2)
-                key = key.view(batch_size, seq_len_k, num_heads, head_dim).transpose(1, 2)
+                query = query.unflatten(2, (num_heads, -1)).transpose(1, 2)  # [batch, heads, seq_q, head_dim]
+                key = key.unflatten(2, (num_heads, -1)).transpose(1, 2)      # [batch, heads, seq_k, head_dim]
+                value = value.unflatten(2, (num_heads, -1)).transpose(1, 2)  # [batch, heads, seq_k, head_dim]
                 
-                # Compute scaled dot-product attention
-                key_transposed = key.transpose(-2, -1)
-                attention_scores = torch.matmul(query, key_transposed) / (head_dim ** 0.5)
+                # Apply rotary embeddings if present (for self-attention only, not cross-attention)
+                # Cross-attention (attn2) doesn't use rotary embeddings based on your logs
+                rotary_emb = kwargs.get("rotary_emb", None)
+                if rotary_emb is not None:
+                    self.attention_storage.logger.debug(f"Applying rotary embeddings for {self.layer_name}")
+                    
+                    def apply_rotary_emb(hidden_states: torch.Tensor, freqs: torch.Tensor):
+                        dtype = torch.float32 if hidden_states.device.type == "mps" else torch.float64
+                        x_rotated = torch.view_as_complex(hidden_states.to(dtype).unflatten(3, (-1, 2)))
+                        x_out = torch.view_as_real(x_rotated * freqs).flatten(3, 4)
+                        return x_out.type_as(hidden_states)
+                    
+                    query = apply_rotary_emb(query, rotary_emb)
+                    key = apply_rotary_emb(key, rotary_emb)
+                
+                # Use F.scaled_dot_product_attention (matches WAN exactly, may use flash attention)
+                # This computes: softmax(Q @ K^T / sqrt(d)) @ V
+                attention_mask = kwargs.get("attention_mask", None)
+                attention_output_with_probs = F.scaled_dot_product_attention(
+                    query, key, value, 
+                    attn_mask=attention_mask, 
+                    dropout_p=0.0, 
+                    is_causal=False
+                )
+                # Note: scaled_dot_product_attention returns the output (after @ V), not the attention probs
+                # We need to compute attention maps separately for bending
+                
+                # Compute attention maps separately (for bending and visualization)
+                # This matches the manual implementation in scaled_dot_product_attention docs
+                scale_factor = 1.0 / (head_dim ** 0.5)
+                attention_scores = torch.matmul(query, key.transpose(-2, -1)) * scale_factor
+                
+                # Apply attention mask if present
+                if attention_mask is not None:
+                    if attention_mask.dtype == torch.bool:
+                        attention_scores = attention_scores.masked_fill(attention_mask.logical_not(), float("-inf"))
+                    else:
+                        attention_scores = attention_scores + attention_mask
+                
                 attention_maps = torch.softmax(attention_scores, dim=-1)
                 
                 # NEW: Apply attention bending if configured
@@ -153,12 +198,15 @@ class WanAttentionWrapper(torch.nn.Module):
                                     )
                             
                             # attention_maps shape: [batch, heads, spatial, text_seq]
+                            print("DEBUG: attention_maps shape before bending:", attention_maps.shape)
+                            
                             bent_attention = self.attention_bender.bend_attention(
                                 attention_probs=attention_maps,
                                 layer_idx=self.block_index,
                                 timestep=diffusion_step,  # Use the step index we already have
                                 spatial_shape=spatial_shape  # Pass computed spatial shape (or None to infer)
                             )
+                            print("DEBUG: bent_attention shape after bending:", bent_attention.shape)
                         
                         # DEBUG: IMMEDIATELY check what bend_attention returned
                         # Use actual target token positions from the token map
@@ -250,18 +298,17 @@ class WanAttentionWrapper(torch.nn.Module):
                         f"🎨 PHASE 2: Using bent attention for generation output"
                     )
                     
-                    # Complete the attention operation: attention_probs @ V
-                    value = self.original_module.to_v(encoder_hidden_states_copy)
-                    value = value.view(batch_size, seq_len_k, num_heads, head_dim).transpose(1, 2)
-                    
                     # Apply bent attention to value: [batch, heads, spatial, text_seq] @ [batch, heads, text_seq, head_dim]
-                    attention_output = torch.matmul(attention_maps, value)  # [batch, heads, spatial, head_dim]
+                    attention_output = torch.matmul(bent_attention, value)  # [batch, heads, spatial, head_dim]
                     
-                    # Reshape back: [batch, heads, spatial, head_dim] -> [batch, spatial, heads * head_dim]
-                    attention_output = attention_output.transpose(1, 2).contiguous()
-                    attention_output = attention_output.view(batch_size, seq_len_q, embed_dim)
+                    # Reshape back: [batch, heads, spatial, head_dim] -> [batch, spatial, embed_dim]
+                    # Match WAN's flow exactly: transpose then flatten
+                    attention_output = attention_output.transpose(1, 2).flatten(2, 3)  # [batch, spatial, embed_dim]
                     
-                    # Apply output projection
+                    # Type cast to match query dtype (bfloat16 based on your logs)
+                    attention_output = attention_output.type_as(query)
+                    
+                    # Apply output projection (to_out[0] is linear, to_out[1] is dropout)
                     output = self.original_module.to_out[0](attention_output)
                     
                     # Apply dropout if present
