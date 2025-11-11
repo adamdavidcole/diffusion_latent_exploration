@@ -2,7 +2,7 @@
 
 # Model-specific settings
 model_settings:
-  seed: 999                    # Random seed for reproducibility
+  seed: 1000                    # Random seed for reproducibility
   sampler: "unipc"             # Scheduler type (unipc recommended for WAN)
   cfg_scale: 6.5               # Classifier-free guidance scale
   steps: 20                    # Number of inference steps
@@ -22,7 +22,7 @@ memory_settings:
 video_settings:
   width: 848                 # Video width (must be divisible by 8)
   height: 480                # Video height (must be divisible by 8) - lower than 720p to save memory
-  fps: 12                    # Frames per second
+  fps: 16                    # Frames per second
   duration: null             # Video duration in seconds
   frames: 61                  # Total frames (calculated from fps * duration if null)
 
@@ -55,7 +55,7 @@ latent_analysis_settings:
 
 # Attention map analysis settings
 attention_analysis_settings:
-  store_attention: true                     # Enable attention map storage
+  store_attention: false                     # Enable attention map storage
   tokenizer_name: "google/umt5-xxl"        # T5 tokenizer used by WAN pipeline
   storage_format: "numpy"                  # "numpy" or "torch"
   compress_attention: true                 # Use gzip compression
