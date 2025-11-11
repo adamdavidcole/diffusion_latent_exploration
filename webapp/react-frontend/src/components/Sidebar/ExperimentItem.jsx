@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useApp } from '../../context/AppContext';
 import { formatDuration } from '../../utils/formatters';
+import { formatAttentionBendingInfo, getAttentionBendingSummary } from '../../utils/attentionBendingUtils';
 
 // Helper function to format CFG information for tooltip
 const formatCfgInfo = (experiment) => {
@@ -25,109 +26,6 @@ const formatCfgInfo = (experiment) => {
     }
 
     return null;
-};
-
-// Helper function to format attention bending info
-const getAttentionBendingInfo = (experiment) => {
-    const { attention_bending_settings } = experiment;
-
-    if (!attention_bending_settings?.enabled || !attention_bending_settings.configs?.length) {
-        return null;
-    }
-
-    const { configs, apply_to_output } = attention_bending_settings;
-    const phase = apply_to_output ? 'Active' : 'Viz';
-    const icon = apply_to_output ? '🎨' : '👁️';
-
-    // Helper to format parameter value intelligently
-    const formatParamValue = (key, value) => {
-        if (value === null || value === undefined) return null;
-
-        // Skip default values
-        if (key === 'strength' && value === 1.0) return null;
-        if (key === 'renormalize' && value === true) return null;
-        if (key === 'preserve_sparsity' && value === false) return null;
-        if (key === 'angle' && value === 0) return null;
-        if (key === 'translate_x' && value === 0) return null;
-        if (key === 'translate_y' && value === 0) return null;
-
-        // Format specific types
-        if (typeof value === 'boolean') {
-            return value ? key.replace(/_/g, ' ') : null;
-        }
-
-        if (key === 'strength') {
-            return `${(value * 100).toFixed(0)}%`;
-        }
-
-        if (key === 'apply_to_timesteps' && Array.isArray(value) && value.length === 2) {
-            return `steps ${value[0]}-${value[1]}`;
-        }
-
-        if (key === 'apply_to_layers' && Array.isArray(value)) {
-            return `layers [${value.join(', ')}]`;
-        }
-
-        if (key === 'region' && Array.isArray(value) && value.length === 4) {
-            return `[${value.map(v => v.toFixed(2)).join(', ')}]`;
-        }
-
-        // Numeric values
-        if (typeof value === 'number') {
-            if (key.includes('factor') || key.includes('scale')) {
-                return `${value}x`;
-            }
-            if (key === 'angle') {
-                return `${value}°`;
-            }
-            return `${value}`;
-        }
-
-        return `${value}`;
-    };
-
-    // Mode-specific parameter relevance (same as ExperimentHeader)
-    const getModeRelevantParams = (mode) => {
-        const paramsByMode = {
-            'amplify': ['amplify_factor', 'strength', 'apply_to_timesteps'],
-            'scale': ['scale_factor', 'strength', 'apply_to_timesteps'],
-            'rotate': ['angle', 'strength', 'apply_to_timesteps'],
-            'translate': ['translate_x', 'translate_y', 'strength', 'apply_to_timesteps'],
-            'flip': ['flip_horizontal', 'flip_vertical', 'strength', 'apply_to_timesteps'],
-            'blur': ['kernel_size', 'sigma', 'strength', 'apply_to_timesteps'],
-            'sharpen': ['kernel_size', 'sharpen_amount', 'strength', 'apply_to_timesteps'],
-            'regional_mask': ['region', 'region_feather', 'strength', 'apply_to_timesteps'],
-
-            // Legacy support - in case old configs exist
-            'spatial_scale': ['scale_factor', 'strength', 'apply_to_timesteps'],
-        };
-        return paramsByMode[mode] || ['strength', 'apply_to_timesteps'];
-    };
-
-    return {
-        badge: `${icon} ${configs.length}`,
-        tooltip: configs.map(cfg => {
-            const relevantParams = getModeRelevantParams(cfg.mode);
-
-            // Build parameter list
-            const params = [];
-            relevantParams.forEach(paramKey => {
-                const formatted = formatParamValue(paramKey, cfg[paramKey]);
-                if (formatted) {
-                    params.push(formatted);
-                }
-            });
-
-            // Build the detail string
-            let detail = `"${cfg.token}" → ${cfg.mode}`;
-            if (params.length > 0) {
-                detail += ` (${params.join(', ')})`;
-            }
-
-            return detail;
-        }),
-        phase: apply_to_output ? 'active' : 'viz'
-    };
 };
 
 const ExperimentItem = ({ experiment, isActive, onSelect }) => {
@@ -195,7 +93,10 @@ const ExperimentItem = ({ experiment, isActive, onSelect }) => {
     };
 
     const modelDisplayName = getModelDisplayName(experiment.model_id);
-    const attentionBendingInfo = getAttentionBendingInfo(experiment);
+    
+    // Get attention bending info using utility
+    const attentionBendingInfo = formatAttentionBendingInfo(experiment, { abbreviated: false });
+    const attentionBendingSummary = getAttentionBendingSummary(experiment);
 
     // Helper to render prompt or prompt schedule
     const renderPromptText = () => {
@@ -254,12 +155,12 @@ const ExperimentItem = ({ experiment, isActive, onSelect }) => {
                 <div className="experiment-item-header">
                     <div className="experiment-name">
                         {experiment.name}
-                        {attentionBendingInfo && (
+                        {attentionBendingSummary && (
                             <span
-                                className={`attention-bending-badge ${attentionBendingInfo.phase}`}
+                                className={`attention-bending-badge ${attentionBendingInfo?.phase || ''}`}
                                 title="Attention Bending enabled"
                             >
-                                {attentionBendingInfo.badge}
+                                {attentionBendingSummary}
                             </span>
                         )}
                     </div>
@@ -273,6 +174,16 @@ const ExperimentItem = ({ experiment, isActive, onSelect }) => {
                             <span>{parseFloat(experiment.duration_seconds.toFixed(1))}s</span>
                         )}
                     </div>
+                    {/* Attention bending details in expanded view */}
+                    {!state.sidebarCollapsed && attentionBendingInfo && (
+                        <div className="experiment-attention-details">
+                            {attentionBendingInfo.details.map((detail, idx) => (
+                                <div key={idx} className="attention-detail-item">
+                                    {detail}
+                                </div>
+                            ))}
+                        </div>
+                    )}
                     <div className="experiment-prompt">{renderPromptText()}</div>
                 </div>
             </div>
@@ -307,8 +218,8 @@ const ExperimentItem = ({ experiment, isActive, onSelect }) => {
                     {attentionBendingInfo && (
                         <>
                             <br /><br />
-                            <strong>Attention Bending ({attentionBendingInfo.phase === 'active' ? 'Active' : 'Visualization Only'}):</strong>
-                            {attentionBendingInfo.tooltip.map((detail, idx) => (
+                            <strong>{attentionBendingInfo.summary}:</strong>
+                            {attentionBendingInfo.details.map((detail, idx) => (
                                 <React.Fragment key={idx}>
                                     <br />• {detail}
                                 </React.Fragment>

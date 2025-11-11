@@ -128,9 +128,15 @@ Examples:
     parser.add_argument('--store-latents', action='store_true',
                        help='Store latent representations at each denoising step for trajectory analysis')
     
+    parser.add_argument('--decode-latents', action='store_true',
+                       help='Automatically run decode_latent_steps.py after generation completes')
+    
     # Attention map analysis
     parser.add_argument('--store-attention', action='store_true',
                        help='Store attention maps for tokens in parentheses in prompts (e.g., "(kiss)" in "romantic (kiss)")')
+    
+    parser.add_argument('--decode-attention', action='store_true',
+                       help='Automatically run decode_attention_steps.py after generation completes')
     
     # Logging and output
     parser.add_argument('--log-level', type=str, 
@@ -204,9 +210,15 @@ def load_or_create_config(config_path: str, args) -> GenerationConfig:
     if args.store_latents:
         config.latent_analysis_settings.store_latents = True
     
+    if args.decode_latents:
+        config.latent_analysis_settings.auto_decode = True
+    
     # Apply attention analysis settings  
     if args.store_attention:
         config.attention_analysis_settings.store_attention = True
+    
+    if args.decode_attention:
+        config.attention_analysis_settings.auto_decode = True
     
     return config
 

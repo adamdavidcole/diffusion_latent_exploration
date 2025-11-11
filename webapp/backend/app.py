@@ -192,6 +192,7 @@ class VideoAnalyzer:
                                     
                                     # Spatial transformation parameters (scale_factor for SCALE mode)
                                     'angle': cfg.get('angle'),
+                                    'crop_rotated': cfg.get('crop_rotated'),
                                     'translate_x': cfg.get('translate_x'),
                                     'translate_y': cfg.get('translate_y'),
                                     'flip_horizontal': cfg.get('flip_horizontal'),

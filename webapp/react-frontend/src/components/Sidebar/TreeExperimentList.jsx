@@ -2,6 +2,7 @@ import React, { useEffect, useCallback, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
+import { formatAttentionBendingInfo, getAttentionBendingSummary } from '../../utils/attentionBendingUtils';
 import ExperimentItem from './ExperimentItem';
 
 // Configuration constants

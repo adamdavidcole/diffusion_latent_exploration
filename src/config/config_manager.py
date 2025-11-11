@@ -40,6 +40,9 @@ class LatentAnalysisSettings:
     storage_interval: int = 1  # Store every N steps (1 = all steps)
     compress_latents: bool = True  # Use compression to save disk space
     storage_dtype: str = "float32"  # "float32" or "float16" for storage precision
+    
+    # Auto-decode settings
+    auto_decode: bool = False  # Automatically run decode_latent_steps.py after generation
 
 
 @dataclass  
@@ -66,6 +69,9 @@ class AttentionAnalysisSettings:
     # NEW: Auto-visualization settings 
     auto_generate_videos: bool = False        # Generate videos after batch completion
     auto_generate_per_video: bool = False     # Generate videos after each individual video completes
+    
+    # Auto-decode settings
+    auto_decode: bool = False  # Automatically run decode_attention_steps.py after generation
     
     # NEW: Visualization parameters
     visualization_params: Dict[str, Any] = field(default_factory=lambda: {
@@ -128,6 +134,7 @@ class AttentionBendingSettings:
     device: str = "cuda"
     configs: List[Dict[str, Any]] = field(default_factory=list)  # List of bending config dicts
     apply_to_output: bool = False  # Phase 1 (False) = viz only, Phase 2 (True) = affects generation
+    apply_before_softmax: bool = False  # Pre-softmax (True) vs post-softmax (False) bending
 
 
 @dataclass
@@ -244,7 +251,8 @@ class ConfigManager:
             latent_storage_format=latent_data.get('latent_storage_format', 'numpy'),
             storage_interval=latent_data.get('storage_interval', 1),
             compress_latents=latent_data.get('compress_latents', True),
-            storage_dtype=latent_data.get('storage_dtype', 'float32')
+            storage_dtype=latent_data.get('storage_dtype', 'float32'),
+            auto_decode=latent_data.get('auto_decode', False)
         )
         
         attention_analysis_settings = AttentionAnalysisSettings(
@@ -263,6 +271,7 @@ class ConfigManager:
             aggregated_storage_format=attention_data.get('aggregated_storage_format', 'numpy'),
             auto_generate_videos=attention_data.get('auto_generate_videos', False),
             auto_generate_per_video=attention_data.get('auto_generate_per_video', False),
+            auto_decode=attention_data.get('auto_decode', False),
             visualization_params=attention_data.get('visualization_params', {
                 "figsize": [12, 8],
                 "colormap": "hot", 
@@ -294,7 +303,8 @@ class ConfigManager:
             enabled=attention_bending_data.get('enabled', False),
             device=attention_bending_data.get('device', 'cuda'),
             configs=attention_bending_data.get('configs', []),
-            apply_to_output=attention_bending_data.get('apply_to_output', False)
+            apply_to_output=attention_bending_data.get('apply_to_output', False),
+            apply_before_softmax=attention_bending_data.get('apply_before_softmax', False)
         )
         
         return GenerationConfig(
@@ -390,7 +400,8 @@ class ConfigManager:
                 'enabled': config.attention_bending_settings.enabled,
                 'device': config.attention_bending_settings.device,
                 'configs': config.attention_bending_settings.configs,
-                'apply_to_output': config.attention_bending_settings.apply_to_output
+                'apply_to_output': config.attention_bending_settings.apply_to_output,
+                'apply_before_softmax': config.attention_bending_settings.apply_before_softmax
             },
             'videos_per_variation': config.videos_per_variation,
             'output_dir': config.output_dir,

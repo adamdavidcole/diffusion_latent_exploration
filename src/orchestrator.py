@@ -3,6 +3,8 @@ Main orchestrator for WAN 1.3B video generation batches.
 Coordinates configuration, prompt processing, and video generation.
 """
 import logging
+import subprocess
+import sys
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 import json
@@ -326,12 +328,97 @@ class VideoGenerationOrchestrator:
             
             self.logger.info(f"Batch complete! Results saved to: {batch_dirs['root']}")
             
+            # Run auto-decode scripts if enabled
+            self._run_auto_decode_scripts(batch_dirs["root"])
+            
             return batch_metadata
             
         except Exception as e:
             if self.logger:
                 self.logger.error(f"Batch generation failed: {e}")
             raise
+    
+    def _run_auto_decode_scripts(self, experiment_dir: Path):
+        """Run decode scripts automatically if enabled in config."""
+        # Check if latent auto-decode is enabled
+        if (self.config.latent_analysis_settings.store_latents and 
+            self.config.latent_analysis_settings.auto_decode):
+            self.logger.info("🎬 Auto-decode enabled for latents - running decode_latent_steps.py...")
+            self._run_decode_latent_script(experiment_dir)
+        
+        # Check if attention auto-decode is enabled
+        if (self.config.attention_analysis_settings.store_attention and 
+            self.config.attention_analysis_settings.auto_decode):
+            self.logger.info("🎬 Auto-decode enabled for attention - running decode_attention_steps.py...")
+            self._run_decode_attention_script(experiment_dir)
+    
+    def _run_decode_latent_script(self, experiment_dir: Path):
+        """Run the decode_latent_steps.py script."""
+        script_path = Path("scripts/decode_latent_steps.py")
+        
+        if not script_path.exists():
+            self.logger.warning(f"⚠️  decode_latent_steps.py not found at {script_path}")
+            return
+        
+        try:
+            self.logger.info(f"Running: python {script_path} {experiment_dir}")
+            result = subprocess.run(
+                [sys.executable, str(script_path), str(experiment_dir)],
+                capture_output=True,
+                text=True,
+                timeout=3600  # 1 hour timeout
+            )
+            
+            if result.returncode == 0:
+                self.logger.info("✅ Latent decoding completed successfully")
+                # Log summary if available in output
+                if "Total steps processed:" in result.stdout:
+                    for line in result.stdout.split('\n'):
+                        if any(keyword in line for keyword in ["Total steps", "Successful", "Failed", "Output directory"]):
+                            self.logger.info(f"  {line.strip()}")
+            else:
+                self.logger.error(f"❌ Latent decoding failed with exit code {result.returncode}")
+                if result.stderr:
+                    self.logger.error(f"  Error: {result.stderr[:500]}")  # Limit error output
+                    
+        except subprocess.TimeoutExpired:
+            self.logger.error("❌ Latent decoding timed out after 1 hour")
+        except Exception as e:
+            self.logger.error(f"❌ Error running latent decode script: {e}")
+    
+    def _run_decode_attention_script(self, experiment_dir: Path):
+        """Run the decode_attention_steps.py script."""
+        script_path = Path("scripts/decode_attention_steps.py")
+        
+        if not script_path.exists():
+            self.logger.warning(f"⚠️  decode_attention_steps.py not found at {script_path}")
+            return
+        
+        try:
+            self.logger.info(f"Running: python {script_path} {experiment_dir}")
+            result = subprocess.run(
+                [sys.executable, str(script_path), str(experiment_dir)],
+                capture_output=True,
+                text=True,
+                timeout=3600  # 1 hour timeout
+            )
+            
+            if result.returncode == 0:
+                self.logger.info("✅ Attention decoding completed successfully")
+                # Log summary if available in output
+                if "Total steps processed:" in result.stdout:
+                    for line in result.stdout.split('\n'):
+                        if any(keyword in line for keyword in ["Total steps", "Successful", "Failed", "Output directory"]):
+                            self.logger.info(f"  {line.strip()}")
+            else:
+                self.logger.error(f"❌ Attention decoding failed with exit code {result.returncode}")
+                if result.stderr:
+                    self.logger.error(f"  Error: {result.stderr[:500]}")  # Limit error output
+                    
+        except subprocess.TimeoutExpired:
+            self.logger.error("❌ Attention decoding timed out after 1 hour")
+        except Exception as e:
+            self.logger.error(f"❌ Error running attention decode script: {e}")
     
     def validate_setup(self) -> List[str]:
         """Validate that all components are properly setup."""

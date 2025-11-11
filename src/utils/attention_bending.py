@@ -95,7 +95,8 @@ class AttentionBender:
     def __init__(self, 
                  bending_configs: List[BendingConfig],
                  token_to_index_map: Optional[Dict[str, int]] = None,
-                 device: str = "cuda"):
+                 device: str = "cuda",
+                 apply_before_softmax: bool = False):
         """
         Initialize the attention bender.
         
@@ -103,11 +104,14 @@ class AttentionBender:
             bending_configs: List of bending configurations for different tokens
             token_to_index_map: Mapping from token strings to indices in attention map
             device: Device for tensor operations
+            apply_before_softmax: If True, bend attention scores BEFORE softmax (then apply softmax to bent scores)
+                                 If False, bend attention probabilities AFTER softmax (default, may need renormalization)
         """
         self.bending_configs = bending_configs
         logger.info(f"INITIAL TOKEN TO INDEX MAP: {token_to_index_map}")    
         self.token_to_index_map = token_to_index_map or {}
         self.device = device
+        self.apply_before_softmax = apply_before_softmax
         
         # Statistics tracking
         self.stats = {
@@ -120,6 +124,7 @@ class AttentionBender:
         self._debug_batch_dir = None  # Will be initialized on first use
         
         logger.info(f"AttentionBender initialized with {len(bending_configs)} configs")
+        logger.info(f"  Apply before softmax: {apply_before_softmax}")
         for config in bending_configs:
             logger.info(f"  - Token '{config.token}': {config.mode.value} (strength={config.strength})")
     
@@ -197,6 +202,44 @@ class AttentionBender:
         for config in self.bending_configs:
             if not self.should_apply(config, layer_idx, timestep):
                 # logger.info(f"   ⏭️  Skipping config for '{config.token}' (conditions not met)")
+                continue
+            
+            # Check if this config applies to ALL tokens (special marker)
+            is_all_tokens_config = config.token.upper() in ["__ALL_TOKENS__", "ALL_TOKENS", "*"]
+            
+            if is_all_tokens_config:
+                # STRESS TEST MODE: Apply this config to ALL tokens
+                logger.info(f"   🔥 STRESS TEST: Applying '{config.mode.value}' to ALL {seq_len} tokens (token='{config.token}')")
+                
+                # Apply transformation to every token
+                for token_idx in range(seq_len):
+                    token_attention = bent_attention[:, :, token_idx]
+                    transformed = self._apply_transformation(
+                        token_attention,
+                        config,
+                        spatial_shape
+                    )
+                    
+                    # Blend with strength
+                    if config.strength < 1.0:
+                        transformed = config.strength * transformed + (1 - config.strength) * token_attention
+                    
+                    # Optionally renormalize
+                    if config.renormalize:
+                        # Normalize this single token's attention across spatial dimension
+                        transformed = transformed / (transformed.sum(dim=-1, keepdim=True) + 1e-10)
+                    
+                    bent_attention[:, :, token_idx] = transformed
+                
+                logger.info(f"   ✅ Applied to all {seq_len} tokens")
+                configs_applied += 1
+                
+                # Continue to next config (allows multiple all-tokens configs with special marker)
+                continue
+        
+        # Normal mode: Apply configs to specific tokens
+        for config in self.bending_configs:
+            if not self.should_apply(config, layer_idx, timestep):
                 continue
             
             # Find token index
@@ -768,7 +811,8 @@ def create_bending_from_config(config_dict: Dict) -> AttentionBender:
     
     return AttentionBender(
         bending_configs=configs,
-        device=config_dict.get("device", "cuda")
+        device=config_dict.get("device", "cuda"),
+        apply_before_softmax=config_dict.get("apply_before_softmax", False)
     )
 
 

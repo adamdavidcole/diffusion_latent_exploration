@@ -971,7 +971,8 @@ class WanVideoGenerator:
                         # Create bending configuration dict in expected format
                         bending_config_dict = {
                             "device": attention_bending_settings.device,
-                            "bending_configs": attention_bending_settings.configs
+                            "bending_configs": attention_bending_settings.configs,
+                            "apply_before_softmax": getattr(attention_bending_settings, 'apply_before_softmax', False)
                         }
                         
                         # Create the AttentionBender
@@ -979,10 +980,14 @@ class WanVideoGenerator:
                         
                         # Determine which phase to use
                         apply_to_output = attention_bending_settings.apply_to_output
+                        apply_before_softmax = getattr(attention_bending_settings, 'apply_before_softmax', False)
+                        
                         phase_name = "PHASE 2 (AFFECTS GENERATION)" if apply_to_output else "PHASE 1 (VISUALIZATION ONLY)"
+                        softmax_mode = "PRE-SOFTMAX" if apply_before_softmax else "POST-SOFTMAX"
                         
                         logging.info(f"🎨 Attention bending enabled: {len(attention_bending_settings.configs)} config(s)")
                         logging.info(f"🔧 Bending mode: {phase_name}")
+                        logging.info(f"🔧 Softmax mode: {softmax_mode}")
                         
                         # Log each bending config
                         for i, cfg in enumerate(attention_bending_settings.configs):

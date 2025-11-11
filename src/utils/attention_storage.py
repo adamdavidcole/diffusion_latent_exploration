@@ -123,127 +123,125 @@ class WanAttentionWrapper(torch.nn.Module):
                     query = apply_rotary_emb(query, rotary_emb)
                     key = apply_rotary_emb(key, rotary_emb)
                 
-                # Use F.scaled_dot_product_attention (matches WAN exactly, may use flash attention)
-                # This computes: softmax(Q @ K^T / sqrt(d)) @ V
-                attention_mask = kwargs.get("attention_mask", None)
-                attention_output_with_probs = F.scaled_dot_product_attention(
-                    query, key, value, 
-                    attn_mask=attention_mask, 
-                    dropout_p=0.0, 
-                    is_causal=False
-                )
-                # Note: scaled_dot_product_attention returns the output (after @ V), not the attention probs
-                # We need to compute attention maps separately for bending
-                
-                # Compute attention maps separately (for bending and visualization)
+                # Compute attention scores (before softmax)
                 # This matches the manual implementation in scaled_dot_product_attention docs
                 scale_factor = 1.0 / (head_dim ** 0.5)
                 attention_scores = torch.matmul(query, key.transpose(-2, -1)) * scale_factor
                 
                 # Apply attention mask if present
+                attention_mask = kwargs.get("attention_mask", None)
                 if attention_mask is not None:
                     if attention_mask.dtype == torch.bool:
                         attention_scores = attention_scores.masked_fill(attention_mask.logical_not(), float("-inf"))
                     else:
                         attention_scores = attention_scores + attention_mask
                 
-                attention_maps = torch.softmax(attention_scores, dim=-1)
-                
-                # NEW: Apply attention bending if configured
+                # NEW: Apply attention bending - supports both pre-softmax and post-softmax modes
                 bent_attention = None
-                if self.attention_bender is not None:
+                bent_scores = None
+                apply_bending_before_softmax = getattr(self.attention_bender, 'apply_before_softmax', False) if self.attention_bender else False
+                
+                if self.attention_bender is not None and apply_bending_before_softmax:
+                    # PRE-SOFTMAX BENDING: Bend the raw attention scores before softmax
                     try:
-                        # Use diffusion_step as timestep for bending logic
-                        # (This is the step index 0-19, not the scheduler timestep)
+                        self.attention_storage.logger.debug(f"🎯 PRE-SOFTMAX: Bending attention scores before softmax")
                         
-                        # Apply bending transformation
-                        # attention_maps shape: [batch, heads, spatial, text_seq]
-                        if self.attention_bender is not None:
-                            # Compute proper spatial shape for video model
-                            # For WAN: spatial_tokens = frames × height × width (in latent space)
-                            spatial_shape = None
-                            
-                            # Get actual spatial dimension from attention tensor
-                            if len(attention_maps.shape) == 4:
-                                batch, heads, spatial_tokens, seq_len = attention_maps.shape
-                            else:
-                                batch_heads, spatial_tokens, seq_len = attention_maps.shape
-                            
-                            if (self.attention_storage.video_height is not None and 
-                                self.attention_storage.video_width is not None and
-                                self.attention_storage.num_frames is not None):
-                                # Calculate latent space dimensions for WAN video model:
-                                # Temporal compression: (F - 1) // 4 + 1
-                                # Spatial compression: 16x (H // 16, W // 16)
-                                latent_f = (self.attention_storage.num_frames - 1) // 4 + 1
-                                latent_h = self.attention_storage.video_height // 16
-                                latent_w = self.attention_storage.video_width // 16
-                                
-                                # Verify our calculation matches actual spatial_tokens
-                                expected_tokens = latent_f * latent_h * latent_w
-                                if expected_tokens != spatial_tokens:
-                                    self.attention_storage.logger.warning(
-                                        f"⚠️  Spatial token mismatch! Expected {expected_tokens} "
-                                        f"({latent_f}f × {latent_h}h × {latent_w}w) "
-                                        f"but got {spatial_tokens}. Using actual dimensions from tensor."
-                                    )
-                                    # Fall back to inference
-                                    spatial_shape = None
-                                else:
-                                    # For video, pass 3D spatial shape: (frames, height, width)
-                                    spatial_shape = (latent_f, latent_h, latent_w)
-                                    self.attention_storage.logger.debug(
-                                        f"🎯 Using spatial shape: {spatial_shape} "
-                                        f"(from {latent_f}f × {latent_h}h × {latent_w}w = {expected_tokens} tokens)"
-                                    )
-                            
-                            # attention_maps shape: [batch, heads, spatial, text_seq]
-                            print("DEBUG: attention_maps shape before bending:", attention_maps.shape)
-                            
-                            bent_attention = self.attention_bender.bend_attention(
-                                attention_probs=attention_maps,
-                                layer_idx=self.block_index,
-                                timestep=diffusion_step,  # Use the step index we already have
-                                spatial_shape=spatial_shape  # Pass computed spatial shape (or None to infer)
-                            )
-                            print("DEBUG: bent_attention shape after bending:", bent_attention.shape)
+                        # Compute spatial shape for video model
+                        spatial_shape = None
+                        if len(attention_scores.shape) == 4:
+                            batch, heads, spatial_tokens, seq_len = attention_scores.shape
+                        else:
+                            batch_heads, spatial_tokens, seq_len = attention_scores.shape
                         
-                        # DEBUG: IMMEDIATELY check what bend_attention returned
-                        # Use actual target token positions from the token map
-                        # debug_token_positions = []
-                        # if self.attention_storage.target_tokens:
-                        #     for word, token_info in list(self.attention_storage.target_tokens.items())[:1]:  # Just check first token
-                        #         if token_info.get("positions"):
-                        #             debug_token_positions.append((word, token_info["positions"][0]))
+                        if (self.attention_storage.video_height is not None and 
+                            self.attention_storage.video_width is not None and
+                            self.attention_storage.num_frames is not None):
+                            latent_f = (self.attention_storage.num_frames - 1) // 4 + 1
+                            latent_h = self.attention_storage.video_height // 16
+                            latent_w = self.attention_storage.video_width // 16
+                            
+                            expected_tokens = latent_f * latent_h * latent_w
+                            if expected_tokens == spatial_tokens:
+                                spatial_shape = (latent_f, latent_h, latent_w)
                         
-                        # if bent_attention is not None and debug_token_positions:
-                        #     word, token_idx = debug_token_positions[0]
-                        #     if token_idx < attention_maps.shape[-1]:
-                        #         orig_tok = attention_maps[:, :, :, token_idx]
-                        #         bent_tok = bent_attention[:, :, :, token_idx]
-                        #         self.attention_storage.logger.info(
-                        #             f"🔍 IMMEDIATE POST-BENDING (block {self.block_index}, step {diffusion_step}):"
-                        #         )
-                        #         self.attention_storage.logger.info(
-                        #             f"   bent_attention shape: {bent_attention.shape}, dtype: {bent_attention.dtype}"
-                        #         )
-                        #         self.attention_storage.logger.info(
-                        #             f"   Token '{word}' (pos {token_idx}) - Original: mean={orig_tok.mean():.6f}, std={orig_tok.std():.6f}"
-                        #         )
-                        #         self.attention_storage.logger.info(
-                        #             f"   Token '{word}' (pos {token_idx}) - Bent: mean={bent_tok.mean():.6f}, std={bent_tok.std():.6f}"
-                        #         )
-                        #         self.attention_storage.logger.info(
-                        #             f"   Token '{word}' (pos {token_idx}) - Difference: mean_abs={((bent_tok - orig_tok).abs().mean()):.6f}"
-                        #         )
+                        # First apply softmax to get attention probs for bending
+                        attention_probs_for_bending = torch.softmax(attention_scores, dim=-1)
                         
-                        # self.attention_storage.logger.info(
-                        #     f"✅ Applied attention bending at block {self.block_index}, step {diffusion_step}"
-                        # )
+                        # Bend the attention probabilities (bender works with probabilities)
+                        bent_attention = self.attention_bender.bend_attention(
+                            attention_probs=attention_probs_for_bending,
+                            layer_idx=self.block_index,
+                            timestep=diffusion_step,
+                            spatial_shape=spatial_shape
+                        )
+                        
+                        # Convert bent probabilities back to scores (inverse softmax)
+                        # bent_scores = log(bent_attention) + constant
+                        # We can use the original scores' scale as reference
+                        bent_scores = torch.log(bent_attention.clamp(min=1e-10))
+                        
+                        self.attention_storage.logger.debug(f"✅ Pre-softmax bending applied, will apply softmax to bent scores")
                         
                     except Exception as e:
                         self.attention_storage.logger.warning(
-                            f"Error applying attention bending: {e}, using original attention"
+                            f"Error applying pre-softmax bending: {e}, using original scores"
+                        )
+                        bent_scores = None
+                
+                # Apply softmax (to either original or bent scores)
+                if bent_scores is not None:
+                    attention_maps = torch.softmax(bent_scores, dim=-1)
+                    self.attention_storage.logger.debug(f"Applied softmax to BENT scores")
+                else:
+                    attention_maps = torch.softmax(attention_scores, dim=-1)
+                
+                # POST-SOFTMAX BENDING: Bend attention after softmax (original behavior)
+                if self.attention_bender is not None and not apply_bending_before_softmax:
+                    try:
+                        self.attention_storage.logger.debug(f"🎯 POST-SOFTMAX: Bending attention probabilities after softmax")
+                        
+                        # Compute spatial shape for video model
+                        spatial_shape = None
+                        if len(attention_maps.shape) == 4:
+                            batch, heads, spatial_tokens, seq_len = attention_maps.shape
+                        else:
+                            batch_heads, spatial_tokens, seq_len = attention_maps.shape
+                        
+                        if (self.attention_storage.video_height is not None and 
+                            self.attention_storage.video_width is not None and
+                            self.attention_storage.num_frames is not None):
+                            latent_f = (self.attention_storage.num_frames - 1) // 4 + 1
+                            latent_h = self.attention_storage.video_height // 16
+                            latent_w = self.attention_storage.video_width // 16
+                            
+                            expected_tokens = latent_f * latent_h * latent_w
+                            if expected_tokens != spatial_tokens:
+                                self.attention_storage.logger.warning(
+                                    f"⚠️  Spatial token mismatch! Expected {expected_tokens} "
+                                    f"({latent_f}f × {latent_h}h × {latent_w}w) "
+                                    f"but got {spatial_tokens}. Using actual dimensions from tensor."
+                                )
+                                spatial_shape = None
+                            else:
+                                spatial_shape = (latent_f, latent_h, latent_w)
+                                self.attention_storage.logger.debug(
+                                    f"🎯 Using spatial shape: {spatial_shape} "
+                                    f"(from {latent_f}f × {latent_h}h × {latent_w}w = {expected_tokens} tokens)"
+                                )
+                        
+                        # Bend the attention probabilities
+                        bent_attention = self.attention_bender.bend_attention(
+                            attention_probs=attention_maps,
+                            layer_idx=self.block_index,
+                            timestep=diffusion_step,
+                            spatial_shape=spatial_shape
+                        )
+                        
+                        self.attention_storage.logger.debug(f"✅ Post-softmax bending applied")
+                        
+                    except Exception as e:
+                        self.attention_storage.logger.warning(
+                            f"Error applying post-softmax bending: {e}, using original attention"
                         )
                         bent_attention = None
 
