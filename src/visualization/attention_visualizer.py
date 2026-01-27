@@ -258,7 +258,7 @@ class AttentionVisualizer:
         
         if save_path:
             fig.savefig(save_path, dpi=150, bbox_inches='tight')
-            self.logger.info(f"Saved attention frame plot to: {save_path}")
+            # self.logger.info(f"Saved attention frame plot to: {save_path}")
         
         if show_plot:
             plt.show()
@@ -295,25 +295,25 @@ class AttentionVisualizer:
             spatial_attention, metadata = self.analyzer.get_spatial_attention_map(
                 video_id, token_word, step, aggregate_all=True
             )
-            self.logger.info(f"Loaded step {step}: spatial_attention.shape={spatial_attention.shape}")
+            # self.logger.info(f"Loaded step {step}: spatial_attention.shape={spatial_attention.shape}")
         else:
             # Use aggregated attention across all steps
-            self.logger.info(f"Loading aggregated attention for {video_id}:{token_word}")
+            # self.logger.info(f"Loading aggregated attention for {video_id}:{token_word}")
             aggregated_attention = self.generate_aggregated_attention_map(
                 video_id, token_word, aggregate_steps=True, fusion_method=fusion_method
             )
-            self.logger.info(f"Generated aggregated attention: shape={aggregated_attention.shape}")
+            # self.logger.info(f"Generated aggregated attention: shape={aggregated_attention.shape}")
             spatial_attention = aggregated_attention.squeeze(-1)  # Remove token dimension
-            self.logger.info(f"After squeeze: spatial_attention.shape={spatial_attention.shape}")
+            # self.logger.info(f"After squeeze: spatial_attention.shape={spatial_attention.shape}")
             
             # Get metadata from first available step
             _, metadata_list = self.analyzer.get_temporal_evolution(
                 video_id, token_word, aggregate_blocks=True, aggregate_heads=True
             )
             metadata = metadata_list[0]
-            self.logger.info(f"Using metadata from first step: {metadata.step}")
+            # self.logger.info(f"Using metadata from first step: {metadata.step}")
         
-        self.logger.info(f"Final spatial_attention: shape={spatial_attention.shape}, dtype={spatial_attention.dtype}")
+        # self.logger.info(f"Final spatial_attention: shape={spatial_attention.shape}, dtype={spatial_attention.dtype}")
         
         if not (metadata.video_frames and metadata.video_height and metadata.video_width):
             raise ValueError("Video dimensions not available in metadata")
@@ -332,38 +332,38 @@ class AttentionVisualizer:
         spatial_size = spatial_attention.shape[0]
         expected_spatial_size = latent_frames * latent_height * latent_width
         
-        self.logger.info(f"Reshaping attention: spatial_size={spatial_size}, expected={expected_spatial_size}")
-        self.logger.info(f"Original spatial_attention shape: {spatial_attention.shape}")
-        self.logger.info(f"Latent dimensions: frames={latent_frames}, height={latent_height}, width={latent_width}")
+        # self.logger.info(f"Reshaping attention: spatial_size={spatial_size}, expected={expected_spatial_size}")
+        # self.logger.info(f"Original spatial_attention shape: {spatial_attention.shape}")
+        # self.logger.info(f"Latent dimensions: frames={latent_frames}, height={latent_height}, width={latent_width}")
         
         if spatial_size == expected_spatial_size:
             # Perfect match - reshape to latent dimensions
             attention_latent = spatial_attention.view(latent_frames, latent_height, latent_width)
-            self.logger.info(f"Perfect reshape match: {attention_latent.shape}")
+            # self.logger.info(f"Perfect reshape match: {attention_latent.shape}")
         else:
             # Try to infer dimensions
             self.logger.warning(f"Spatial size mismatch: got {spatial_size}, expected {expected_spatial_size}")
             # Assume temporal dimension is correct and spatial is flattened
             attention_latent = spatial_attention.view(latent_frames, -1)
             spatial_per_frame = attention_latent.shape[1]
-            self.logger.info(f"Fallback reshape: {attention_latent.shape}, spatial_per_frame={spatial_per_frame}")
+            # self.logger.info(f"Fallback reshape: {attention_latent.shape}, spatial_per_frame={spatial_per_frame}")
             
             # Try to make it square-ish
             frame_dim = int(np.sqrt(spatial_per_frame))
             if frame_dim * frame_dim == spatial_per_frame:
                 attention_latent = attention_latent.view(latent_frames, frame_dim, frame_dim)
                 latent_height, latent_width = frame_dim, frame_dim
-                self.logger.info(f"Square reshape: {attention_latent.shape}")
+                # self.logger.info(f"Square reshape: {attention_latent.shape}")
             else:
                 # Fallback: use original latent dimensions and pad/crop
                 attention_latent = attention_latent.view(latent_frames, latent_height, latent_width)
-                self.logger.info(f"Forced reshape: {attention_latent.shape}")
+                # self.logger.info(f"Forced reshape: {attention_latent.shape}")
         
         # Convert to numpy
         attention_np = attention_latent.cpu().numpy()
-        self.logger.info(f"Converted to numpy: shape={attention_np.shape}, dtype={attention_np.dtype}")
+        # self.logger.info(f"Converted to numpy: shape={attention_np.shape}, dtype={attention_np.dtype}")
         
-        self.logger.info(f"Attention latent shape: {attention_np.shape} -> Target: {target_frames}×{target_height}×{target_width}")
+        # self.logger.info(f"Attention latent shape: {attention_np.shape} -> Target: {target_frames}×{target_height}×{target_width}")
         
         # Resize each frame to match target video dimensions with interpolation
         # Calculate interpolated frames similar to the original approach
@@ -394,13 +394,13 @@ class AttentionVisualizer:
             # Get the interpolated latent attention for this frame
             latent_attention = interpolated_latent[frame_idx] if target_frames > latent_frames else attention_np[min(frame_idx, latent_frames - 1)]
             
-            self.logger.debug(f"Processing frame {frame_idx}")
-            self.logger.debug(f"  latent_attention shape: {latent_attention.shape}")
-            self.logger.debug(f"  latent_attention dtype: {latent_attention.dtype}")
-            self.logger.debug(f"  latent_attention range: [{latent_attention.min():.6f}, {latent_attention.max():.6f}]")
-            self.logger.debug(f"  has NaN: {np.any(np.isnan(latent_attention))}")
-            self.logger.debug(f"  has inf: {np.any(np.isinf(latent_attention))}")
-            self.logger.debug(f"  is contiguous: {latent_attention.flags.c_contiguous}")
+            # self.logger.debug(f"Processing frame {frame_idx}")
+            # self.logger.debug(f"  latent_attention shape: {latent_attention.shape}")
+            # self.logger.debug(f"  latent_attention dtype: {latent_attention.dtype}")
+            # self.logger.debug(f"  latent_attention range: [{latent_attention.min():.6f}, {latent_attention.max():.6f}]")
+            # self.logger.debug(f"  has NaN: {np.any(np.isnan(latent_attention))}")
+            # self.logger.debug(f"  has inf: {np.any(np.isinf(latent_attention))}")
+            # self.logger.debug(f"  is contiguous: {latent_attention.flags.c_contiguous}")
             
             # Debug: Check for invalid values
             if np.any(np.isnan(latent_attention)) or np.any(np.isinf(latent_attention)):
@@ -665,7 +665,7 @@ class AttentionVisualizer:
                     expected_latent_size = latent_frames * latent_height * latent_width
                     if spatial_size == expected_latent_size:
                         attention_np = attention_np.reshape(latent_frames, latent_height, latent_width)
-                        self.logger.info(f"Reshaped squeezed 1D attention {spatial_size} -> {latent_frames}×{latent_height}×{latent_width}")
+                        # self.logger.info(f"Reshaped squeezed 1D attention {spatial_size} -> {latent_frames}×{latent_height}×{latent_width}")
                     else:
                         factors = []
                         for i in range(1, int(np.sqrt(spatial_size)) + 1):
@@ -676,7 +676,7 @@ class AttentionVisualizer:
                             best_factor = min(factors, key=lambda x: abs(x[0] - x[1]))
                             h, w = best_factor
                             attention_np = attention_np.reshape(h, w)
-                            self.logger.info(f"Reshaped squeezed 1D attention {spatial_size} -> {h}×{w}")
+                            # self.logger.info(f"Reshaped squeezed 1D attention {spatial_size} -> {h}×{w}")
                 else:
                     factors = []
                     for i in range(1, int(np.sqrt(spatial_size)) + 1):
@@ -687,7 +687,7 @@ class AttentionVisualizer:
                         best_factor = min(factors, key=lambda x: abs(x[0] - x[1]))
                         h, w = best_factor
                         attention_np = attention_np.reshape(h, w)
-                        self.logger.info(f"Reshaped squeezed 1D attention {spatial_size} -> {h}×{w}")
+                        # self.logger.info(f"Reshaped squeezed 1D attention {spatial_size} -> {h}×{w}")
         
         # Ensure we have at least 2D data
         if attention_np.ndim == 1:
@@ -703,7 +703,7 @@ class AttentionVisualizer:
         
         # Get actual dimensions from final tensor
         actual_frames, actual_height, actual_width = attention_np.shape
-        self.logger.info(f"Final attention tensor: {actual_frames}×{actual_height}×{actual_width}")
+        # self.logger.info(f"Final attention tensor: {actual_frames}×{actual_height}×{actual_width}")
         
         # Use metadata target dimensions if available, otherwise use defaults
         if metadata:
@@ -832,7 +832,7 @@ class AttentionVisualizer:
                 else:
                     writer.append_data(attention_colored)
         
-        self.logger.info(f"Generated attention video from data: {output_path} ({target_frames} frames, {target_height}×{target_width})")
+        # self.logger.info(f"Generated attention video from data: {output_path} ({target_frames} frames, {target_height}×{target_width})")
         return str(output_path)
     
     def generate_temporal_comparison(self, video_id: str, token_words: List[str],
@@ -902,7 +902,7 @@ class AttentionVisualizer:
         
         if save_path:
             fig.savefig(save_path, dpi=150, bbox_inches='tight')
-            self.logger.info(f"Saved temporal comparison to: {save_path}")
+            # self.logger.info(f"Saved temporal comparison to: {save_path}")
         
         return fig
     
@@ -1329,7 +1329,7 @@ def visualize_attention_tensor(
         image_path = output_path.with_suffix('.png')
         cv2.imwrite(str(image_path), colored_frame)
         results['image'] = image_path
-        logger.info(f"   ✅ Saved image: {image_path} ({target_height}×{target_width})")
+        # logger.info(f"   ✅ Saved image: {image_path} ({target_height}×{target_width})")
     
     # Generate video (all frames)
     if format in ['video', 'both'] and is_video:

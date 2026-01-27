@@ -200,10 +200,15 @@ def find_attention_directories(attention_maps_dir: Path, prompt_filter=None, vid
     """
     Find all attention token directories in the attention_maps structure.
     
+    Supports multiple directory structures:
+    - New nested format: attention_maps/prompt_000/p000_b001_s000/token_car/
+    - Old nested format: attention_maps/prompt_000/vid001/token_car/
+    - Flat format: attention_maps/p000_b001_s000/token_car/ (legacy, still supported)
+    
     Args:
         attention_maps_dir: Path to attention_maps directory
         prompt_filter: Filter for prompt directories  
-        video_filter: Filter for video directories
+        video_filter: Filter for video directories (applies to video_id)
         token_filter: Filter for token directories
         
     Returns:
@@ -214,30 +219,67 @@ def find_attention_directories(attention_maps_dir: Path, prompt_filter=None, vid
     
     token_dirs = []
     
-    # Structure: attention_maps/prompt_000/vid001/token_car/
+    # Iterate through all prompt directories
     for prompt_dir in attention_maps_dir.iterdir():
-        if not prompt_dir.is_dir() or not prompt_dir.name.startswith('prompt_'):
+        if not prompt_dir.is_dir():
             continue
-            
-        if prompt_filter and prompt_filter not in prompt_dir.name:
-            continue
-            
-        for video_dir in prompt_dir.iterdir():
-            if not video_dir.is_dir() or not video_dir.name.startswith('vid'):
+        
+        # Handle prompt_000 directories (new nested and old nested formats)
+        if prompt_dir.name.startswith('prompt_'):
+            if prompt_filter and prompt_filter not in prompt_dir.name:
                 continue
+            
+            prompt_id = prompt_dir.name
+            
+            # Look for video subdirectories
+            for video_dir in prompt_dir.iterdir():
+                if not video_dir.is_dir():
+                    continue
                 
-            if video_filter and video_filter not in video_dir.name:
+                video_id = video_dir.name
+                
+                # Apply video filter
+                if video_filter and video_filter not in video_id:
+                    continue
+                
+                # Look for token directories
+                for token_dir in video_dir.iterdir():
+                    if not token_dir.is_dir() or not token_dir.name.startswith('token_'):
+                        continue
+                    
+                    token_name = token_dir.name.replace('token_', '')
+                    if token_filter and token_filter not in token_name:
+                        continue
+                    
+                    token_dirs.append((token_dir, prompt_id, video_id, token_name))
+        
+        # Handle flat format p000_b001_s000 directories (legacy)
+        elif prompt_dir.name.startswith('p') and '_b' in prompt_dir.name and '_s' in prompt_dir.name:
+            video_id = prompt_dir.name
+            
+            # Extract prompt from video_id (p000 part)
+            try:
+                prompt_part = video_id.split('_')[0]  # p000
+                prompt_id = f"prompt_{prompt_part[1:]}"  # prompt_000
+            except:
+                prompt_id = "prompt_000"  # fallback
+            
+            # Apply filters
+            if prompt_filter and prompt_filter not in prompt_id:
                 continue
-                
-            for token_dir in video_dir.iterdir():
+            if video_filter and video_filter not in video_id:
+                continue
+            
+            # Look for token directories
+            for token_dir in prompt_dir.iterdir():
                 if not token_dir.is_dir() or not token_dir.name.startswith('token_'):
                     continue
-                    
+                
                 token_name = token_dir.name.replace('token_', '')
                 if token_filter and token_filter not in token_name:
                     continue
                 
-                token_dirs.append((token_dir, prompt_dir.name, video_dir.name, token_name))
+                token_dirs.append((token_dir, prompt_id, video_id, token_name))
     
     return token_dirs
 

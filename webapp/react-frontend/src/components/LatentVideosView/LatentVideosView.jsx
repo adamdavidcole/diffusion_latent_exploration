@@ -93,6 +93,66 @@ const LatentVideosView = ({ experimentPath }) => {
     return { display: truncated, full: fullText };
   };
 
+  // Helper function to format video_id labels (e.g., p000_b001_s000 -> readable label)
+  const getVideoIdLabel = (videoId, metadata) => {
+    // Check if it's old format (vid001)
+    if (videoId.startsWith('vid')) {
+      return videoId.replace('vid', 'Seed ').replace(/^Seed 0+/, 'Seed ');
+    }
+
+    // New format: p000_b001_s000
+    if (videoId.startsWith('p') && videoId.includes('_b') && videoId.includes('_s')) {
+      // Try to get metadata for this video
+      const videoMetadata = metadata?.[videoId];
+      
+      if (videoMetadata?.bending_metadata) {
+        const bending = videoMetadata.bending_metadata;
+        const parts = [];
+        
+        // Operation and value
+        if (bending.operation === 'scale') {
+          parts.push(`Scale ${bending.value}×`);
+        } else if (bending.operation === 'add') {
+          parts.push(`Add ${bending.value}`);
+        } else if (bending.operation === 'set') {
+          parts.push(`Set ${bending.value}`);
+        }
+        
+        // Timesteps
+        if (bending.timestep_spec) {
+          parts.push(`T:${bending.timestep_spec}`);
+        }
+        
+        // Layers
+        if (bending.layer_spec && bending.layer_spec !== 'ALL') {
+          parts.push(`L:${bending.layer_spec}`);
+        } else if (bending.layer_spec === 'ALL') {
+          parts.push('L:ALL');
+        }
+        
+        // Token
+        if (bending.target_token && bending.target_token !== 'ALL') {
+          parts.push(`"${bending.target_token}"`);
+        }
+        
+        return parts.join(' | ');
+      } else if (videoId.includes('_b000_')) {
+        // Baseline
+        return 'Baseline (No Bending)';
+      } else {
+        // Fallback: parse the ID
+        try {
+          const bendingPart = videoId.split('_b')[1].split('_')[0];
+          return `Bending ${bendingPart}`;
+        } catch {
+          return videoId;
+        }
+      }
+    }
+
+    return videoId;
+  };
+
   // Organize data based on view mode
   const gridData = useMemo(() => {
     // Check if we have ANY data to display (latent videos or attention videos)
@@ -100,6 +160,9 @@ const LatentVideosView = ({ experimentPath }) => {
     const hasAttentionVideos = currentLatentVideos?.attention_videos;
 
     if (!hasLatentVideos && !hasAttentionVideos) return null;
+
+    // Get video metadata map for labels
+    const videoMetadataMap = currentLatentVideos?.video_metadata_map || {};
 
     // If we only have attention videos, use them to determine structure
     const dataSource = hasLatentVideos ? currentLatentVideos.latent_videos : currentLatentVideos.attention_videos;
@@ -179,19 +242,23 @@ const LatentVideosView = ({ experimentPath }) => {
         };
       });
 
+      // Get readable label for selected seed
+      const selectedSeedLabel = getVideoIdLabel(selectedSeed, videoMetadataMap);
+
       return {
         rows,
         columnHeaders: allSteps.map(stepId => `Step ${stepId.replace('step_', '')}`),
         rowType: 'prompt',
-        selectedItem: selectedSeed.replace('vid_', 'Seed ')
+        selectedItem: selectedSeedLabel
       };
     } else {
       // Each row is a different seed, all using the same prompt
       const rows = allSeeds.map(seedId => {
+        const readableLabel = getVideoIdLabel(seedId, videoMetadataMap);
         return {
           id: seedId,
-          label: seedId.replace('vid_', 'Seed '),
-          fullLabel: seedId.replace('vid_', 'Seed '), // Seeds don't need truncation
+          label: readableLabel,
+          fullLabel: readableLabel, // Already formatted
           steps: allSteps.map(stepId => {
             const { videoPath, imagePath } = getVideoData(selectedPrompt, seedId, stepId);
             return {

@@ -572,16 +572,36 @@ class AttentionStorage:
     def _get_video_dir_path(self, video_id: str) -> Path:
         """Get the nested directory path for a video ID.
         
-        Converts video_id like 'prompt_000_vid001' to nested structure:
-        attention_maps/prompt_000/vid001/
+        Supports two video_id formats:
+        - Old format: 'prompt_000_vid001' -> attention_maps/prompt_000/vid001/
+        - New format: 'p000_b001_s000' -> attention_maps/prompt_000/p000_b001_s000/
+        
+        The new format preserves bending variation info while maintaining
+        backwards-compatible structure for the frontend.
         """
+        # Check for old format: prompt_000_vid001
         if "_vid" in video_id:
             prompt_part, vid_num = video_id.rsplit("_vid", 1)
             vid_part = f"vid{vid_num}"
             return self.attention_dir / prompt_part / vid_part
-        else:
-            # Fallback for non-standard video IDs
-            return self.attention_dir / self._sanitize_video_id(video_id)
+        
+        # Check for new format: p000_b001_s000
+        elif video_id.count('_') == 2 and video_id[0] == 'p':
+            try:
+                parts = video_id.split('_')
+                if len(parts) == 3 and parts[0].startswith('p') and parts[1].startswith('b') and parts[2].startswith('s'):
+                    # Extract prompt number: p000 -> prompt_000
+                    prompt_num = parts[0][1:]  # Remove 'p' prefix
+                    prompt_part = f"prompt_{prompt_num}"
+                    
+                    # Keep full video_id as directory name for uniqueness
+                    # This preserves bending and seed info in the path
+                    return self.attention_dir / prompt_part / video_id
+            except:
+                pass
+        
+        # Fallback for non-standard video IDs
+        return self.attention_dir / self._sanitize_video_id(video_id)
     
     def start_video_storage(self, video_id: str, prompt: str, target_words: List[str] = None, **generation_params):
         """Start storage for a new video.

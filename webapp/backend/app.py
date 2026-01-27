@@ -680,11 +680,25 @@ class VideoAnalyzer:
                 
                 # Scan each video directory within the prompt
                 for video_dir in sorted(prompt_dir.iterdir()):
-                    if not video_dir.is_dir() or not video_dir.name.startswith('vid'):
+                    if not video_dir.is_dir():
                         continue
                     
+                    # Support both old format (vid001) and new format (p000_b001_s000)
                     video_id = video_dir.name
-                    video_num = int(video_id.replace('vid', '').lstrip('0') or '1')
+                    if video_id.startswith('vid'):
+                        # Old format: vid001 -> video_num = 1
+                        video_num = int(video_id.replace('vid', '').lstrip('0') or '1')
+                    elif video_id.startswith('p') and '_b' in video_id and '_s' in video_id:
+                        # New format: p000_b001_s000 -> extract bending variation number
+                        # p000_b001_s000 -> bending_num = 1
+                        try:
+                            bending_part = video_id.split('_b')[1].split('_')[0]
+                            video_num = int(bending_part.lstrip('0') or '0')
+                        except:
+                            video_num = 0
+                    else:
+                        # Unknown format, skip
+                        continue
                     
                     attention_data['prompts'][prompt_id]['videos'][video_id] = {
                         'video_number': video_num,
@@ -954,8 +968,27 @@ class VideoAnalyzer:
         if not attention_videos_dir.exists():
             return {
                 'has_attention_videos': False,
-                'attention_videos': None
+                'attention_videos': None,
+                'video_metadata_map': {}
             }
+        
+        # Load video metadata to get bending labels
+        video_metadata_map = {}
+        metadata_file = exp_dir / 'configs' / 'video_metadata.json'
+        if metadata_file.exists():
+            try:
+                with open(metadata_file, 'r') as f:
+                    metadata = json.load(f)
+                    # Create map from video_id to metadata
+                    for video in metadata.get('videos', []):
+                        video_id = video.get('video_id')
+                        if video_id:
+                            video_metadata_map[video_id] = {
+                                'bending_metadata': video.get('bending_metadata'),
+                                'prompt_variation': video.get('prompt_variation', {}).get('text')
+                            }
+            except Exception as e:
+                print(f"Warning: Could not load video metadata for {exp_dir.name}: {e}")
         
         try:
             attention_videos_data = {}
@@ -970,10 +1003,16 @@ class VideoAnalyzer:
                 
                 # Process each video directory within this prompt
                 for video_dir in sorted(prompt_dir.iterdir()):
-                    if not video_dir.is_dir() or not video_dir.name.startswith('vid'):
+                    if not video_dir.is_dir():
                         continue
                     
+                    # Support both old format (vid001) and new format (p000_b001_s000)
                     video_id = video_dir.name
+                    if not (video_id.startswith('vid') or 
+                            (video_id.startswith('p') and '_b' in video_id and '_s' in video_id)):
+                        # Unknown format, skip
+                        continue
+                    
                     attention_videos_data[prompt_id][video_id] = {}
                     
                     # Process each token directory within this video
@@ -1006,7 +1045,8 @@ class VideoAnalyzer:
             
             return {
                 'has_attention_videos': bool(attention_videos_data),
-                'attention_videos': attention_videos_data if attention_videos_data else None
+                'attention_videos': attention_videos_data if attention_videos_data else None,
+                'video_metadata_map': video_metadata_map
             }
             
         except Exception as e:
