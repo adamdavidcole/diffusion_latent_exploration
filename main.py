@@ -111,6 +111,10 @@ Examples:
     parser.add_argument('--sampler', type=str,
                        help='Override sampler type')
     
+    # Prompt settings overrides
+    parser.add_argument('--negative-prompt', type=str,
+                       help='Negative prompt to guide generation away from unwanted features')
+    
     # Video settings overrides
     parser.add_argument('--width', type=int,
                        help='Override video width')
@@ -188,6 +192,10 @@ def load_or_create_config(config_path: str, args) -> GenerationConfig:
     
     if args.sampler:
         config.model_settings.sampler = args.sampler
+    
+    # Prompt setting overrides
+    if args.negative_prompt is not None:
+        config.prompt_settings.negative_prompt = args.negative_prompt
     
     # Video setting overrides
     if args.width is not None:

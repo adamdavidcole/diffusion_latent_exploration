@@ -1122,8 +1122,10 @@ class WanVideoGenerator:
                 callback_fn = prompt_only_callback
                 logging.info(f"✅ Created prompt-only callback")
             
-            # For CFG scheduling, ensure we always use proper negative prompt embeddings
-            explicit_negative_prompt = ""  # Always use empty string for consistency
+            # Get negative prompt from config or use empty string as default
+            explicit_negative_prompt = getattr(self.config.prompt_settings, 'negative_prompt', "")
+            if explicit_negative_prompt:
+                logging.info(f"Using negative prompt: '{explicit_negative_prompt}'")
             
             # Override do_classifier_free_guidance property for CFG scheduling if needed
             if ensure_cfg_for_schedule:

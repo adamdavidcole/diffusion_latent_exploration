@@ -145,11 +145,13 @@ def decode_experiment_with_progress(decoder, output_dir=None, prompt_filter=None
     
     video_dirs = decoder.find_latent_directories()
     
-    # Apply filters
+    # Apply filters (handle comma-separated filter strings)
     if prompt_filter:
-        video_dirs = [d for d in video_dirs if prompt_filter in str(d)]
+        prompt_filters = [f.strip() for f in prompt_filter.split(',')]
+        video_dirs = [d for d in video_dirs if any(pf in str(d) for pf in prompt_filters)]
     if video_filter:
-        video_dirs = [d for d in video_dirs if video_filter in str(d)]
+        video_filters = [f.strip() for f in video_filter.split(',')]
+        video_dirs = [d for d in video_dirs if any(vf in str(d) for vf in video_filters)]
     
     if not video_dirs:
         logging.warning("No video directories found after filtering")

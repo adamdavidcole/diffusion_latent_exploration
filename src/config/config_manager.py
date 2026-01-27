@@ -95,6 +95,9 @@ class PromptSettings:
     # Advanced weighted embeddings (experimental)
     use_weighted_embeddings: bool = False
     embedding_method: str = "norm_preserving"  # "multiply", "interpolation", or "norm_preserving"
+    
+    # Negative prompt support
+    negative_prompt: str = ""  # Negative prompt to guide generation away from unwanted features
 
 
 @dataclass
@@ -243,7 +246,8 @@ class ConfigManager:
             base_weight=prompt_data.get('base_weight', 1.0),
             enable_prompt_weighting=prompt_data.get('enable_prompt_weighting', True),
             use_weighted_embeddings=prompt_data.get('use_weighted_embeddings', False),
-            embedding_method=prompt_data.get('embedding_method', 'norm_preserving')
+            embedding_method=prompt_data.get('embedding_method', 'norm_preserving'),
+            negative_prompt=prompt_data.get('negative_prompt', "")
         )
         
         latent_analysis_settings = LatentAnalysisSettings(
@@ -355,7 +359,8 @@ class ConfigManager:
                 'base_weight': config.prompt_settings.base_weight,
                 'enable_prompt_weighting': config.prompt_settings.enable_prompt_weighting,
                 'use_weighted_embeddings': config.prompt_settings.use_weighted_embeddings,
-                'embedding_method': config.prompt_settings.embedding_method
+                'embedding_method': config.prompt_settings.embedding_method,
+                'negative_prompt': config.prompt_settings.negative_prompt
             },
             'latent_analysis_settings': {
                 'store_latents': config.latent_analysis_settings.store_latents,
