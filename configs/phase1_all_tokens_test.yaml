@@ -1,0 +1,101 @@
+# Phase 1 Test Configuration - ALL TOKENS Bending Test
+# Tests that bending actually affects output by applying to ALL tokens
+
+# Model settings - using smallest model for fast testing
+model_settings:
+  seed: 42
+  sampler: "unipc"
+  cfg_scale: 6.5
+  steps: 10
+  model_id: "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
+  device: "cuda:0"
+
+# Memory settings
+memory_settings:
+  enable_memory_optimization: true
+  clear_cache_between_videos: true
+  reload_model_for_large_models: false
+  use_gradient_checkpointing: true
+  enable_memory_efficient_attention: true
+
+# Video settings - small/fast for testing
+# video_settings:
+#   width: 512
+#   height: 512
+#   fps: 8
+#   duration: 2.0
+video_settings:
+  duration: null
+  fps: 16
+  frames: 25
+  height: 512
+  width: 512
+
+# Batch settings
+videos_per_variation: 1
+output_dir: "outputs"
+batch_name: "phase1_all_tokens_test"
+use_timestamp: true
+
+# Global attention bending settings - REQUIRED for apply_to_output to work
+attention_bending_settings:
+  enabled: true  # Must be true for apply_to_output to be checked
+  apply_to_output: true  # PHASE 2: Actually affect generation (not just visualization)
+  apply_before_softmax: false
+  configs: []  # Variations will override this with per-video configs
+
+# Attention Bending Variations - Testing with ALL tokens
+attention_bending_variations:
+  enabled: true
+  generate_baseline: true
+  
+  operations:
+    - operation: scale
+      parameter_name: scale_factor
+      range: [0.5, 1.5]  # More extreme to see effects clearly
+      steps: 2  # Just 3 values for quick test: [0.5, 1.0, 1.5]
+      target_token: "ALL"  # Apply to ALL tokens
+      strength: 1.0
+      padding_mode: "border"
+      
+      # Simplify for quick validation
+      vary_timesteps: true
+      vary_layers: false  # Don't vary layers for this test
+      apply_to_timesteps:
+        - "0-5"   # Early steps
+        - "5-10"  # Late steps
+      apply_to_layers: "ALL"  # Apply to all layers
+      
+      # Expected: 3 scale × 2 timesteps = 6 variations
+      # Plus 1 baseline = 7 total videos
+
+# Disable storage to speed up testing
+# attention_analysis_settings:
+#   store_attention: true
+#   store_aggregated_attention: true
+attention_analysis_settings:
+  aggregated_storage_format: numpy
+  attention_threshold: null
+  auto_generate_per_video: false
+  auto_generate_videos: false
+  compress_attention: true
+  spatial_downsample_factor: 1
+  storage_dtype: float16
+  storage_format: numpy
+  storage_interval: 1
+  store_aggregated_attention: false
+  store_attention: true
+  store_individual_tokens: true  # Store attention for target tokens (kiss, people)
+  store_per_block: false
+  store_per_head: false
+  tokenizer_name: google/umt5-xxl
+  visualization_params:
+    colormap: hot
+    figsize:
+    - 12
+    - 8
+    overlay_alpha: 0.6
+    static_duration: 3.0
+
+latent_analysis_settings:
+  store_latents: false
