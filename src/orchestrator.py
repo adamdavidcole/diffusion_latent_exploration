@@ -13,12 +13,18 @@ from src.config import ConfigManager, GenerationConfig
 from src.prompts import PromptManager, PromptTemplate, PromptVariation, WeightingConfig
 from src.generators import WAN13BVideoGenerator, BatchVideoGenerator
 from src.utils import FileManager, LogManager, ProgressTracker, MetadataManager, LatentStorage, AttentionStorage
+from src.utils.attention_bending_variations import (
+    AttentionBendingVariationGenerator, 
+    BendingVariation, 
+    OperationSpec,
+    format_variation_id,
+    format_display_name
+)
+from src.utils.bending_video_orchestration import generate_videos_with_bending
 
 
 class VideoGenerationOrchestrator:
-    """
-    Main orchestrator class that coordinates the entire video generation process.
-    """
+    """Coordinates the complete video generation workflow."""
     
     def __init__(self, config: GenerationConfig):
         self.config = config
@@ -129,18 +135,129 @@ class VideoGenerationOrchestrator:
         
         return variations
     
+    def process_bending_variations(self) -> Optional[List[BendingVariation]]:
+        """
+        Process attention bending variation settings and generate BendingVariation objects.
+        
+        Returns:
+            List of BendingVariation objects, or None if bending variations are disabled
+        """
+        settings = self.config.attention_bending_variations_settings
+        
+        if not settings.enabled:
+            self.logger.debug("Attention bending variations disabled")
+            return None
+        
+        self.logger.info("Processing attention bending variations...")
+        
+        generator = AttentionBendingVariationGenerator()
+        all_variations = []
+        
+        for op_config in settings.operations:
+            # Convert dict config to OperationSpec
+            spec = OperationSpec(
+                operation=op_config.get("operation"),
+                parameter_name=op_config.get("parameter_name"),
+                range=tuple(op_config["range"]) if "range" in op_config else None,
+                steps=op_config.get("steps", 5),
+                values=op_config.get("values"),
+                vary_timesteps=op_config.get("vary_timesteps", False),
+                vary_layers=op_config.get("vary_layers", False),
+                apply_to_timesteps=op_config.get("apply_to_timesteps", "ALL"),
+                apply_to_layers=op_config.get("apply_to_layers", "ALL"),
+                target_token=op_config.get("target_token", ""),
+                strength=op_config.get("strength", 1.0),
+                padding_mode=op_config.get("padding_mode", "border"),
+                renormalize=op_config.get("renormalize", False),
+                extra_params=op_config.get("extra_params", {})
+            )
+            
+            # Generate variations for this operation
+            variations = generator.generate_variations(spec)
+            all_variations.extend(variations)
+            
+            # Calculate dimensions
+            param_count = len(generator._generate_parameter_values(spec))
+            timestep_count = len(generator._generate_timestep_specs(spec))
+            layer_count = len(generator._generate_layer_specs(spec))
+            
+            self.logger.info(
+                f"  Operation '{spec.operation}': {len(variations)} variations "
+                f"({param_count} params × {timestep_count} timesteps × {layer_count} layers)"
+            )
+        
+        self.logger.info(f"Total bending variations: {len(all_variations)}")
+        
+        # Save bending variations info
+        if self.batch_dirs:
+            bending_file = self.batch_dirs["configs"] / "bending_variations.json"
+            bending_data = [
+                {
+                    "variation_id": var.variation_id,
+                    "display_name": var.display_name,
+                    "operation": var.operation,
+                    "parameter": var.parameter_name,
+                    "value": var.parameter_value,
+                    "timesteps": var.timestep_spec,
+                    "layers": var.layer_spec,
+                    "metadata": var.metadata
+                }
+                for var in all_variations
+            ]
+            
+            with open(bending_file, "w", encoding="utf-8") as f:
+                json.dump(bending_data, f, indent=2, ensure_ascii=False, default=str)
+            
+            self.logger.info(f"Saved bending variations to: {bending_file}")
+        
+        return all_variations
+    
     def generate_videos(self, 
                        variations: List[PromptVariation],
                        videos_per_variation: Optional[int] = None,
                        original_template: Optional[str] = None) -> Dict[str, List]:
-        """Generate videos for all prompt variations."""
+        """Generate videos for all prompt variations with optional bending variations."""
         if not self.batch_dirs:
             raise ValueError("Batch not setup. Call setup_batch() first.")
         
-        videos_per_var = videos_per_variation or self.config.videos_per_variation
-        total_videos = len(variations) * videos_per_var
+        # Process bending variations if enabled
+        bending_variations = None
+        if self.config.attention_bending_variations_settings.enabled:
+            self.logger.info("="*70)
+            self.logger.info("ATTENTION BENDING VARIATIONS ENABLED")
+            self.logger.info("="*70)
+            bending_variations = self.process_bending_variations()
+            if bending_variations:
+                self.logger.info(f"✓ Generated {len(bending_variations)} bending variations")
+                # Log first few variations for verification
+                for i, var in enumerate(bending_variations[:3]):
+                    self.logger.info(f"  Example {i+1}: {var.display_name}")
+                if len(bending_variations) > 3:
+                    self.logger.info(f"  ... and {len(bending_variations) - 3} more variations")
+            else:
+                self.logger.warning("No bending variations generated despite being enabled!")
         
-        self.logger.info(f"Starting video generation: {len(variations)} variations × {videos_per_var} videos = {total_videos} total videos")
+        # Calculate total video count
+        videos_per_var = videos_per_variation or self.config.videos_per_variation
+        
+        # Determine effective bending multiplier
+        num_bending_configs = 1  # Default: 1 config (baseline or no bending)
+        if bending_variations:
+            num_bending_configs = len(bending_variations)
+            if self.config.attention_bending_variations_settings.generate_baseline:
+                num_bending_configs += 1  # Add baseline
+        
+        total_videos = len(variations) * videos_per_var * num_bending_configs
+        
+        self.logger.info("="*70)
+        self.logger.info("VIDEO GENERATION PLAN")
+        self.logger.info("="*70)
+        self.logger.info(f"Prompt variations: {len(variations)}")
+        self.logger.info(f"Seeds per variation: {videos_per_var}")
+        self.logger.info(f"Bending configs: {num_bending_configs}" + 
+                        (" (includes baseline)" if bending_variations and self.config.attention_bending_variations_settings.generate_baseline else ""))
+        self.logger.info(f"TOTAL VIDEOS: {len(variations)} × {videos_per_var} × {num_bending_configs} = {total_videos}")
+        self.logger.info("="*70)
         
         # Setup latent storage if enabled
         latent_storage = None
@@ -204,34 +321,31 @@ class VideoGenerationOrchestrator:
         use_weighted = (hasattr(self.config, 'prompt_settings') and 
                        self.config.prompt_settings.enable_prompt_weighting)
         
-        prompts = []
-        for var in variations:
-            if use_weighted and var.weighted_text:
-                prompts.append(var.weighted_text)
-                self.logger.debug(f"Using weighted prompt: {var.weighted_text}")
-            else:
-                prompts.append(var.text)
-        
         self.logger.info(f"Using {'weighted' if use_weighted else 'standard'} prompts for generation")
         
-        # Generate videos
-        results = self.batch_generator.generate_batch(
-            prompts=prompts,
-            output_dir=str(self.batch_dirs["videos"]),
-            videos_per_prompt=videos_per_var,
-            filename_template="video_{video_num:03d}",
+        # Build list of bending configs to apply (baseline + variations)
+        bending_configs_to_apply = []
+        if bending_variations:
+            if self.config.attention_bending_variations_settings.generate_baseline:
+                bending_configs_to_apply.append(None)  # None = baseline (no bending)
+                self.logger.info("Including baseline (no bending) in generation")
+            bending_configs_to_apply.extend(bending_variations)
+            self.logger.info(f"Will generate {len(bending_configs_to_apply)} videos per (prompt × seed) combination")
+        else:
+            bending_configs_to_apply = [None]  # Just baseline
+        
+        # Generate videos with bending variation support
+        results = generate_videos_with_bending(
+            video_generator=self.video_generator,
+            batch_dirs=self.batch_dirs,
+            prompt_variations=variations,
+            bending_configs=bending_configs_to_apply,
+            videos_per_var=videos_per_var,
+            use_weighted=use_weighted,
+            config=self.config,
             latent_storage=latent_storage,
             attention_storage=attention_storage,
-            original_template=original_template,  # Pass original template for attention token extraction
-            # Pass model settings as generation parameters
-            seed=self.config.model_settings.seed,
-            sampler=self.config.model_settings.sampler,
-            cfg_scale=self.config.model_settings.cfg_scale,
-            steps=self.config.model_settings.steps,
-            width=self.config.video_settings.width,
-            height=self.config.video_settings.height,
-            fps=self.config.video_settings.fps,
-            frames=self.config.video_settings.frames
+            original_template=original_template
         )
         
         # Finish progress tracking

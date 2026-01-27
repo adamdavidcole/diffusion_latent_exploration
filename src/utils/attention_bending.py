@@ -41,8 +41,13 @@ class BendingMode(Enum):
 
 @dataclass
 class BendingConfig:
-    """Configuration for a single token's attention bending."""
-    token: str  # Token to apply bending to (e.g., "kiss")
+    """Configuration for a single token's attention bending.
+    
+    The 'token' field supports:
+    - Specific tokens: "kiss", "person", etc.
+    - Wildcard tokens: "ALL", "*", "ALLTOKENS" - applies transformation to ALL tokens
+    """
+    token: str  # Token to apply bending to (e.g., "kiss", or "ALL" for all tokens)
     mode: BendingMode
     
     # Amplify parameters (for AMPLIFY mode - simple multiplier)
@@ -242,29 +247,59 @@ class AttentionBender:
             if not self.should_apply(config, layer_idx, timestep):
                 continue
             
-            # Find token index
-            token_idx = self.token_to_index_map.get(config.token.lower())
-            if token_idx is None:
-                logger.warning(f"   ❌ Token '{config.token}' not found in map: {self.token_to_index_map}")
-                continue
+            # Check if this is a wildcard token (apply to all tokens)
+            is_wildcard = config.token.upper() in ['ALL', '*', 'ALLTOKENS']
             
-            # logger.info(f"   ✅ Applying {config.mode.value} to token '{config.token}' (idx={token_idx})")
-            
-            if token_idx >= seq_len:
-                logger.warning(f"   ❌ Token index {token_idx} >= seq_len {seq_len}, skipping")
-                continue
-            
-            # Extract attention for this token [batch_heads, spatial_tokens]
-            token_attention = bent_attention[:, :, token_idx]
-            # logger.info(f"      Token attention shape: {token_attention.shape}, mean: {token_attention.mean():.4f}, max: {token_attention.max():.4f}")
-            
-            # Apply transformation
-            transformed = self._apply_transformation(
-                token_attention,
-                config,
-                spatial_shape
-            )
-            # logger.info(f"      After transform: mean: {transformed.mean():.4f}, max: {transformed.max():.4f}")
+            if is_wildcard:
+                # Apply to all tokens in the sequence
+                logger.info(f"   ✅ Applying {config.mode.value} to ALL TOKENS (wildcard: {config.token})")
+                for token_idx in range(seq_len):
+                    # Extract attention for this token [batch_heads, spatial_tokens]
+                    token_attention = bent_attention[:, :, token_idx]
+                    
+                    # Apply transformation
+                    transformed = self._apply_transformation(
+                        token_attention,
+                        config,
+                        spatial_shape
+                    )
+                    
+                    # Blend with original based on strength
+                    bent_attention[:, :, token_idx] = (
+                        config.strength * transformed +
+                        (1 - config.strength) * token_attention
+                    )
+            else:
+                # Find specific token index
+                token_idx = self.token_to_index_map.get(config.token.lower())
+                if token_idx is None:
+                    logger.warning(f"   ❌ Token '{config.token}' not found in map: {self.token_to_index_map}")
+                    continue
+                
+                # logger.info(f"   ✅ Applying {config.mode.value} to token '{config.token}' (idx={token_idx})")
+                # logger.info(f"   ✅ Applying {config.mode.value} to token '{config.token}' (idx={token_idx})")
+                
+                if token_idx >= seq_len:
+                    logger.warning(f"   ❌ Token index {token_idx} >= seq_len {seq_len}, skipping")
+                    continue
+                
+                # Extract attention for this token [batch_heads, spatial_tokens]
+                token_attention = bent_attention[:, :, token_idx]
+                # logger.info(f"      Token attention shape: {token_attention.shape}, mean: {token_attention.mean():.4f}, max: {token_attention.max():.4f}")
+                
+                # Apply transformation
+                transformed = self._apply_transformation(
+                    token_attention,
+                    config,
+                    spatial_shape
+                )
+                # logger.info(f"      After transform: mean: {transformed.mean():.4f}, max: {transformed.max():.4f}")
+                
+                # Blend with original based on strength
+                bent_attention[:, :, token_idx] = (
+                    config.strength * transformed +
+                    (1 - config.strength) * token_attention
+                )
             
             # DEBUG: Visualize original vs transformed attention
             # if config.should_debug_visualize:

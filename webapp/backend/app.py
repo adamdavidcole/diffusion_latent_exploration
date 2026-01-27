@@ -23,6 +23,52 @@ class VideoAnalyzer:
     def __init__(self, outputs_dir):
         self.outputs_dir = Path(outputs_dir)
         self.experiments = {}
+    
+    @staticmethod
+    def format_bending_label(bending_id):
+        """Convert technical bending_id to human-readable label."""
+        if bending_id == 'baseline' or bending_id is None:
+            return 'Baseline (No Bending)'
+        
+        # Parse the bending_id: operation_value_tTIMESTEPS_lLAYERS
+        parts = bending_id.split('_')
+        if len(parts) < 2:
+            return bending_id  # Return as-is if can't parse
+        
+        operation = parts[0].capitalize()
+        value = parts[1]
+        
+        # Extract timestep and layer info
+        timesteps = None
+        layers = None
+        
+        for i, part in enumerate(parts[2:], start=2):
+            if part.startswith('t'):
+                timesteps = part[1:]  # Remove 't' prefix
+            elif part.startswith('l'):
+                # Handle remaining parts as layer spec
+                layer_part = '_'.join(parts[i:])  # Rejoin in case of 'l14,15'
+                layers = layer_part[1:]  # Remove 'l' prefix
+                break
+        
+        # Build readable string
+        label_parts = [f"{operation} {value}×"]
+        
+        if timesteps:
+            if timesteps == 'ALL':
+                label_parts.append("All Steps")
+            else:
+                label_parts.append(f"Steps {timesteps}")
+        
+        if layers:
+            if layers == 'ALL':
+                label_parts.append("All Layers")
+            elif ',' in layers:
+                label_parts.append(f"Layers {layers}")
+            else:
+                label_parts.append(f"Layer {layers}")
+        
+        return ' | '.join(label_parts)
         
     def scan_outputs(self):
         """Scan the outputs directory and build hierarchical experiment tree"""
@@ -133,6 +179,9 @@ class VideoAnalyzer:
     
     def _analyze_experiment(self, exp_dir):
         """Analyze a single experiment directory"""
+        print(f"\n{'='*70}")
+        print(f"🔍 Analyzing experiment: {exp_dir.name}")
+        print(f"{'='*70}")
         try:
             # Get creation timestamp from filesystem
             creation_time = exp_dir.stat().st_ctime
@@ -272,8 +321,31 @@ class VideoAnalyzer:
             videos = []
             
             if videos_dir.exists():
-                for prompt_dir in videos_dir.iterdir():
-                    if prompt_dir.is_dir() and prompt_dir.name.startswith('prompt_'):
+                print(f"📂 Scanning videos directory: {videos_dir}")
+                
+                # Check for NEW structure (videos directly in videos/ directory)
+                # Filename format: video_0001_p00_baseline_s00.mp4
+                direct_videos = list(videos_dir.glob('video_*.mp4'))
+                if direct_videos:
+                    print(f"  ✓ Found {len(direct_videos)} videos in NEW format (direct in videos/)")
+                    for video_file in direct_videos:
+                        video_info = self._extract_video_metadata_new_format(
+                            video_file,
+                            variations_data,
+                            video_settings=video_settings,
+                            model_settings=model_settings,
+                            cfg_scale=cfg_scale
+                        )
+                        if video_info:
+                            videos.append(video_info)
+                        else:
+                            print(f"  ⚠ Failed to extract metadata from: {video_file.name}")
+                
+                # Check for OLD structure (videos in prompt_XXX subdirectories)
+                prompt_dirs = [d for d in videos_dir.iterdir() if d.is_dir() and d.name.startswith('prompt_')]
+                if prompt_dirs:
+                    print(f"  ✓ Found {len(prompt_dirs)} prompt subdirectories in OLD format")
+                    for prompt_dir in prompt_dirs:
                         variation_num = prompt_dir.name.split('_')[1]
                         
                         # Get the actual variation text from the JSON data
@@ -290,7 +362,7 @@ class VideoAnalyzer:
                         variation_id = variation_info.get('id', f"variation_{variation_num}")
                         
                         # Find video files in this prompt directory
-                        for video_file in prompt_dir.glob('video_*.mp4'):  # Changed to match video_001.mp4 pattern
+                        for video_file in prompt_dir.glob('video_*.mp4'):
                             video_info = self._extract_video_metadata(
                                 video_file, 
                                 variation_num, 
@@ -302,9 +374,17 @@ class VideoAnalyzer:
                             )
                             if video_info:
                                 videos.append(video_info)
+                
+                if not direct_videos and not prompt_dirs:
+                    print(f"  ⚠ No videos found in either OLD or NEW format")
+                    print(f"  Directory contents: {[item.name for item in videos_dir.iterdir()]}")
             
             if not videos:
+                print(f"  ✗ No videos found - experiment will be filtered out")
+                print(f"  Checked: {videos_dir}")
                 return None
+            
+            print(f"  ✓ Total videos found: {len(videos)}")
                 
             # Organize videos by variation and seed
             video_grid = self._organize_videos(videos)
@@ -368,10 +448,113 @@ class VideoAnalyzer:
             if has_similarity_analysis and similarity_analysis_data:
                 result['similarity_analysis'] = similarity_analysis_data
             
+            print(f"  ✓ Experiment analysis complete:")
+            print(f"    - Videos: {len(videos)}")
+            print(f"    - Variations: {len(variations)}")
+            print(f"    - Seeds: {len(seeds)}")
+            print(f"{'='*70}\n")
+            
             return result
             
         except Exception as e:
-            print(f"Error analyzing experiment {exp_dir.name}: {e}")
+            print(f"  ✗ Error analyzing experiment {exp_dir.name}: {e}")
+            import traceback
+            traceback.print_exc()
+            print(f"{'='*70}\n")
+            return None
+    
+    def _extract_video_metadata_new_format(self, video_path, variations_data, 
+                                          video_settings=None, model_settings=None, cfg_scale=None):
+        """
+        Extract metadata from NEW filename format.
+        
+        Format: video_{num:04d}_p{prompt:02d}_{bending_id}_s{seed:02d}.mp4
+        Examples:
+          - video_0001_p00_baseline_s00.mp4
+          - video_0002_p00_scale_0.75_t0-10_lALL_s00.mp4
+        """
+        try:
+            filename = video_path.stem
+            parts = filename.split('_')
+            
+            # Parse: ['video', '0001', 'p00', 'baseline', 's00'] or
+            #        ['video', '0002', 'p00', 'scale', '0.75', 't0-10', 'lALL', 's00']
+            if len(parts) < 5:
+                print(f"    ⚠ Invalid NEW format filename (too few parts): {filename}")
+                return None
+            
+            video_number = int(parts[1])  # '0001' -> 1
+            prompt_idx = int(parts[2][1:])  # 'p00' -> 0
+            
+            # Find seed offset (last part starting with 's')
+            seed_offset = 0
+            for i in range(len(parts) - 1, -1, -1):
+                if parts[i].startswith('s'):
+                    try:
+                        seed_offset = int(parts[i][1:])
+                        break
+                    except ValueError:
+                        pass
+            
+            # Bending ID is everything between prompt and seed
+            bending_parts = parts[3:-1]  # Everything between p00 and s00
+            bending_id = '_'.join(bending_parts)
+            is_baseline = bending_id == 'baseline'
+            
+            # Get variation info from variations_data
+            variation_num = f"{prompt_idx:03d}"
+            variation_info = variations_data.get(variation_num, {})
+            variation_text = (
+                variation_info.get('text', '') or 
+                variation_info.get('prompt', '') or
+                f"Prompt {prompt_idx}"
+            )
+            variation_id = variation_info.get('id', f"variation_{variation_num}")
+            
+            # Extract settings
+            video_settings = video_settings or {}
+            model_settings = model_settings or {}
+            
+            width = video_settings.get('width', 1024)
+            height = video_settings.get('height', 576)
+            num_frames = video_settings.get('frames', 25)
+            steps = model_settings.get('steps', 20)
+            cfg_scale_value = cfg_scale if cfg_scale is not None else model_settings.get('cfg_scale', 6.5)
+            
+            # Calculate seed
+            base_seed = model_settings.get('seed', 42)
+            actual_seed = base_seed + seed_offset
+            
+            # Create readable variation label
+            readable_label = self.format_bending_label(bending_id)
+            
+            metadata = {
+                'video_path': str(video_path.relative_to(self.outputs_dir)),
+                'variation': bending_id if bending_id else 'baseline',
+                'variation_text': readable_label,  # Human-readable label
+                'variation_id': variation_id,
+                'variation_num': variation_num,
+                'filename': video_path.name,
+                'video_number': video_number,
+                'seed': actual_seed,
+                'seed_offset': seed_offset,
+                'steps': steps,
+                'cfg_scale': cfg_scale_value,
+                'width': width,
+                'height': height,
+                'num_frames': num_frames,
+                'bending_id': bending_id,
+                'is_baseline': is_baseline,
+                'format': 'new'  # Flag to indicate new format
+            }
+            
+            print(f"    ✓ Extracted: video={video_number}, prompt={prompt_idx}, bending={bending_id}, seed={actual_seed}")
+            return metadata
+            
+        except Exception as e:
+            print(f"    ✗ Error extracting NEW format metadata from {video_path}: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def _extract_video_metadata(self, video_path, variation_num, variation_text, variation_id, 
@@ -427,25 +610,41 @@ class VideoAnalyzer:
     
     def _organize_videos(self, videos):
         """Organize videos into a grid structure by variation and seed"""
-        # Group by variation_num (unique) rather than variation text (potentially duplicate)
+        # For NEW format videos with bending variations, organize by variation AND bending_id
+        # Group by (variation_num, bending_id) to keep bending variations separate
         variations = {}
-        for video in videos:
-            var_num = video['variation_num']  # Use unique variation number as key
-            if var_num not in variations:
-                variations[var_num] = {
-                    'videos': [],
-                    'variation_text': video['variation'],  # Store the display text
-                    'variation_num': var_num  # Keep the numeric order
-                }
-            variations[var_num]['videos'].append(video)
         
-        # Create grid structure, sorted by variation number (original generation order)
+        for video in videos:
+            var_num = video['variation_num']
+            bending_id = video.get('bending_id', 'baseline')  # Default to baseline for old format
+            
+            # Create composite key for grouping
+            group_key = (var_num, bending_id)
+            
+            if group_key not in variations:
+                # Use the formatted variation_text from metadata if available
+                # This contains the human-readable formatted label from format_bending_label()
+                display_text = video.get('variation_text', video['variation'])
+                
+                variations[group_key] = {
+                    'videos': [],
+                    'variation_text': display_text,
+                    'variation_num': var_num,
+                    'bending_id': bending_id,
+                    'is_baseline': video.get('is_baseline', True)
+                }
+            variations[group_key]['videos'].append(video)
+        
+        # Create grid structure, sorted by variation number, then bending_id
+        # This keeps baseline first, then bending variations
         grid = []
-        for var_num in sorted(variations.keys()):
+        for group_key in sorted(variations.keys(), key=lambda k: (k[0], '' if variations[k]['is_baseline'] else k[1])):
             row = {
-                'variation': variations[var_num]['variation_text'],  # Use the display text
-                'variation_num': var_num,  # Include variation number for reference
-                'videos': sorted(variations[var_num]['videos'], key=lambda x: x['seed'])
+                'variation': variations[group_key]['variation_text'],
+                'variation_num': variations[group_key]['variation_num'],
+                'bending_id': variations[group_key]['bending_id'],
+                'is_baseline': variations[group_key]['is_baseline'],
+                'videos': sorted(variations[group_key]['videos'], key=lambda x: x['seed'])
             }
             grid.append(row)
             

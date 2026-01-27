@@ -141,6 +141,36 @@ class AttentionBendingSettings:
 
 
 @dataclass
+class AttentionBendingVariationsSettings:
+    """
+    Attention bending variations configuration.
+    
+    Generates systematic parameter sweeps across operations, timesteps, and layers.
+    Creates N×M×K×(P×T×L) videos where variations multiply.
+    """
+    enabled: bool = False
+    generate_baseline: bool = True  # Include baseline (no bending) for comparison
+    
+    # Operation specifications - list of operation configs
+    operations: List[Dict[str, Any]] = field(default_factory=list)
+    
+    # Each operation dict should contain:
+    # {
+    #     "operation": "scale",              # Operation type
+    #     "parameter_name": "scale_factor",  # Parameter to vary
+    #     "range": [0.75, 1.25],             # Min/max values
+    #     "steps": 5,                        # Number of values
+    #     "target_token": "kiss",            # Token to apply to
+    #     "vary_timesteps": true,            # Enable timestep variations
+    #     "vary_layers": true,               # Enable layer variations
+    #     "apply_to_timesteps": ["0-10", "10-19"],  # Timestep configs
+    #     "apply_to_layers": ["ALL", [14, 15]],     # Layer configs
+    #     "strength": 1.0,                   # Bending strength
+    #     "padding_mode": "border"           # Padding for affine transforms
+    # }
+
+
+@dataclass
 class GenerationConfig:
     """Complete configuration for video generation batch."""
     model_settings: ModelSettings = field(default_factory=ModelSettings)
@@ -152,6 +182,7 @@ class GenerationConfig:
     cfg_schedule_settings: CFGScheduleSettings = field(default_factory=CFGScheduleSettings)
     prompt_schedule_settings: PromptScheduleSettings = field(default_factory=PromptScheduleSettings)
     attention_bending_settings: AttentionBendingSettings = field(default_factory=AttentionBendingSettings)
+    attention_bending_variations_settings: AttentionBendingVariationsSettings = field(default_factory=AttentionBendingVariationsSettings)
     videos_per_variation: int = 3
     output_dir: str = "outputs"
     batch_name: Optional[str] = None
@@ -211,7 +242,8 @@ class ConfigManager:
         attention_data = config_data.get('attention_analysis_settings', {})
         cfg_schedule_data = config_data.get('cfg_schedule_settings', {})
         prompt_schedule_data = config_data.get('prompt_schedule_settings', {})
-        attention_bending_data = config_data.get('attention_bending', {})
+        attention_bending_data = config_data.get('attention_bending_settings', {})  # Fixed: was 'attention_bending'
+        attention_bending_variations_data = config_data.get('attention_bending_variations', {})
         
         model_settings = ModelSettings(
             seed=model_data.get('seed', 42),
@@ -311,6 +343,13 @@ class ConfigManager:
             apply_before_softmax=attention_bending_data.get('apply_before_softmax', False)
         )
         
+        # Parse Attention bending variations settings
+        attention_bending_variations_settings = AttentionBendingVariationsSettings(
+            enabled=attention_bending_variations_data.get('enabled', False),
+            generate_baseline=attention_bending_variations_data.get('generate_baseline', True),
+            operations=attention_bending_variations_data.get('operations', [])
+        )
+        
         return GenerationConfig(
             model_settings=model_settings,
             memory_settings=memory_settings,
@@ -321,6 +360,7 @@ class ConfigManager:
             cfg_schedule_settings=cfg_schedule_settings,
             prompt_schedule_settings=prompt_schedule_settings,
             attention_bending_settings=attention_bending_settings,
+            attention_bending_variations_settings=attention_bending_variations_settings,
             videos_per_variation=config_data.get('videos_per_variation', 3),
             output_dir=config_data.get('output_dir', 'outputs'),
             batch_name=config_data.get('batch_name'),

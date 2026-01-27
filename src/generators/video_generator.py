@@ -614,6 +614,9 @@ class WanVideoGenerator:
             guidance_scale = kwargs.get('cfg_scale', self.config.model_settings.cfg_scale)
             generator_seed = kwargs.get('seed', self.config.model_settings.seed)
             
+            # NEW: Check for per-video bending_config parameter (takes precedence over global config)
+            per_video_bending_config = kwargs.get('bending_config', None)
+            
             # Check if dynamic guidance schedule is enabled and override initial guidance_scale
             cfg_schedule_settings = getattr(self.config, 'cfg_schedule_settings', None)
             if cfg_schedule_settings and cfg_schedule_settings.enabled and cfg_schedule_settings.schedule:
@@ -963,37 +966,78 @@ class WanVideoGenerator:
                 )
                 
                 # Check if attention bending is enabled in config
+                # Priority: per-video bending_config > global attention_bending_settings
                 attention_bending_settings = getattr(self.config, 'attention_bending_settings', None)
-                if attention_bending_settings and attention_bending_settings.enabled:
+                bending_enabled = False
+                bending_configs = []
+                
+                if per_video_bending_config:
+                    # Use per-video bending config (from BendingVariation)
+                    bending_enabled = True
+                    # Convert BendingConfig object to dict format expected by create_bending_from_config
+                    if hasattr(per_video_bending_config, '__dict__'):
+                        bending_configs = [per_video_bending_config.__dict__]
+                    else:
+                        bending_configs = [per_video_bending_config]
+                    logging.info(f"🎨 Using per-video bending config: {per_video_bending_config.token} @ {per_video_bending_config.mode}")
+                    logging.info(f"   Parameter: {getattr(per_video_bending_config, 'scale_factor', 'N/A')}")
+                    logging.info(f"   Timesteps: {getattr(per_video_bending_config, 'apply_to_timesteps', 'ALL')}")
+                    logging.info(f"   Layers: {getattr(per_video_bending_config, 'apply_to_layers', 'ALL')}")
+                elif attention_bending_settings and attention_bending_settings.enabled:
+                    # Fallback to global bending settings
+                    bending_enabled = True
+                    bending_configs = attention_bending_settings.configs
+                    logging.info(f"🎨 Using global bending config: {len(bending_configs)} config(s)")
+                
+                if bending_enabled and bending_configs:
                     try:
                         from src.utils.attention_bending import create_bending_from_config
                         
                         # Create bending configuration dict in expected format
+                        device = attention_bending_settings.device if attention_bending_settings and attention_bending_settings.enabled else 'cuda'
+                        apply_before_softmax = getattr(attention_bending_settings, 'apply_before_softmax', False) if attention_bending_settings else False
+                        
                         bending_config_dict = {
-                            "device": attention_bending_settings.device,
-                            "bending_configs": attention_bending_settings.configs,
-                            "apply_before_softmax": getattr(attention_bending_settings, 'apply_before_softmax', False)
+                            "device": device,
+                            "bending_configs": bending_configs,
+                            "apply_before_softmax": apply_before_softmax
                         }
                         
                         # Create the AttentionBender
                         attention_bender = create_bending_from_config(bending_config_dict)
                         
                         # Determine which phase to use
-                        apply_to_output = attention_bending_settings.apply_to_output
-                        apply_before_softmax = getattr(attention_bending_settings, 'apply_before_softmax', False)
+                        # DEBUG: Track down apply_to_output value
+                        logging.info(f"🔍 DEBUG apply_to_output tracking:")
+                        logging.info(f"   attention_bending_settings exists: {attention_bending_settings is not None}")
+                        if attention_bending_settings:
+                            logging.info(f"   attention_bending_settings type: {type(attention_bending_settings)}")
+                            logging.info(f"   attention_bending_settings.__dict__: {attention_bending_settings.__dict__}")
+                            logging.info(f"   hasattr apply_to_output: {hasattr(attention_bending_settings, 'apply_to_output')}")
+                            apply_to_output_value = getattr(attention_bending_settings, 'apply_to_output', 'NOT_FOUND')
+                            logging.info(f"   getattr result: {apply_to_output_value}")
+                        
+                        apply_to_output = getattr(attention_bending_settings, 'apply_to_output', False) if attention_bending_settings else False
+                        apply_before_softmax_flag = getattr(attention_bending_settings, 'apply_before_softmax', False) if attention_bending_settings else False
+                        
+                        logging.info(f"🔍 FINAL apply_to_output = {apply_to_output}")
                         
                         phase_name = "PHASE 2 (AFFECTS GENERATION)" if apply_to_output else "PHASE 1 (VISUALIZATION ONLY)"
-                        softmax_mode = "PRE-SOFTMAX" if apply_before_softmax else "POST-SOFTMAX"
+                        softmax_mode = "PRE-SOFTMAX" if apply_before_softmax_flag else "POST-SOFTMAX"
                         
-                        logging.info(f"🎨 Attention bending enabled: {len(attention_bending_settings.configs)} config(s)")
                         logging.info(f"🔧 Bending mode: {phase_name}")
                         logging.info(f"🔧 Softmax mode: {softmax_mode}")
                         
                         # Log each bending config
-                        for i, cfg in enumerate(attention_bending_settings.configs):
-                            token = cfg.get('token', 'unknown')
-                            mode = cfg.get('mode', 'unknown')
-                            strength = cfg.get('strength', 1.0)
+                        for i, cfg in enumerate(bending_configs):
+                            if isinstance(cfg, dict):
+                                token = cfg.get('token', 'unknown')
+                                mode = cfg.get('mode', 'unknown')
+                                strength = cfg.get('strength', 1.0)
+                            else:
+                                token = getattr(cfg, 'token', 'unknown')
+                                mode = getattr(cfg, 'mode', 'unknown')
+                                strength = getattr(cfg, 'strength', 1.0)
                             logging.info(f"   [{i+1}] Token '{token}': {mode} (strength={strength})")
                         
                         # Configure attention storage with bending
@@ -1006,12 +1050,17 @@ class WanVideoGenerator:
                         
                     except Exception as e:
                         logging.error(f"❌ Failed to configure attention bending: {e}")
-                        logging.error(f"   Config: {attention_bending_settings}")
+                        if per_video_bending_config:
+                            logging.error(f"   Per-video config: {per_video_bending_config}")
+                        if attention_bending_settings:
+                            logging.error(f"   Global config: {attention_bending_settings}")
                         import traceback
                         logging.error(traceback.format_exc())
                         # Continue without bending rather than failing
                 else:
-                    if attention_bending_settings:
+                    if per_video_bending_config:
+                        logging.info(f"🚫 Attention storage not enabled, skipping per-video bending config")
+                    elif attention_bending_settings:
                         logging.info(f"🚫 Attention bending disabled (enabled={attention_bending_settings.enabled})")
                     else:
                         logging.debug("🚫 No attention_bending_settings found in config")
