@@ -150,6 +150,7 @@ class AttentionBendingVariationsSettings:
     """
     enabled: bool = False
     generate_baseline: bool = True  # Include baseline (no bending) for comparison
+    renormalize: bool = False  # Global default for renormalization (can be overridden per operation)
     
     # Operation specifications - list of operation configs
     operations: List[Dict[str, Any]] = field(default_factory=list)
@@ -349,6 +350,7 @@ class ConfigManager:
         attention_bending_variations_settings = AttentionBendingVariationsSettings(
             enabled=attention_bending_variations_data.get('enabled', False),
             generate_baseline=attention_bending_variations_data.get('generate_baseline', True),
+            renormalize=attention_bending_variations_data.get('renormalize', False),
             operations=attention_bending_variations_data.get('operations', [])
         )
         

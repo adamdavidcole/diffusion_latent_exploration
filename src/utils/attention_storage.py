@@ -551,15 +551,15 @@ class AttentionStorage:
                     "token_ids": word_token_ids,
                     "positions": word_positions
                 }
-                self.logger.info(f"Mapped target word '{target_word}' -> '{clean_word}':")
-                self.logger.info(f"  Token IDs: {word_token_ids}")
-                self.logger.info(f"  Positions (no special tokens): {word_positions}")
-                self.logger.info(f"  Token texts: {[self.tokenizer.decode([tid]) for tid in word_token_ids]}")
+                self.logger.debug(f"Mapped target word '{target_word}' -> '{clean_word}':")
+                self.logger.debug(f"  Token IDs: {word_token_ids}")
+                self.logger.debug(f"  Positions (no special tokens): {word_positions}")
+                self.logger.debug(f"  Token texts: {[self.tokenizer.decode([tid]) for tid in word_token_ids]}")
             else:
-                self.logger.warning(f"Could not find target word '{target_word}' in prompt '{prompt}'")
-                self.logger.warning(f"  Word tokenizes to: {word_tokens} ({word_token_texts})")
-                self.logger.warning(f"  Full prompt tokenizes to: {prompt_tokens}")
-                self.logger.warning(f"  Consider checking that the word appears exactly as written in the prompt")
+                # DEBUG level since missing words are expected for comma-separated token lists
+                # (filtering happens at bending application time, not storage time)
+                self.logger.debug(f"Target word '{target_word}' not found in prompt '{prompt}'")
+                self.logger.debug(f"  Word tokenizes to: {word_tokens} ({word_token_texts})")
         
         return mapped_tokens
     
@@ -647,16 +647,19 @@ class AttentionStorage:
             self.target_tokens = self.parse_parenthetical_tokens(prompt)
         
         self.logger.info(f"Started attention storage for video: {video_id}")
-        self.logger.info(f"Prompt: {prompt}")
+        self.logger.debug(f"Prompt: {prompt}")
         if target_words:
-            self.logger.info(f"Target words specified: {target_words}")
+            self.logger.debug(f"Target words specified: {target_words}")
         
         if self.target_tokens:
-            self.logger.info(f"Found {len(self.target_tokens)} target tokens for attention tracking:")
+            # Show concise summary - only list the mapped word names
+            mapped_words = list(self.target_tokens.keys())
+            self.logger.info(f"Tracking {len(self.target_tokens)} tokens: {', '.join(mapped_words)}")
+            # Detailed info at DEBUG level
             for word, token_info in self.target_tokens.items():
-                self.logger.info(f"  '{word}' -> token IDs {token_info['token_ids']} at positions {token_info['positions']}")
+                self.logger.debug(f"  '{word}' -> token IDs {token_info['token_ids']} at positions {token_info['positions']}")
         else:
-            self.logger.info("No target words or parenthetical tokens found - no attention maps will be stored")
+            self.logger.debug("No target words or parenthetical tokens found - no attention maps will be stored")
     
     def set_scheduler(self, scheduler):
         """Set scheduler reference for step tracking in attention wrappers."""

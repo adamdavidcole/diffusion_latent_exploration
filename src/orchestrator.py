@@ -169,8 +169,12 @@ class VideoGenerationOrchestrator:
         generator = AttentionBendingVariationGenerator()
         all_variations = []
         
+        # Get global renormalize default
+        global_renormalize = settings.renormalize
+        
         for op_config in settings.operations:
             # Convert dict config to OperationSpec
+            # Use operation-specific renormalize if present, otherwise use global default
             spec = OperationSpec(
                 operation=op_config.get("operation"),
                 parameter_name=op_config.get("parameter_name"),
@@ -182,7 +186,7 @@ class VideoGenerationOrchestrator:
                 target_token=op_config.get("target_token", ""),
                 strength=op_config.get("strength", 1.0),
                 padding_mode=op_config.get("padding_mode", "border"),
-                renormalize=op_config.get("renormalize", False),
+                renormalize=op_config.get("renormalize", global_renormalize),  # Override or use global
                 extra_params=op_config.get("extra_params", {})
             )
             
@@ -210,8 +214,12 @@ class VideoGenerationOrchestrator:
         generator = AttentionBendingVariationGenerator()
         all_variations = []
         
+        # Get global renormalize default
+        global_renormalize = settings.renormalize
+        
         for op_config in settings.operations:
             # Convert dict config to OperationSpec
+            # Use operation-specific renormalize if present, otherwise use global default
             spec = OperationSpec(
                 operation=op_config.get("operation"),
                 parameter_name=op_config.get("parameter_name"),
@@ -223,7 +231,7 @@ class VideoGenerationOrchestrator:
                 target_token=op_config.get("target_token", ""),
                 strength=op_config.get("strength", 1.0),
                 padding_mode=op_config.get("padding_mode", "border"),
-                renormalize=op_config.get("renormalize", False),
+                renormalize=op_config.get("renormalize", global_renormalize),  # Override or use global
                 extra_params=op_config.get("extra_params", {})
             )
             
@@ -694,6 +702,9 @@ class VideoGenerationOrchestrator:
             generator = AttentionBendingVariationGenerator()
             bending_count = 0
             
+            # Get global renormalize default
+            global_renormalize = self.config.attention_bending_variations_settings.renormalize
+            
             for op_config in self.config.attention_bending_variations_settings.operations:
                 spec = OperationSpec(
                     operation=op_config.get("operation"),
@@ -706,7 +717,7 @@ class VideoGenerationOrchestrator:
                     target_token=op_config.get("target_token", ""),
                     strength=op_config.get("strength", 1.0),
                     padding_mode=op_config.get("padding_mode", "border"),
-                    renormalize=op_config.get("renormalize", False),
+                    renormalize=op_config.get("renormalize", global_renormalize),  # Override or use global
                     extra_params=op_config.get("extra_params", {})
                 )
                 bending_count += len(generator.generate_variations(spec))
