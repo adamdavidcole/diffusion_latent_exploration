@@ -29,7 +29,8 @@ def generate_videos_with_bending(
     latent_storage=None,
     attention_storage=None,
     original_template: Optional[str] = None,
-    video_number_offset: int = 0
+    video_number_offset: int = 0,
+    bending_index_offset: int = 0
 ) -> Dict[str, List]:
     """
     Generate videos with bending variation support.
@@ -115,7 +116,9 @@ def generate_videos_with_bending(
                 
                 # Create video ID for storage
                 # Note: ID format maintains same structure for compatibility
-                video_id = f"p{prompt_idx:03d}_b{bending_idx:03d}_s{seed_offset:03d}"
+                # Use global bending index (local index + offset) for unique IDs across GPUs
+                global_bending_idx = bending_idx + bending_index_offset
+                video_id = f"p{prompt_idx:03d}_b{global_bending_idx:03d}_s{seed_offset:03d}"
                 
                 # Build generation kwargs
                 gen_kwargs = {

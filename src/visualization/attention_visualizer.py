@@ -592,7 +592,7 @@ class AttentionVisualizer:
             latent_height = target_height // 16
             latent_width = target_width // 16
             
-            self.logger.info(f"Using metadata dimensions: target={target_frames}×{target_height}×{target_width}, latent={latent_frames}×{latent_height}×{latent_width}")
+            # self.logger.info(f"Using metadata dimensions: target={target_frames}×{target_height}×{target_width}, latent={latent_frames}×{latent_height}×{latent_width}")
         else:
             # No metadata - will determine dimensions from tensor factorization
             latent_frames = None
@@ -612,7 +612,7 @@ class AttentionVisualizer:
                 expected_latent_size = latent_frames * latent_height * latent_width
                 if spatial_size == expected_latent_size:
                     attention_np = attention_np.reshape(latent_frames, latent_height, latent_width)
-                    self.logger.info(f"Reshaped 1D attention {spatial_size} -> {latent_frames}×{latent_height}×{latent_width} (metadata match)")
+                    # self.logger.info(f"Reshaped 1D attention {spatial_size} -> {latent_frames}×{latent_height}×{latent_width} (metadata match)")
                 else:
                     self.logger.warning(f"Metadata size mismatch: tensor={spatial_size}, expected={expected_latent_size}")
                     # Fall back to factorization
@@ -625,7 +625,7 @@ class AttentionVisualizer:
                         best_factor = min(factors, key=lambda x: abs(x[0] - x[1]))
                         h, w = best_factor
                         attention_np = attention_np.reshape(h, w)
-                        self.logger.info(f"Reshaped 1D attention {spatial_size} -> {h}×{w} (spatial fallback)")
+                        # self.logger.info(f"Reshaped 1D attention {spatial_size} -> {h}×{w} (spatial fallback)")
                     else:
                         raise ValueError(f"Cannot factorize attention size {spatial_size}")
             else:
@@ -639,7 +639,7 @@ class AttentionVisualizer:
                     best_factor = min(factors, key=lambda x: abs(x[0] - x[1]))
                     h, w = best_factor
                     attention_np = attention_np.reshape(h, w)
-                    self.logger.info(f"Reshaped 1D attention {spatial_size} -> {h}×{w} (no metadata)")
+                    # self.logger.info(f"Reshaped 1D attention {spatial_size} -> {h}×{w} (no metadata)")
                 else:
                     raise ValueError(f"Cannot factorize attention size {spatial_size}")
                 
@@ -655,7 +655,7 @@ class AttentionVisualizer:
             # 4D format - squeeze out singleton dimensions and handle remaining
             original_shape = attention_np.shape
             attention_np = attention_np.squeeze()
-            self.logger.info(f"Squeezed 4D attention {original_shape} -> {attention_np.shape}")
+            # self.logger.info(f"Squeezed 4D attention {original_shape} -> {attention_np.shape}")
             
             # Apply same logic as above for the squeezed result
             if attention_np.ndim == 1:

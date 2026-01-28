@@ -172,8 +172,11 @@ class AttentionBendingVariationGenerator:
     def _generate_timestep_specs(self, spec: OperationSpec) -> List[Any]:
         """Generate list of timestep specifications."""
         if not spec.vary_timesteps:
-            # Single timestep spec
-            return [spec.apply_to_timesteps]
+            # Single timestep spec - if it's a list, take first element only
+            timestep_value = spec.apply_to_timesteps
+            if isinstance(timestep_value, list) and len(timestep_value) > 0:
+                return [timestep_value[0]]
+            return [timestep_value]
         
         # Multiple timestep specs - convert to list if needed
         if isinstance(spec.apply_to_timesteps, list):
@@ -224,14 +227,58 @@ class AttentionBendingVariationGenerator:
             parameter_name=spec.parameter_name
         )
         
-        # Build metadata
+        # Build metadata using new attention bending format
+        # Extract transformation type and params from the config
+        transformation_params = {}
+        if spec.operation == "scale":
+            transformation_params = {"scale_x": param_value, "scale_y": param_value}
+        elif spec.operation == "rotate":
+            transformation_params = {"angle": param_value}
+        elif spec.operation == "translate_x":
+            transformation_params = {"shift_x": param_value}
+        elif spec.operation == "translate_y":
+            transformation_params = {"shift_y": param_value}
+        elif spec.operation == "blur":
+            transformation_params = {"sigma": param_value}
+        elif spec.operation == "flip_horizontal":
+            transformation_params = {}
+        elif spec.operation == "flip_vertical":
+            transformation_params = {}
+        elif spec.operation == "edge_enhance":
+            transformation_params = {"alpha": param_value}
+        elif spec.operation == "frequency_filter":
+            transformation_params = {
+                "cutoff_freq": param_value,
+                "mode": spec.extra_params.get("mode", "lowpass")
+            }
+        else:
+            # Generic fallback
+            transformation_params = {spec.parameter_name: param_value}
+        
+        # Convert timestep_spec to range format [start, end]
+        timestep_range = None
+        if timestep_spec is not None and timestep_spec != "ALL":
+            if isinstance(timestep_spec, str) and "-" in timestep_spec:
+                start, end = map(int, timestep_spec.split("-"))
+                timestep_range = [start, end]
+            elif isinstance(timestep_spec, int):
+                timestep_range = [timestep_spec, timestep_spec]
+        
+        # Convert layer_spec to indices list
+        layer_indices = None
+        if layer_spec is not None and layer_spec != "ALL":
+            if isinstance(layer_spec, list):
+                layer_indices = layer_spec
+            elif isinstance(layer_spec, int):
+                layer_indices = [layer_spec]
+        
         metadata = {
-            "operation": spec.operation,
-            "parameter": spec.parameter_name,
-            "value": param_value,
-            "timestep_spec": timestep_spec,
-            "layer_spec": layer_spec,
-            "target_token": spec.target_token,
+            "transformation_type": spec.operation,
+            "transformation_params": transformation_params,
+            "phase": spec.extra_params.get("phase"),  # Phase 1 or 2 (or None)
+            "timestep_range": timestep_range,
+            "layer_indices": layer_indices,
+            "target_token": spec.target_token if spec.target_token else None,
         }
         
         return BendingVariation(

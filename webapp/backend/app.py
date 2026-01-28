@@ -1109,8 +1109,27 @@ class VideoAnalyzer:
         if not latent_videos_dir.exists():
             return {
                 'has_latent_videos': False,
-                'latent_videos': None
+                'latent_videos': None,
+                'video_metadata_map': {}
             }
+        
+        # Load video metadata to get bending labels
+        video_metadata_map = {}
+        metadata_file = exp_dir / 'configs' / 'video_metadata.json'
+        if metadata_file.exists():
+            try:
+                with open(metadata_file, 'r') as f:
+                    metadata = json.load(f)
+                    # Create map from video_id to metadata
+                    for video in metadata.get('videos', []):
+                        video_id = video.get('video_id')
+                        if video_id:
+                            video_metadata_map[video_id] = {
+                                'bending_metadata': video.get('bending_metadata'),
+                                'prompt_variation': video.get('prompt_variation', {}).get('text')
+                            }
+            except Exception as e:
+                print(f"Warning: Could not load video metadata for {exp_dir.name}: {e}")
         
         try:
             latent_videos_data = {}
@@ -1152,14 +1171,16 @@ class VideoAnalyzer:
             
             return {
                 'has_latent_videos': bool(latent_videos_data),
-                'latent_videos': latent_videos_data if latent_videos_data else None
+                'latent_videos': latent_videos_data if latent_videos_data else None,
+                'video_metadata_map': video_metadata_map
             }
             
         except Exception as e:
             print(f"Error loading latent videos for {exp_dir.name}: {e}")
             return {
                 'has_latent_videos': False,
-                'latent_videos': None
+                'latent_videos': None,
+                'video_metadata_map': {}
             }
 
 

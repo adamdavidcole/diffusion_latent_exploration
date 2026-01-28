@@ -252,7 +252,7 @@ class AttentionBender:
             
             if is_wildcard:
                 # Apply to all tokens in the sequence
-                logger.info(f"   ✅ Applying {config.mode.value} to ALL TOKENS (wildcard: {config.token})")
+                # logger.info(f"   ✅ Applying {config.mode.value} to ALL TOKENS (wildcard: {config.token})")
                 for token_idx in range(seq_len):
                     # Extract attention for this token [batch_heads, spatial_tokens]
                     token_attention = bent_attention[:, :, token_idx]

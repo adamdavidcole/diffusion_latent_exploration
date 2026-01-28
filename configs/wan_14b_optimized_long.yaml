@@ -4,7 +4,7 @@
 model_settings:
   seed: 999                    # Random seed for reproducibility
   sampler: "unipc"             # Scheduler type (unipc recommended for WAN)
-  cfg_scale: 6.5               # Classifier-free guidance scale
+  cfg_scale: 7                 # Classifier-free guidance scale
   steps: 20                    # Number of inference steps
   eta: 0.0                     # Scheduler eta parameter
   clip_skip: 1                 # CLIP skip layers
@@ -12,11 +12,11 @@ model_settings:
 
 # Video generation parameters (conservative settings for memory)
 video_settings:
-  width: 848                 # Video width (must be divisible by 8)
-  height: 480                # Video height (must be divisible by 8) - lower than 720p to save memory
-  fps: 12                    # Frames per second
+  width: 480                  # Video width (must be divisible by 8)
+  height: 848                # Video height (must be divisible by 8) - lower than 720p to save memory
+  fps: 16                    # Frames per second
   duration: null             # Video duration in seconds
-  frames: 45                 # Total frames (calculated from fps * duration if null)
+  frames: 61                   # Total frames (calculated from fps * duration if null)
 
 # Dynamic Classifier-Free Guidance Scheduling
 cfg_schedule_settings: 
@@ -43,12 +43,15 @@ prompt_settings:
   # Advanced weighted embeddings (WORKING SYSTEM)
   use_weighted_embeddings: true             # Enable WAN-specific weighted embeddings
   embedding_method: "multiply"              # "multiply", "interpolation", or "norm_preserving"
+  
+  # Negative prompt support
+  negative_prompt: ""                       # Optional negative prompt (e.g., "blurry, low quality, distorted")
 
 
 
 # Latent trajectory analysis settings
 latent_analysis_settings:
-  store_latents: false                       # Enable latent storage
+  store_latents: true                       # Enable latent storage
   latent_storage_format: "numpy"           # "numpy" or "torch"
   storage_interval: 1                      # Store every N steps (1 = all steps)
   compress_latents: true                   # Use gzip compression
@@ -57,19 +60,19 @@ latent_analysis_settings:
 
 # Attention map analysis settings
 attention_analysis_settings:
-  store_attention: false                     # Enable attention map storage
+  store_attention: true                     # Enable attention map storage
   tokenizer_name: "google/umt5-xxl"        # T5 tokenizer used by WAN pipeline
   storage_format: "numpy"                  # "numpy" or "torch"
   compress_attention: true                 # Use gzip compression
-  storage_interval: 1                      # Store every 2 steps (attention maps are larger)
+  storage_interval: 1                      # Store every 1 steps (attention maps are larger)
   storage_dtype: "float16"                 # Use FP16 for memory efficiency
   
   # Advanced settings (normally keep false for basic usage)
   store_per_head: false                    # Store individual attention heads
   store_per_block: false                   # Store individual transformer blocks
-  store_individual_tokens: false          # Store individual token attention
+  store_individual_tokens: true          # Store individual token attention
   attention_threshold: null               # Filter out weak attention values
-  spatial_downsample_factor: 2             # Downsample spatial dimensions 2x
+  spatial_downsample_factor: 1             # Downsample spatial dimensions 2x
 
   # NEW: Aggregated storage - creates step-averaged attention maps
   store_aggregated_attention: true

@@ -422,6 +422,7 @@ class VideoGenerationOrchestrator:
         # Calculate video number offset for secondary GPU to prevent filename collisions
         # Secondary GPU should start numbering after primary GPU's videos
         video_number_offset = 0
+        bending_index_offset = 0
         if not is_primary and bending_variations:
             # Calculate how many videos primary GPU generates:
             # num_prompts × num_seeds × (1 baseline + num_primary_variations)
@@ -439,7 +440,14 @@ class VideoGenerationOrchestrator:
             # Primary generates: baseline + its variations
             num_primary_configs = 1 + num_primary_variations  # 1 for baseline
             video_number_offset = len(variations) * videos_per_var * num_primary_configs
-            self.logger.info(f"Secondary GPU video offset: {video_number_offset} " 
+            
+            # Bending index offset: baseline=0, then variations start at 1
+            # Secondary GPU should continue numbering after primary's variations
+            # Primary has: b000 (baseline) + b001...b{num_primary_variations}
+            # Secondary should start at: b{1 + num_primary_variations}
+            bending_index_offset = 1 + num_primary_variations
+            
+            self.logger.info(f"Secondary GPU offsets: video_num={video_number_offset}, bending_idx={bending_index_offset} " 
                            f"(prompts={len(variations)}, seeds={videos_per_var}, " 
                            f"primary_configs={num_primary_configs} [1 baseline + {num_primary_variations} variations])")
         
@@ -455,7 +463,8 @@ class VideoGenerationOrchestrator:
             latent_storage=latent_storage,
             attention_storage=attention_storage,
             original_template=original_template,
-            video_number_offset=video_number_offset
+            video_number_offset=video_number_offset,
+            bending_index_offset=bending_index_offset
         )
         
         # Finish progress tracking

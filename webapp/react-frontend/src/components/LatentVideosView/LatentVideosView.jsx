@@ -102,43 +102,130 @@ const LatentVideosView = ({ experimentPath }) => {
 
     // New format: p000_b001_s000
     if (videoId.startsWith('p') && videoId.includes('_b') && videoId.includes('_s')) {
+      // Extract seed number from video_id (e.g., p000_b001_s000 -> s000)
+      const seedMatch = videoId.match(/_s(\d+)/);
+      const seedNum = seedMatch ? parseInt(seedMatch[1]) : null;
+      const seedLabel = seedNum !== null ? ` (Seed ${seedNum})` : '';
+
       // Try to get metadata for this video
       const videoMetadata = metadata?.[videoId];
 
-      if (videoMetadata?.bending_metadata) {
-        const bending = videoMetadata.bending_metadata;
+      // Try both field names (attention_bending_settings and bending_metadata)
+      const bending = videoMetadata?.attention_bending_settings || videoMetadata?.bending_metadata;
+
+      if (bending && bending !== null) {
         const parts = [];
 
-        // Operation and value
-        if (bending.operation === 'scale') {
-          parts.push(`Scale ${bending.value}×`);
-        } else if (bending.operation === 'add') {
-          parts.push(`Add ${bending.value}`);
-        } else if (bending.operation === 'set') {
-          parts.push(`Set ${bending.value}`);
+        // Handle spatial/frequency transformations (new attention bending)
+        if (bending.transformation_type) {
+          const type = bending.transformation_type;
+          const params = bending.transformation_params || {};
+
+          // Helper to format numeric values to 2-3 decimal places
+          const formatNum = (num) => {
+            if (num === undefined || num === null) return num;
+            // Remove trailing zeros after decimal point
+            return parseFloat(num.toFixed(3));
+          };
+
+          if (type === 'scale') {
+            parts.push(`Scale ${formatNum(params.scale_x || params.scale)}×`);
+          } else if (type === 'rotate') {
+            parts.push(`Rotate ${formatNum(params.angle)}°`);
+          } else if (type === 'translate') {
+            // Check params to determine if it's translate_x or translate_y
+            if (params.translate_x !== undefined) {
+              const val = formatNum(params.translate_x);
+              parts.push(`Translate X ${val > 0 ? '+' : ''}${val}`);
+            } else if (params.translate_y !== undefined) {
+              const val = formatNum(params.translate_y);
+              parts.push(`Translate Y ${val > 0 ? '+' : ''}${val}`);
+            } else if (params.shift_x !== undefined) {
+              const val = formatNum(params.shift_x);
+              parts.push(`Translate X ${val > 0 ? '+' : ''}${val}`);
+            } else if (params.shift_y !== undefined) {
+              const val = formatNum(params.shift_y);
+              parts.push(`Translate Y ${val > 0 ? '+' : ''}${val}`);
+            } else {
+              parts.push('Translate');
+            }
+          } else if (type === 'flip_horizontal') {
+            parts.push('Flip Horizontal');
+          } else if (type === 'flip_vertical') {
+            parts.push('Flip Vertical');
+          } else if (type === 'gaussian_blur' || type === 'blur') {
+            parts.push(`Blur σ=${formatNum(params.sigma)}`);
+          } else if (type === 'edge_enhance') {
+            parts.push(`Edge α=${formatNum(params.alpha)}`);
+          } else if (type === 'frequency_filter') {
+            const mode = params.mode || 'lowpass';
+            parts.push(`${mode.charAt(0).toUpperCase() + mode.slice(1)} f=${formatNum(params.cutoff_freq)}`);
+          } else {
+            parts.push(type);
+          }
+
+          // Add phase if specified
+          if (bending.phase) {
+            parts.push(`Phase ${bending.phase}`);
+          }
+
+          // Add timesteps (only if NOT null/ALL)
+          if (bending.timestep_range && Array.isArray(bending.timestep_range)) {
+            parts.push(`T:${bending.timestep_range[0]}-${bending.timestep_range[1]}`);
+          }
+
+          // Add layers (only if NOT null/ALL)
+          if (bending.layer_indices && bending.layer_indices.length > 0) {
+            if (bending.layer_indices.length === 1) {
+              parts.push(`L:${bending.layer_indices[0]}`);
+            } else {
+              parts.push(`L:${bending.layer_indices[0]}-${bending.layer_indices[bending.layer_indices.length - 1]}`);
+            }
+          }
+
+          // Add token if specified and not ALL
+          if (bending.target_token && bending.target_token !== 'ALL') {
+            const tokenText = bending.target_token.length > 15 
+              ? `"${bending.target_token.substring(0, 15)}..."` 
+              : `"${bending.target_token}"`;
+            parts.push(tokenText);
+          }
+
+          return parts.join(' | ') + seedLabel;
         }
 
-        // Timesteps
-        if (bending.timestep_spec) {
-          parts.push(`T:${bending.timestep_spec}`);
-        }
+        // Legacy amplitude-based operations (old attention bending)
+        if (bending.operation) {
+          if (bending.operation === 'scale') {
+            parts.push(`Scale ${bending.value}×`);
+          } else if (bending.operation === 'add') {
+            parts.push(`Add ${bending.value}`);
+          } else if (bending.operation === 'set') {
+            parts.push(`Set ${bending.value}`);
+          }
 
-        // Layers
-        if (bending.layer_spec && bending.layer_spec !== 'ALL') {
-          parts.push(`L:${bending.layer_spec}`);
-        } else if (bending.layer_spec === 'ALL') {
-          parts.push('L:ALL');
-        }
+          // Timesteps
+          if (bending.timestep_spec) {
+            parts.push(`T:${bending.timestep_spec}`);
+          }
 
-        // Token
-        if (bending.target_token && bending.target_token !== 'ALL') {
-          parts.push(`"${bending.target_token}"`);
-        }
+          // Layers
+          if (bending.layer_spec && bending.layer_spec !== 'ALL') {
+            parts.push(`L:${bending.layer_spec}`);
+          } else if (bending.layer_spec === 'ALL') {
+            parts.push('L:ALL');
+          }
 
-        return parts.join(' | ');
+          // Token
+          if (bending.target_token && bending.target_token !== 'ALL') {
+            parts.push(`"${bending.target_token}"`);
+          }
+
+          return parts.join(' | ') + seedLabel;
+        }
       } else if (videoId.includes('_b000_')) {
-        // Baseline
-        return 'Baseline (No Bending)';
+        // Baseline - bending is null or not present
+        return 'Baseline (No Bending)' + seedLabel;
       } else {
         // Fallback: parse the ID
         try {
