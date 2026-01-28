@@ -28,7 +28,8 @@ def generate_videos_with_bending(
     config,
     latent_storage=None,
     attention_storage=None,
-    original_template: Optional[str] = None
+    original_template: Optional[str] = None,
+    video_number_offset: int = 0
 ) -> Dict[str, List]:
     """
     Generate videos with bending variation support.
@@ -45,10 +46,24 @@ def generate_videos_with_bending(
     video_metadata = []  # Track metadata for each video
     
     total_videos = len(prompt_variations) * len(bending_configs) * videos_per_var
-    current_video = 0
+    current_video = video_number_offset  # Start from offset for secondary GPU
     
     logger.info("="*70)
     logger.info("STARTING VIDEO GENERATION WITH BENDING VARIATIONS")
+    logger.info("="*70)
+    logger.info(f"🔍 DEBUG - Generation setup:")
+    logger.info(f"   • prompt_variations={len(prompt_variations)}")
+    logger.info(f"   • bending_configs={len(bending_configs)}")
+    logger.info(f"   • videos_per_var (seeds)={videos_per_var}")
+    logger.info(f"   • total_videos={total_videos}")
+    logger.info(f"   • video_number_offset={video_number_offset}")
+    logger.info(f"   • starting current_video={current_video}")
+    logger.info(f"🔍 DEBUG - Bending configs to apply:")
+    for idx, bc in enumerate(bending_configs):
+        if bc is None:
+            logger.info(f"   [{idx}] BASELINE (no bending)")
+        else:
+            logger.info(f"   [{idx}] {bc.display_name} (id={bc.variation_id})")
     logger.info("="*70)
     
     for prompt_idx, prompt_var in enumerate(prompt_variations):
@@ -61,31 +76,33 @@ def generate_videos_with_bending(
         
         prompt_results = []
         
-        for bending_idx, bending_config in enumerate(bending_configs):
-            # Determine if this is baseline or a variation
-            is_baseline = bending_config is None
+        # REORDERED: Process by seed first, then all bending configs per seed
+        # This ensures complete datasets per seed if job is cancelled early
+        for seed_offset in range(videos_per_var):
+            base_seed = config.model_settings.seed
+            current_seed = base_seed + seed_offset
             
-            if is_baseline:
-                logger.info(f"\n  ┌─ BASELINE (no bending) - {bending_idx + 1}/{len(bending_configs)}")
-                bending_display = "baseline"
-                bending_metadata = None
-            else:
-                logger.info(f"\n  ┌─ BENDING VARIATION {bending_idx}/{len(bending_configs) - 1}: {bending_config.display_name}")
-                logger.info(f"  │  ID: {bending_config.variation_id}")
-                logger.info(f"  │  Operation: {bending_config.operation}")
-                logger.info(f"  │  Parameter: {bending_config.parameter_name} = {bending_config.parameter_value}")
-                logger.info(f"  │  Timesteps: {bending_config.timestep_spec}")
-                logger.info(f"  │  Layers: {bending_config.layer_spec}")
-                bending_display = bending_config.variation_id
-                bending_metadata = bending_config.metadata
+            logger.info(f"\n  ┌─ SEED {seed_offset + 1}/{videos_per_var}: {current_seed} (base: {base_seed} + {seed_offset})")
+            logger.info(f"  │  Processing all {len(bending_configs)} bending variations for this seed...")
             
-            for seed_offset in range(videos_per_var):
+            for bending_idx, bending_config in enumerate(bending_configs):
                 current_video += 1
-                base_seed = config.model_settings.seed
-                current_seed = base_seed + seed_offset
                 
-                logger.info(f"  │")
-                logger.info(f"  ├─ Seed {seed_offset + 1}/{videos_per_var}: {current_seed} (base: {base_seed} + {seed_offset})")
+                # Determine if this is baseline or a variation
+                is_baseline = bending_config is None
+                
+                if is_baseline:
+                    logger.info(f"  │")
+                    logger.info(f"  ├─ Bending {bending_idx + 1}/{len(bending_configs)}: BASELINE (no bending)")
+                    bending_display = "baseline"
+                    bending_metadata = None
+                else:
+                    logger.info(f"  │")
+                    logger.info(f"  ├─ Bending {bending_idx + 1}/{len(bending_configs)}: {bending_config.display_name}")
+                    logger.info(f"  │  Operation: {bending_config.operation}, Param: {bending_config.parameter_name} = {bending_config.parameter_value}")
+                    bending_display = bending_config.variation_id
+                    bending_metadata = bending_config.metadata
+                
                 logger.info(f"  │  Progress: Video {current_video}/{total_videos} ({100*current_video/total_videos:.1f}%)")
                 
                 # Generate filename that includes all dimensions
@@ -97,6 +114,7 @@ def generate_videos_with_bending(
                 )
                 
                 # Create video ID for storage
+                # Note: ID format maintains same structure for compatibility
                 video_id = f"p{prompt_idx:03d}_b{bending_idx:03d}_s{seed_offset:03d}"
                 
                 # Build generation kwargs
@@ -133,17 +151,40 @@ def generate_videos_with_bending(
                 output_path = batch_dirs["videos"] / video_filename
                 logger.info(f"  │  Output: {video_filename}")
                 
+                # CRITICAL DEBUG: Log all generation parameters before calling generate
+                logger.info(f"  │  🔍 DEBUG - Generation parameters:")
+                logger.info(f"  │     • video_num={current_video}, prompt_idx={prompt_idx}, bending_idx={bending_idx}, seed_offset={seed_offset}")
+                logger.info(f"  │     • video_id={video_id}, filename={video_filename}")
+                logger.info(f"  │     • seed={current_seed}, is_baseline={is_baseline}")
+                logger.info(f"  │     • output_path={output_path}")
+                logger.info(f"  │     • has_bending_config={'bending_config' in gen_kwargs}")
+                if 'bending_config' in gen_kwargs:
+                    bc = gen_kwargs['bending_config']
+                    logger.info(f"  │     • bending_config.token={bc.token}")
+                    logger.info(f"  │     • bending_config.mode={bc.mode}")
+                
                 result = video_generator.generate(
                     prompt=prompt_text,
                     output_path=str(output_path),
                     **gen_kwargs
                 )
                 
-                # Log result
+                # CRITICAL DEBUG: Log result and file existence after generation
+                logger.info(f"  │  🔍 DEBUG - Generation result:")
+                logger.info(f"  │     • success={result.success}")
+                logger.info(f"  │     • output_path exists={Path(output_path).exists()}")
+                logger.info(f"  │     • output_path size={Path(output_path).stat().st_size if Path(output_path).exists() else 'N/A'}")
+                thumbnail_path = Path(output_path).with_suffix('.jpg')
+                logger.info(f"  │     • thumbnail exists={thumbnail_path.exists()}")
+                logger.info(f"  │     • thumbnail size={thumbnail_path.stat().st_size if thumbnail_path.exists() else 'N/A'}")
+                
+                # Log result (adjust box drawing for nested structure)
+                is_last_bending = bending_idx == len(bending_configs) - 1
+                branch_char = "└" if is_last_bending else "├"
                 if result.success:
-                    logger.info(f"  └─ ✓ SUCCESS: Generated in {result.generation_time:.1f}s")
+                    logger.info(f"  {branch_char}─ ✓ SUCCESS: Generated in {result.generation_time:.1f}s")
                 else:
-                    logger.error(f"  └─ ✗ FAILED: {result.error_message}")
+                    logger.error(f"  {branch_char}─ ✗ FAILED: {result.error_message}")
                 
                 prompt_results.append(result)
                 
@@ -165,11 +206,20 @@ def generate_videos_with_bending(
                     'error': result.error_message if not result.success else None
                 }
                 video_metadata.append(video_meta)
+            
+            # Log summary after completing all bending variations for this seed
+            logger.info(f"  │")
+            logger.info(f"  └─ ✓ Completed all {len(bending_configs)} bending variations for seed {current_seed}")
+            logger.info(f"     🔍 DEBUG - Videos generated for this seed:")
+            for vid_idx in range(len(bending_configs)):
+                vid_num = current_video - len(bending_configs) + vid_idx + 1
+                logger.info(f"        video_{vid_num:04d} (bending_idx={vid_idx}, is_baseline={bending_configs[vid_idx] is None})")
         
         results[prompt_text] = prompt_results
     
     # Save comprehensive metadata
-    save_video_metadata(batch_dirs, video_metadata)
+    batch_name = config.batch_name if hasattr(config, 'batch_name') else ""
+    save_video_metadata(batch_dirs, video_metadata, batch_name)
     
     logger.info("\n" + "="*70)
     logger.info("VIDEO GENERATION COMPLETE")
@@ -190,9 +240,11 @@ def extract_target_words(template: str) -> List[str]:
     return re.findall(r'\(([^)]+)\)', template)
 
 
-def save_video_metadata(batch_dirs: Dict[str, Path], video_metadata: List[Dict]):
+def save_video_metadata(batch_dirs: Dict[str, Path], video_metadata: List[Dict], batch_name: str = ""):
     """Save comprehensive metadata including bending variations."""
-    metadata_file = batch_dirs["configs"] / "video_metadata.json"
+    # Use batch_name suffix to avoid conflicts with parallel GPU execution
+    suffix = f"_{batch_name}" if batch_name else ""
+    metadata_file = batch_dirs["configs"] / f"video_metadata{suffix}.json"
     
     # Create structured metadata
     metadata = {

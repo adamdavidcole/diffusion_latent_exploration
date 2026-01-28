@@ -415,20 +415,20 @@ class AttentionBender:
             attention_4d = attention_map.reshape(batch_heads, F, H, W)
             # logger.info(f"         After reshape to 4D: shape={attention_4d.shape}")
             
-            # Apply transformation frame-by-frame
-            # TODO: can we do transformations in parallel across frames tensor?
-            transformed_frames = []
-            for frame_idx in range(F):
-                frame = attention_4d[:, frame_idx, :, :]  # [batch_heads, H, W]
-                # logger.info(f"         📹 Processing frame {frame_idx+1}/{F}: shape={frame.shape} (all {frame.shape[0]} heads)")
-                transformed_frame = self._apply_2d_transformation(frame, config)
-                transformed_frames.append(transformed_frame)
+            # OPTIMIZED: Batch-process all frames in parallel instead of frame-by-frame
+            # Reshape [batch_heads, F, H, W] → [batch_heads*F, H, W]
+            # This treats each frame as a separate batch item for parallel processing
+            attention_batched = attention_4d.reshape(batch_heads * F, H, W)
+            # logger.info(f"         📹 Batch-processing ALL {F} frames in parallel: shape={attention_batched.shape}")
             
-            # Stack back to 4D and flatten to 1D
-            transformed_4d = torch.stack(transformed_frames, dim=1)  # [batch_heads, F, H, W]
+            # Apply transformation to all frames at once
+            transformed_batched = self._apply_2d_transformation(attention_batched, config)
+            
+            # Reshape back [batch_heads*F, H, W] → [batch_heads, F, H, W]
+            transformed_4d = transformed_batched.reshape(batch_heads, F, H, W)
             result = transformed_4d.reshape(batch_heads, -1)
             
-            # logger.info(f"         After frame-by-frame transform: shape={result.shape}, mean={result.mean():.6f}")
+            # logger.info(f"         After parallel transform: shape={result.shape}, mean={result.mean():.6f}")
             return result
             
         else:

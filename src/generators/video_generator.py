@@ -971,7 +971,12 @@ class WanVideoGenerator:
                 bending_enabled = False
                 bending_configs = []
                 
-                if per_video_bending_config:
+                # CRITICAL: Check if per_video_bending_config was explicitly passed (even if None)
+                # When using bending variations, None means "baseline - no bending"
+                # Only fall back to global settings if bending_config key is NOT in kwargs at all
+                has_per_video_config = 'bending_config' in kwargs
+                
+                if has_per_video_config and per_video_bending_config:
                     # Use per-video bending config (from BendingVariation)
                     bending_enabled = True
                     # Convert BendingConfig object to dict format expected by create_bending_from_config
@@ -983,8 +988,13 @@ class WanVideoGenerator:
                     logging.info(f"   Parameter: {getattr(per_video_bending_config, 'scale_factor', 'N/A')}")
                     logging.info(f"   Timesteps: {getattr(per_video_bending_config, 'apply_to_timesteps', 'ALL')}")
                     logging.info(f"   Layers: {getattr(per_video_bending_config, 'apply_to_layers', 'ALL')}")
-                elif attention_bending_settings and attention_bending_settings.enabled:
-                    # Fallback to global bending settings
+                elif has_per_video_config and per_video_bending_config is None:
+                    # Explicitly passed None - baseline video, no bending
+                    bending_enabled = False
+                    bending_configs = []
+                    logging.info("🚫 Per-video bending config is None (baseline) - no bending will be applied")
+                elif not has_per_video_config and attention_bending_settings and attention_bending_settings.enabled:
+                    # No per-video config passed at all - fall back to global bending settings
                     bending_enabled = True
                     bending_configs = attention_bending_settings.configs
                     logging.info(f"🎨 Using global bending config: {len(bending_configs)} config(s)")
@@ -1058,6 +1068,15 @@ class WanVideoGenerator:
                         logging.error(traceback.format_exc())
                         # Continue without bending rather than failing
                 else:
+                    # CRITICAL: Clear any previous bending configuration when not applying bending
+                    # This prevents baseline videos from using the previous video's bending config
+                    if attention_storage:
+                        logging.info(f"🧹 Clearing previous attention bending configuration (baseline video)")
+                        attention_storage.configure_attention_bending(
+                            attention_bender=None,
+                            apply_to_output=False
+                        )
+                    
                     if per_video_bending_config:
                         logging.info(f"🚫 Attention storage not enabled, skipping per-video bending config")
                     elif attention_bending_settings:

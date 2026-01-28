@@ -71,9 +71,12 @@ class VideoGenerationOrchestrator:
         if batch_logger != self.logger:
             self.logger = batch_logger
         
-        # Save configuration to batch
+        # Save configuration to batch (skip if exists to avoid conflicts in parallel execution)
         config_file = self.batch_dirs["configs"] / "generation_config.yaml"
-        self.config_manager.save_config(self.config, config_file)
+        if not config_file.exists():
+            self.config_manager.save_config(self.config, config_file)
+        else:
+            self.logger.debug(f"Config file already exists, skipping write: {config_file}")
         
         self.logger.info(f"Batch setup complete. Output directory: {self.batch_dirs['root']}")
         
@@ -102,6 +105,10 @@ class VideoGenerationOrchestrator:
         # Generate variations
         variations = prompt_template.generate_variations()
         
+        # Note: Variation range slicing is applied to BENDING variations, not prompt variations
+        # This is because typical use case has 1 prompt × many bending configs
+        # If you have many prompts and want to slice those, use --max-variations instead
+        
         if max_variations and len(variations) > max_variations:
             self.logger.warning(f"Template produces {len(variations)} variations, limiting to {max_variations}")
             variations = variations[:max_variations]
@@ -112,11 +119,23 @@ class VideoGenerationOrchestrator:
             self.logger.info(f"Created {weighted_count} weighted prompt variations")
         
         # Save template and variations info ONLY if not in continuation mode
-        if self.batch_dirs and save_template_files:
+        # AND only if this is the primary process (avoid conflicts in parallel GPU execution)
+        # Primary = either no batch_name, or batch_name doesn't contain 'gpu1' or '_part2'
+        is_primary = True
+        if hasattr(self.config, 'batch_name') and self.config.batch_name:
+            batch_name_lower = str(self.config.batch_name).lower()
+            is_primary = 'gpu1' not in batch_name_lower and 'part2' not in batch_name_lower
+        
+        if self.batch_dirs and save_template_files and is_primary:
             template_file = self.batch_dirs["configs"] / "prompt_template.txt"
-            self.logger.info(f"Saving original template to: {template_file}")
-            with open(template_file, "w", encoding="utf-8") as f:
-                f.write(template)
+            
+            # Only write if file doesn't exist (in case of race condition)
+            if not template_file.exists():
+                self.logger.info(f"Saving original template to: {template_file}")
+                with open(template_file, "w", encoding="utf-8") as f:
+                    f.write(template)
+            else:
+                self.logger.info(f"Template file already exists, skipping write: {template_file}")
             
             variations_file = self.batch_dirs["configs"] / "prompt_variations.json"
             variations_data = [
@@ -134,6 +153,46 @@ class VideoGenerationOrchestrator:
             self.logger.info("Skipping template file save (continuation mode - preserving original files)")
         
         return variations
+    
+    def _generate_all_bending_variations(self) -> List[BendingVariation]:
+        """
+        Generate all bending variations WITHOUT slicing (for offset calculation).
+        
+        Returns:
+            Complete list of all BendingVariation objects before any slicing
+        """
+        settings = self.config.attention_bending_variations_settings
+        
+        if not settings.enabled:
+            return []
+        
+        generator = AttentionBendingVariationGenerator()
+        all_variations = []
+        
+        for op_config in settings.operations:
+            # Convert dict config to OperationSpec
+            spec = OperationSpec(
+                operation=op_config.get("operation"),
+                parameter_name=op_config.get("parameter_name"),
+                range=tuple(op_config["range"]) if "range" in op_config else None,
+                steps=op_config.get("steps", 5),
+                values=op_config.get("values"),
+                vary_timesteps=op_config.get("vary_timesteps", False),
+                vary_layers=op_config.get("vary_layers", False),
+                apply_to_timesteps=op_config.get("apply_to_timesteps", "ALL"),
+                apply_to_layers=op_config.get("apply_to_layers", "ALL"),
+                target_token=op_config.get("target_token", ""),
+                strength=op_config.get("strength", 1.0),
+                padding_mode=op_config.get("padding_mode", "border"),
+                renormalize=op_config.get("renormalize", False),
+                extra_params=op_config.get("extra_params", {})
+            )
+            
+            # Generate variations for this operation
+            variations = generator.generate_variations(spec)
+            all_variations.extend(variations)
+        
+        return all_variations
     
     def process_bending_variations(self) -> Optional[List[BendingVariation]]:
         """
@@ -188,9 +247,23 @@ class VideoGenerationOrchestrator:
         
         self.logger.info(f"Total bending variations: {len(all_variations)}")
         
+        # Apply variation range slicing to bending variations (for parallel GPU execution)
+        if hasattr(self.config, 'variation_start') and hasattr(self.config, 'variation_end'):
+            start_frac = self.config.variation_start
+            end_frac = self.config.variation_end
+            if start_frac != 0.0 or end_frac != 1.0:
+                total = len(all_variations)
+                start_idx = int(total * start_frac)
+                end_idx = int(total * end_frac)
+                self.logger.info(f"Applying bending variation range: {start_frac:.2f}-{end_frac:.2f} (indices {start_idx}-{end_idx} of {total})")
+                all_variations = all_variations[start_idx:end_idx]
+                self.logger.info(f"After slicing: {len(all_variations)} bending variations")
+        
         # Save bending variations info
         if self.batch_dirs:
-            bending_file = self.batch_dirs["configs"] / "bending_variations.json"
+            # Use batch_name in filename to avoid conflicts with parallel GPU execution
+            batch_suffix = f"_{self.config.batch_name}" if hasattr(self.config, 'batch_name') and self.config.batch_name else ""
+            bending_file = self.batch_dirs["configs"] / f"bending_variations{batch_suffix}.json"
             bending_data = [
                 {
                     "variation_id": var.variation_id,
@@ -323,16 +396,52 @@ class VideoGenerationOrchestrator:
         
         self.logger.info(f"Using {'weighted' if use_weighted else 'standard'} prompts for generation")
         
+        # Determine if this is the primary GPU process (for baseline generation in dual GPU mode)
+        # Primary = either no batch_name, or batch_name doesn't contain 'gpu1' or '_part2'
+        is_primary = True
+        if hasattr(self.config, 'batch_name') and self.config.batch_name:
+            batch_name_lower = str(self.config.batch_name).lower()
+            is_primary = 'gpu1' not in batch_name_lower and 'part2' not in batch_name_lower
+        
         # Build list of bending configs to apply (baseline + variations)
         bending_configs_to_apply = []
         if bending_variations:
+            # CRITICAL: Only primary GPU generates baseline in dual GPU mode
+            # Secondary GPU starts directly with its assigned bending variations
             if self.config.attention_bending_variations_settings.generate_baseline:
-                bending_configs_to_apply.append(None)  # None = baseline (no bending)
-                self.logger.info("Including baseline (no bending) in generation")
+                if is_primary:
+                    bending_configs_to_apply.append(None)  # None = baseline (no bending)
+                    self.logger.info("Including baseline (no bending) in generation [PRIMARY GPU]")
+                else:
+                    self.logger.info("Skipping baseline generation [SECONDARY GPU - baseline handled by primary]")
             bending_configs_to_apply.extend(bending_variations)
             self.logger.info(f"Will generate {len(bending_configs_to_apply)} videos per (prompt × seed) combination")
         else:
             bending_configs_to_apply = [None]  # Just baseline
+        
+        # Calculate video number offset for secondary GPU to prevent filename collisions
+        # Secondary GPU should start numbering after primary GPU's videos
+        video_number_offset = 0
+        if not is_primary and bending_variations:
+            # Calculate how many videos primary GPU generates:
+            # num_prompts × num_seeds × (1 baseline + num_primary_variations)
+            # Primary gets: 0 to variation_end of total variations + baseline
+            # Secondary's variation_start tells us where it begins (what % primary covered)
+            variation_start = getattr(self.config, 'variation_start', 0.0)
+            
+            # Get total variations BEFORE slicing (to know what primary processed)
+            total_variations_before_slice = len(self._generate_all_bending_variations())
+            
+            # Number of variations primary processed = variation_start fraction of total
+            # e.g., if variation_start=0.5 and total=240, primary got 0-119 (120 variations)
+            num_primary_variations = int(total_variations_before_slice * variation_start)
+            
+            # Primary generates: baseline + its variations
+            num_primary_configs = 1 + num_primary_variations  # 1 for baseline
+            video_number_offset = len(variations) * videos_per_var * num_primary_configs
+            self.logger.info(f"Secondary GPU video offset: {video_number_offset} " 
+                           f"(prompts={len(variations)}, seeds={videos_per_var}, " 
+                           f"primary_configs={num_primary_configs} [1 baseline + {num_primary_variations} variations])")
         
         # Generate videos with bending variation support
         results = generate_videos_with_bending(
@@ -345,7 +454,8 @@ class VideoGenerationOrchestrator:
             config=self.config,
             latent_storage=latent_storage,
             attention_storage=attention_storage,
-            original_template=original_template
+            original_template=original_template,
+            video_number_offset=video_number_offset
         )
         
         # Finish progress tracking
@@ -391,7 +501,9 @@ class VideoGenerationOrchestrator:
                       template: str,
                       batch_name: Optional[str] = None,
                       videos_per_variation: Optional[int] = None,
-                      max_variations: Optional[int] = None) -> Dict[str, Any]:
+                      max_variations: Optional[int] = None,
+                      variation_start: float = 0.0,
+                      variation_end: float = 1.0) -> Dict[str, Any]:
         """
         Run a complete batch generation process.
         
@@ -400,11 +512,17 @@ class VideoGenerationOrchestrator:
             batch_name: Optional name for the batch
             videos_per_variation: Override config setting for videos per variation
             max_variations: Limit the number of variations to process
+            variation_start: Start at this fraction of total variations (0.0-1.0, for parallel GPU execution)
+            variation_end: End at this fraction of total variations (0.0-1.0, for parallel GPU execution)
         
         Returns:
             Dictionary with batch results and metadata
         """
         try:
+            # Apply variation range to config (used by process_prompt_template)
+            self.config.variation_start = variation_start
+            self.config.variation_end = variation_end
+            
             # Setup batch
             batch_dirs = self.setup_batch(batch_name)
             
@@ -563,11 +681,45 @@ class VideoGenerationOrchestrator:
         prompt_template = PromptTemplate(template)
         variations = prompt_template.generate_variations()
         
+        # Calculate total videos including bending variations
+        num_bending_configs = 1  # Default: just baseline
+        if self.config.attention_bending_variations_settings.enabled:
+            # Count bending variations
+            from src.utils.attention_bending_variations import AttentionBendingVariationGenerator, OperationSpec
+            generator = AttentionBendingVariationGenerator()
+            bending_count = 0
+            
+            for op_config in self.config.attention_bending_variations_settings.operations:
+                spec = OperationSpec(
+                    operation=op_config.get("operation"),
+                    parameter_name=op_config.get("parameter_name"),
+                    range=tuple(op_config["range"]) if "range" in op_config else None,
+                    steps=op_config.get("steps", 5),
+                    values=op_config.get("values"),
+                    vary_timesteps=op_config.get("vary_timesteps", False),
+                    vary_layers=op_config.get("vary_layers", False),
+                    apply_to_timesteps=op_config.get("apply_to_timesteps", "ALL"),
+                    apply_to_layers=op_config.get("apply_to_layers", "ALL"),
+                    target_token=op_config.get("target_token", ""),
+                    strength=op_config.get("strength", 1.0),
+                    padding_mode=op_config.get("padding_mode", "border"),
+                    renormalize=op_config.get("renormalize", False),
+                    extra_params=op_config.get("extra_params", {})
+                )
+                bending_count += len(generator.generate_variations(spec))
+            
+            num_bending_configs = bending_count
+            if self.config.attention_bending_variations_settings.generate_baseline:
+                num_bending_configs += 1  # Add baseline
+        
+        total_videos = len(variations) * self.config.videos_per_variation * num_bending_configs
+        
         preview_info = {
             "template": template,
             "total_variations": len(variations),
             "videos_per_variation": self.config.videos_per_variation,
-            "total_videos": len(variations) * self.config.videos_per_variation,
+            "bending_configs": num_bending_configs,
+            "total_videos": total_videos,
             "preview_variations": [var.text for var in variations[:max_preview]],
             "estimated_time": "Unknown",  # Would need model timing data
             "configuration": self.config_manager._config_to_dict(self.config)

@@ -75,6 +75,13 @@ Examples:
     parser.add_argument('--max-variations', type=int,
                        help='Limit number of variations to process')
     
+    # Parallel execution support (for dual GPU setups)
+    parser.add_argument('--variation-start', type=float, default=0.0,
+                       help='Start at this fraction of total variations (0.0-1.0, default: 0.0)')
+    
+    parser.add_argument('--variation-end', type=float, default=1.0,
+                       help='End at this fraction of total variations (0.0-1.0, default: 1.0)')
+    
     # Preview and analysis
     parser.add_argument('--preview', action='store_true',
                        help='Preview batch without generating videos')
@@ -170,12 +177,19 @@ def load_or_create_config(config_path: str, args) -> GenerationConfig:
     # Apply command line overrides
     if args.output:
         config.output_dir = args.output
+        # When output is explicitly specified, disable timestamp to use exact path
+        config.use_timestamp = False
     
     if args.videos_per_variation:
         config.videos_per_variation = args.videos_per_variation
     
     if args.batch_name:
         config.batch_name = args.batch_name
+    
+    # Store variation range for later processing
+    if hasattr(args, 'variation_start'):
+        config.variation_start = args.variation_start
+        config.variation_end = args.variation_end
     
     # Model setting overrides
     if args.device is not None:
@@ -273,6 +287,8 @@ def preview_batch(orchestrator: VideoGenerationOrchestrator, template: str, max_
     print(f"  Template: {preview['template']}")
     print(f"  Total variations: {preview['total_variations']}")
     print(f"  Videos per variation: {preview['videos_per_variation']}")
+    if preview.get('bending_configs', 1) > 1:
+        print(f"  Bending configs: {preview['bending_configs']} (includes baseline)" if orchestrator.config.attention_bending_variations_settings.generate_baseline else f"  Bending configs: {preview['bending_configs']}")
     print(f"  Total videos to generate: {preview['total_videos']}")
     
     # Check for parenthetical tokens for attention analysis
@@ -290,9 +306,16 @@ def preview_batch(orchestrator: VideoGenerationOrchestrator, template: str, max_
     
     # Estimate disk space
     config = orchestrator.config
+    # Calculate duration from frames if duration not set
+    if config.video_settings.duration:
+        duration = config.video_settings.duration
+    else:
+        # Calculate from frames and FPS
+        duration = config.video_settings.frames / config.video_settings.fps
+    
     estimated_space = estimate_disk_space(
         num_videos=preview['total_videos'],
-        video_duration=config.video_settings.duration,
+        video_duration=duration,
         resolution=(config.video_settings.width, config.video_settings.height),
         fps=config.video_settings.fps
     )
@@ -397,7 +420,9 @@ def main():
             template=args.template,
             batch_name=args.batch_name,
             videos_per_variation=args.videos_per_variation,
-            max_variations=args.max_variations
+            max_variations=args.max_variations,
+            variation_start=args.variation_start,
+            variation_end=args.variation_end
         )
         
         print(f"\n🎉 Batch generation complete!")

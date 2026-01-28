@@ -84,14 +84,16 @@ class FileManager:
         if batch_name:
             batch_name = FileManager.sanitize_batch_name(batch_name)
         
-        if use_timestamp:
+        # When use_timestamp=False, treat base_dir as the final directory
+        # (typically when --output is explicitly provided with full path)
+        if not use_timestamp:
+            batch_dir = base_path
+        elif use_timestamp:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             if batch_name:
                 batch_dir = base_path / f"{batch_name}_{timestamp}"
             else:
                 batch_dir = base_path / f"batch_{timestamp}"
-        else:
-            batch_dir = base_path / (batch_name or "batch")
         
         # Create directory structure
         dirs = {

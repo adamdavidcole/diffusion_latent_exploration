@@ -104,11 +104,11 @@ const LatentVideosView = ({ experimentPath }) => {
     if (videoId.startsWith('p') && videoId.includes('_b') && videoId.includes('_s')) {
       // Try to get metadata for this video
       const videoMetadata = metadata?.[videoId];
-      
+
       if (videoMetadata?.bending_metadata) {
         const bending = videoMetadata.bending_metadata;
         const parts = [];
-        
+
         // Operation and value
         if (bending.operation === 'scale') {
           parts.push(`Scale ${bending.value}×`);
@@ -117,24 +117,24 @@ const LatentVideosView = ({ experimentPath }) => {
         } else if (bending.operation === 'set') {
           parts.push(`Set ${bending.value}`);
         }
-        
+
         // Timesteps
         if (bending.timestep_spec) {
           parts.push(`T:${bending.timestep_spec}`);
         }
-        
+
         // Layers
         if (bending.layer_spec && bending.layer_spec !== 'ALL') {
           parts.push(`L:${bending.layer_spec}`);
         } else if (bending.layer_spec === 'ALL') {
           parts.push('L:ALL');
         }
-        
+
         // Token
         if (bending.target_token && bending.target_token !== 'ALL') {
           parts.push(`"${bending.target_token}"`);
         }
-        
+
         return parts.join(' | ');
       } else if (videoId.includes('_b000_')) {
         // Baseline
