@@ -113,8 +113,7 @@ class TestOperationSpec:
         assert spec.range == (0.75, 1.25)
         assert spec.steps == 5
         assert spec.target_token == "kiss"
-        assert spec.vary_timesteps is False
-        assert spec.vary_layers is False
+        # No vary flags - behavior determined by list vs single value
     
     def test_operation_spec_with_variations(self):
         """Test operation spec with timestep/layer variations."""
@@ -124,13 +123,10 @@ class TestOperationSpec:
             range=(0.75, 1.25),
             steps=5,
             target_token="kiss",
-            vary_timesteps=True,
-            vary_layers=True,
-            apply_to_timesteps=["0-10", "10-19"],
-            apply_to_layers=["ALL", [14, 15]]
+            apply_to_timesteps=["0-10", "10-19"],  # List = variations
+            apply_to_layers=["ALL", [14, 15]]  # List = variations
         )
-        assert spec.vary_timesteps is True
-        assert spec.vary_layers is True
+        # Behavior determined by list format
         assert spec.apply_to_timesteps == ["0-10", "10-19"]
         assert spec.apply_to_layers == ["ALL", [14, 15]]
 
@@ -181,8 +177,7 @@ class TestVariationGenerator:
             range=(0.75, 1.25),
             steps=5,
             target_token="kiss",
-            vary_timesteps=False,
-            apply_to_timesteps="ALL"
+            apply_to_timesteps="ALL"  # Single value = no variation
         )
         specs = gen._generate_timestep_specs(spec)
         assert len(specs) == 1
@@ -197,8 +192,7 @@ class TestVariationGenerator:
             range=(0.75, 1.25),
             steps=5,
             target_token="kiss",
-            vary_timesteps=True,
-            apply_to_timesteps=["0-10", "10-19"]
+            apply_to_timesteps=["0-10", "10-19"]  # List = variations
         )
         specs = gen._generate_timestep_specs(spec)
         assert len(specs) == 2
@@ -213,8 +207,7 @@ class TestVariationGenerator:
             range=(0.75, 1.25),
             steps=5,
             target_token="kiss",
-            vary_layers=False,
-            apply_to_layers="ALL"
+            apply_to_layers="ALL"  # Single value = no variation
         )
         specs = gen._generate_layer_specs(spec)
         assert len(specs) == 1
@@ -229,8 +222,7 @@ class TestVariationGenerator:
             range=(0.75, 1.25),
             steps=5,
             target_token="kiss",
-            vary_layers=True,
-            apply_to_layers=["ALL", [14, 15]]
+            apply_to_layers=["ALL", [14, 15]]  # List = variations
         )
         specs = gen._generate_layer_specs(spec)
         assert len(specs) == 2
@@ -300,10 +292,8 @@ class TestVariationGeneration:
             range=(0.75, 1.25),
             steps=5,
             target_token="kiss",
-            vary_timesteps=False,
-            vary_layers=False,
-            apply_to_timesteps="ALL",
-            apply_to_layers="ALL"
+            apply_to_timesteps="ALL",  # Single value
+            apply_to_layers="ALL"  # Single value
         )
         variations = gen.generate_variations(spec)
         
@@ -330,10 +320,8 @@ class TestVariationGeneration:
             range=(0.75, 1.25),
             steps=5,
             target_token="kiss",
-            vary_timesteps=True,
-            vary_layers=True,
-            apply_to_timesteps=["0-10", "10-19"],
-            apply_to_layers=["ALL", [14, 15]]
+            apply_to_timesteps=["0-10", "10-19"],  # List = 2 variations
+            apply_to_layers=["ALL", [14, 15]]  # List = 2 variations
         )
         variations = gen.generate_variations(spec)
         
@@ -363,10 +351,8 @@ class TestVariationGeneration:
             parameter_name="scale_factor",
             values=[1.0],  # Single parameter value
             target_token="kiss",
-            vary_timesteps=True,
-            vary_layers=False,
-            apply_to_timesteps=["0-5", "5-10", "10-15", "15-19"],
-            apply_to_layers="ALL"
+            apply_to_timesteps=["0-5", "5-10", "10-15", "15-19"],  # List = variations
+            apply_to_layers="ALL"  # Single value
         )
         variations = gen.generate_variations(spec)
         
@@ -384,10 +370,8 @@ class TestVariationGeneration:
             parameter_name="angle",
             values=[45],  # Single parameter value
             target_token="object",
-            vary_timesteps=False,
-            vary_layers=True,
-            apply_to_timesteps="ALL",
-            apply_to_layers=["0-10", "10-20", "20-30", [14, 15]]
+            apply_to_timesteps="ALL",  # Single value
+            apply_to_layers=["0-10", "10-20", "20-30", [14, 15]]  # List = variations
         )
         variations = gen.generate_variations(spec)
         
@@ -405,19 +389,26 @@ class TestVariationGeneration:
             parameter_name="scale_factor",
             values=[0.75],
             target_token="kiss",
-            vary_timesteps=True,
-            apply_to_timesteps=["0-10"],
+            apply_to_timesteps=["0-10"],  # List with single element
             apply_to_layers="ALL"
         )
         variations = gen.generate_variations(spec)
         
         var = variations[0]
-        assert var.metadata["operation"] == "scale"
-        assert var.metadata["parameter"] == "scale_factor"
-        assert var.metadata["value"] == 0.75
-        assert var.metadata["timestep_spec"] == "0-10"
-        assert var.metadata["layer_spec"] == "ALL"
+        # Check new metadata format
+        assert var.metadata["transformation_type"] == "scale"
+        assert var.metadata["transformation_params"]["scale_x"] == 0.75
+        assert var.metadata["transformation_params"]["scale_y"] == 0.75
+        assert var.metadata["timestep_range"] == [0, 10]
+        assert var.metadata["layer_indices"] is None  # "ALL" means None
         assert var.metadata["target_token"] == "kiss"
+        
+        # Check legacy attributes still accessible
+        assert var.operation == "scale"
+        assert var.parameter_name == "scale_factor"
+        assert var.parameter_value == 0.75
+        assert var.timestep_spec == "0-10"
+        assert var.layer_spec == "ALL"
     
     def test_bending_config_creation(self):
         """Test that BendingConfig is correctly created."""
@@ -429,10 +420,13 @@ class TestVariationGeneration:
             target_token="kiss",
             strength=0.8,
             padding_mode="reflection",
-            apply_to_timesteps="0-10",
-            apply_to_layers=[14, 15]
+            apply_to_timesteps="0-10",  # Single value
+            apply_to_layers="14-15"  # Use range string for single spec
         )
         variations = gen.generate_variations(spec)
+        
+        # Should generate 1 variation
+        assert len(variations) == 1
         
         config = variations[0].config
         assert config.token == "kiss"
@@ -441,7 +435,8 @@ class TestVariationGeneration:
         assert config.strength == 0.8
         assert config.padding_mode == "reflection"
         assert config.apply_to_timesteps == (0, 10)
-        assert config.apply_to_layers == [14, 15]
+        # "14-15" parsed to range [14, 15]
+        assert config.apply_to_layers == list(range(14, 16))
 
 
 class TestEdgeCases:

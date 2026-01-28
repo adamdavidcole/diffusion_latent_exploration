@@ -58,15 +58,13 @@ attention_bending_variations:
       strength: 1.0
       padding_mode: "border"
       
-      # Simplify for quick validation
-      vary_timesteps: true
-      vary_layers: false  # Don't vary layers for this test
+      # List → generates variations
       apply_to_timesteps:
         - "0-5"   # Early steps
         - "5-10"  # Late steps
-      apply_to_layers: "ALL"  # Apply to all layers
+      apply_to_layers: "ALL"  # Single value = no variation
       
-      # Expected: 3 scale × 2 timesteps = 6 variations
+      # Expected: 3 scale × 2 timesteps × 1 layer = 6 variations
       # Plus 1 baseline = 7 total videos
 
 # Disable storage to speed up testing

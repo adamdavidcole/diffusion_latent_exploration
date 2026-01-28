@@ -158,15 +158,17 @@ class AttentionBendingVariationsSettings:
     # {
     #     "operation": "scale",              # Operation type
     #     "parameter_name": "scale_factor",  # Parameter to vary
-    #     "range": [0.75, 1.25],             # Min/max values
-    #     "steps": 5,                        # Number of values
+    #     "range": [0.75, 1.25],             # Min/max values (not needed for flip)
+    #     "steps": 5,                        # Number of values (not needed for flip)
     #     "target_token": "kiss",            # Token to apply to
-    #     "vary_timesteps": true,            # Enable timestep variations
-    #     "vary_layers": true,               # Enable layer variations
-    #     "apply_to_timesteps": ["0-10", "10-19"],  # Timestep configs
-    #     "apply_to_layers": ["ALL", [14, 15]],     # Layer configs
+    #     "apply_to_timesteps": ["0-10", "10-19"],  # List → variations, single → no variation
+    #     "apply_to_layers": ["ALL", [14, 15]],     # List → variations, single/None → no variation
     #     "strength": 1.0,                   # Bending strength
     #     "padding_mode": "border"           # Padding for affine transforms
+    #     
+    #     # Special case: flip operations
+    #     # No need to specify 'values' or 'range' - presence implies enabled
+    #     # Example: {"operation": "flip", "parameter_name": "flip_horizontal"}
     # }
 
 

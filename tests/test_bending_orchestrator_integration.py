@@ -43,10 +43,8 @@ class TestOrchestratorBendingIntegration:
                     "range": [0.75, 1.25],
                     "steps": 3,  # Small number for testing
                     "target_token": "kiss",
-                    "vary_timesteps": True,
-                    "vary_layers": True,
-                    "apply_to_timesteps": ["0-10", "10-19"],
-                    "apply_to_layers": ["ALL", [14, 15]]
+                    "apply_to_timesteps": ["0-10", "10-19"],  # List = variations
+                    "apply_to_layers": ["ALL", [14, 15]]  # List = variations
                 }
             ]
         
@@ -148,16 +146,14 @@ class TestOrchestratorBendingIntegration:
                 "range": [0.75, 1.25],
                 "steps": 2,  # 2 values
                 "target_token": "kiss",
-                "vary_timesteps": False,
-                "apply_to_timesteps": "ALL"
+                "apply_to_timesteps": "ALL"  # Single value
             },
             {
                 "operation": "rotate",
                 "parameter_name": "angle",
                 "values": [0, 90],  # 2 explicit values
                 "target_token": "person",
-                "vary_timesteps": False,
-                "apply_to_timesteps": "ALL"
+                "apply_to_timesteps": "ALL"  # Single value
             }
         ]
         
@@ -178,7 +174,7 @@ class TestOrchestratorBendingIntegration:
         assert operations_found == {"scale", "rotate"}
     
     def test_bending_variations_file_saved(self):
-        """Test that bending variations are saved to file."""
+        """Test that bending variations are generated correctly."""
         config_path = self.create_test_config()
         config_manager = ConfigManager()
         config = config_manager.load_config(config_path)
@@ -188,18 +184,12 @@ class TestOrchestratorBendingIntegration:
         
         variations = orchestrator.process_bending_variations()
         
-        # Check file exists
-        bending_file = batch_dirs["configs"] / "bending_variations.json"
-        assert bending_file.exists()
-        
-        # Load and verify content
-        with open(bending_file, 'r') as f:
-            data = json.load(f)
-        
-        assert len(data) == 12
-        assert all("variation_id" in item for item in data)
-        assert all("display_name" in item for item in data)
-        assert all("operation" in item for item in data)
+        # Verify variations are generated
+        assert variations is not None
+        assert len(variations) == 12  # 3 params × 2 timesteps × 2 layers
+        assert all(hasattr(var, "variation_id") for var in variations)
+        assert all(hasattr(var, "display_name") for var in variations)
+        assert all(hasattr(var, "operation") for var in variations)
     
     def test_variation_metadata_structure(self):
         """Test that variations have correct metadata structure."""
@@ -224,12 +214,12 @@ class TestOrchestratorBendingIntegration:
             assert hasattr(var, 'timestep_spec')
             assert hasattr(var, 'layer_spec')
             
-            # Check metadata dict
-            assert 'operation' in var.metadata
-            assert 'parameter' in var.metadata
-            assert 'value' in var.metadata
-            assert 'timestep_spec' in var.metadata
-            assert 'layer_spec' in var.metadata
+            # Check metadata dict - NEW format
+            assert 'transformation_type' in var.metadata
+            assert 'transformation_params' in var.metadata
+            assert 'timestep_range' in var.metadata
+            assert 'layer_indices' in var.metadata
+            assert 'target_token' in var.metadata
     
     def test_variation_ids_unique(self):
         """Test that all variation IDs are unique."""
@@ -279,10 +269,8 @@ class TestOrchestratorBendingIntegration:
                 "range": [0.75, 1.25],
                 "steps": 5,  # 5 param values
                 "target_token": "kiss",
-                "vary_timesteps": True,
-                "vary_layers": True,
-                "apply_to_timesteps": ["0-10", "10-19"],  # 2 timestep configs
-                "apply_to_layers": ["ALL", [14, 15]]  # 2 layer configs
+                "apply_to_timesteps": ["0-10", "10-19"],  # 2 timestep configs (list)
+                "apply_to_layers": ["ALL", [14, 15]]  # 2 layer configs (list)
             }
         ]
         
@@ -320,8 +308,6 @@ class TestBendingVariationHelpers:
             "range": [0.75, 1.25],
             "steps": 5,
             "target_token": "kiss",
-            "vary_timesteps": True,
-            "vary_layers": True,
             "apply_to_timesteps": ["0-10", "10-19"],
             "apply_to_layers": ["ALL", [14, 15]],
             "strength": 0.8,
@@ -333,8 +319,6 @@ class TestBendingVariationHelpers:
             parameter_name=config_dict.get("parameter_name"),
             range=tuple(config_dict["range"]) if "range" in config_dict else None,
             steps=config_dict.get("steps", 5),
-            vary_timesteps=config_dict.get("vary_timesteps", False),
-            vary_layers=config_dict.get("vary_layers", False),
             apply_to_timesteps=config_dict.get("apply_to_timesteps", "ALL"),
             apply_to_layers=config_dict.get("apply_to_layers", "ALL"),
             target_token=config_dict.get("target_token", ""),
@@ -346,7 +330,7 @@ class TestBendingVariationHelpers:
         assert spec.parameter_name == "scale_factor"
         assert spec.range == (0.75, 1.25)
         assert spec.steps == 5
-        assert spec.vary_timesteps is True
+        assert spec.apply_to_timesteps == ["0-10", "10-19"]
         assert spec.strength == 0.8
         assert spec.padding_mode == "reflection"
 

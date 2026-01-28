@@ -46,7 +46,13 @@ class BendingVariation:
 
 @dataclass
 class OperationSpec:
-    """Specification for generating variations of a single operation."""
+    """Specification for generating variations of a single operation.
+    
+    Behavior:
+    - If apply_to_timesteps is a list: generate variations for each element
+    - If apply_to_timesteps is a single value or None: use single value (defaults to "ALL")
+    - Same logic for apply_to_layers
+    """
     operation: str  # "scale", "rotate", "translate_x", "translate_y", "flip", etc.
     parameter_name: str  # Which parameter to vary
     
@@ -56,10 +62,9 @@ class OperationSpec:
     values: Optional[List[float]] = None  # Explicit list of values (overrides range)
     
     # Meta-parameter variations (orthogonal to parameter)
-    vary_timesteps: bool = False  # Whether to vary timestep application
-    vary_layers: bool = False  # Whether to vary layer application
-    apply_to_timesteps: Union[str, int, List[Union[str, int]]] = "ALL"
-    apply_to_layers: Union[str, int, List[Union[str, int]]] = "ALL"
+    # If list → generate variations, if single value/None → single application
+    apply_to_timesteps: Union[str, int, List[Union[str, int]], None] = None
+    apply_to_layers: Union[str, int, List[Union[str, int]], None] = None
     
     # Fixed operation parameters
     target_token: str = ""  # Token to apply bending to
@@ -99,10 +104,8 @@ class AttentionBendingVariationGenerator:
             range=(0.75, 1.25),
             steps=5,
             target_token="kiss",
-            vary_timesteps=True,
-            vary_layers=True,
-            apply_to_timesteps=["0-10", "10-19"],
-            apply_to_layers=["ALL", [14, 15]]
+            apply_to_timesteps=["0-10", "10-19"],  # List → 2 variations
+            apply_to_layers=["ALL", [14, 15]]  # List → 2 variations
         )
         variations = generator.generate_variations(spec)
         # Returns: 5 × 2 × 2 = 20 BendingVariation objects
@@ -151,7 +154,15 @@ class AttentionBendingVariationGenerator:
         return variations
     
     def _generate_parameter_values(self, spec: OperationSpec) -> List[float]:
-        """Generate parameter values from range or explicit list."""
+        """Generate parameter values from range or explicit list.
+        
+        Special handling for flip operations: if no values specified, default to [True]
+        since defining a flip operation implies you want to apply it.
+        """
+        # Special case: flip operations default to [True] if no values specified
+        if spec.operation == "flip" and spec.values is None and spec.range is None:
+            return [True]
+        
         if spec.values is not None:
             return spec.values
         
@@ -170,27 +181,28 @@ class AttentionBendingVariationGenerator:
         )
     
     def _generate_timestep_specs(self, spec: OperationSpec) -> List[Any]:
-        """Generate list of timestep specifications."""
-        if not spec.vary_timesteps:
-            # Single timestep spec - if it's a list, take first element only
-            timestep_value = spec.apply_to_timesteps
-            if isinstance(timestep_value, list) and len(timestep_value) > 0:
-                return [timestep_value[0]]
-            return [timestep_value]
+        """Generate list of timestep specifications.
         
-        # Multiple timestep specs - convert to list if needed
+        If apply_to_timesteps is a list: return list (generate variations)
+        If single value or None: return single-element list (no variations)
+        """
+        if spec.apply_to_timesteps is None:
+            return ["ALL"]
+        
         if isinstance(spec.apply_to_timesteps, list):
             return spec.apply_to_timesteps
         else:
             return [spec.apply_to_timesteps]
     
     def _generate_layer_specs(self, spec: OperationSpec) -> List[Any]:
-        """Generate list of layer specifications."""
-        if not spec.vary_layers:
-            # Single layer spec
-            return [spec.apply_to_layers]
+        """Generate list of layer specifications.
         
-        # Multiple layer specs - convert to list if needed
+        If apply_to_layers is a list: return list (generate variations)
+        If single value or None: return single-element list (no variations)
+        """
+        if spec.apply_to_layers is None:
+            return ["ALL"]
+        
         if isinstance(spec.apply_to_layers, list):
             return spec.apply_to_layers
         else:
@@ -272,8 +284,11 @@ class AttentionBendingVariationGenerator:
             elif isinstance(layer_spec, int):
                 layer_indices = [layer_spec]
         
+        # For flip operations, use parameter_name as transformation_type
+        transformation_type = spec.parameter_name if spec.operation == "flip" else spec.operation
+        
         metadata = {
-            "transformation_type": spec.operation,
+            "transformation_type": transformation_type,
             "transformation_params": transformation_params,
             "phase": spec.extra_params.get("phase"),  # Phase 1 or 2 (or None)
             "timestep_range": timestep_range,
@@ -496,8 +511,9 @@ def format_display_name(
         "flip_vertical": lambda v: f"Flip V: {bool(v)}",
     }
     
-    # Use parameter_name if available for operations with sub-parameters
-    op_key = parameter_name if parameter_name and operation in ["flip", "translate"] else operation
+    # Use parameter_name if available for operations with sub-parameters (flip, translate)
+    # For flip operations, parameter_name will be "flip_horizontal" or "flip_vertical"
+    op_key = parameter_name if parameter_name in op_display else operation
     formatter = op_display.get(op_key, lambda v: f"{operation.title()}: {v}")
     name_parts = [formatter(parameter_value)]
     

@@ -153,6 +153,15 @@ const LatentVideosView = ({ experimentPath }) => {
             parts.push('Flip Horizontal');
           } else if (type === 'flip_vertical') {
             parts.push('Flip Vertical');
+          } else if (type === 'flip') {
+            // Check params to determine flip direction
+            if (params.flip_horizontal) {
+              parts.push('Flip Horizontal');
+            } else if (params.flip_vertical) {
+              parts.push('Flip Vertical');
+            } else {
+              parts.push('Flip');
+            }
           } else if (type === 'gaussian_blur' || type === 'blur') {
             parts.push(`Blur σ=${formatNum(params.sigma)}`);
           } else if (type === 'edge_enhance') {
