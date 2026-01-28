@@ -30,7 +30,7 @@ class VideoAnalyzer:
         if bending_id == 'baseline' or bending_id is None:
             return 'Baseline (No Bending)'
         
-        # Parse the bending_id: operation_value_tTIMESTEPS_lLAYERS
+        # Parse the bending_id: operation_value_[token]_tTIMESTEPS_lLAYERS
         # Handle compound operations like flip_horizontal, translate_x
         parts = bending_id.split('_')
         if len(parts) < 2:
@@ -46,7 +46,8 @@ class VideoAnalyzer:
             value = parts[1] if len(parts) > 1 else ''
             value_offset = 2  # Parts after value start at index 2
         
-        # Extract timestep and layer info
+        # Extract token, timestep and layer info
+        token = None
         timesteps = None
         layers = None
         
@@ -58,6 +59,19 @@ class VideoAnalyzer:
                 layer_part = '_'.join(parts[i:])  # Rejoin in case of 'l14,15'
                 layers = layer_part[1:]  # Remove 'l' prefix
                 break
+            elif not part.startswith('t') and not part.startswith('l'):
+                # This is the token (appears before timestep/layer specs)
+                # For comma-separated tokens, rejoin parts that don't start with 't' or 'l'
+                token_parts = [part]
+                # Check if next parts are also token parts (for comma-separated like "kiss, rose, ship")
+                j = i + 1
+                while j < len(parts) and not parts[j].startswith('t') and not parts[j].startswith('l'):
+                    token_parts.append(parts[j])
+                    j += 1
+                token = '_'.join(token_parts)  # Rejoin token parts
+                # Skip ahead past token parts
+                for _ in range(len(token_parts) - 1):
+                    value_offset += 1
         
         # Format operation-specific labels
         op_formatters = {
@@ -71,7 +85,15 @@ class VideoAnalyzer:
         }
         
         formatter = op_formatters.get(operation, lambda v: f"{operation.capitalize()} {v}")
-        label_parts = [formatter(value)]
+        
+        label_parts = []
+        
+        # Add token info FIRST (only if not "ALL" - for brevity)
+        if token and token != 'ALL':
+            label_parts.append(f"Token: {token}")
+        
+        # Add operation and value
+        label_parts.append(formatter(value))
         
         if timesteps:
             if timesteps == 'ALL':

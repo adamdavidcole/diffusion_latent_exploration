@@ -322,6 +322,8 @@ class AttentionBendingVariationGenerator:
         transformation_type = spec.parameter_name if spec.operation == "flip" else spec.operation
         
         metadata = {
+            "display_name": display_name,  # Include display_name for UI
+            "variation_id": variation_id,  # Include variation_id for reference
             "transformation_type": transformation_type,
             "transformation_params": transformation_params,
             "phase": spec.extra_params.get("phase"),  # Phase 1 or 2 (or None)
@@ -557,11 +559,15 @@ def format_display_name(
     # For flip operations, parameter_name will be "flip_horizontal" or "flip_vertical"
     op_key = parameter_name if parameter_name in op_display else operation
     formatter = op_display.get(op_key, lambda v: f"{operation.title()}: {v}")
-    name_parts = [formatter(parameter_value)]
     
-    # Add token info (only if not "ALL" - omit for brevity)
+    name_parts = []
+    
+    # Add token info FIRST (only if not "ALL" - omit for brevity)
     if token_spec is not None and token_spec != "ALL":
         name_parts.append(f"Token: {token_spec}")
+    
+    # Add operation and value
+    name_parts.append(formatter(parameter_value))
     
     # Add timestep info
     if timestep_spec is not None:
