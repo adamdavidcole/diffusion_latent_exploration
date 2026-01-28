@@ -67,7 +67,7 @@ class OperationSpec:
     apply_to_layers: Union[str, int, List[Union[str, int]], None] = None
     
     # Fixed operation parameters
-    target_token: str = ""  # Token to apply bending to
+    target_token: Union[str, List[str], None] = None  # Token(s) to apply bending to - supports list for multi-token variations
     strength: float = 1.0
     padding_mode: str = 'border'
     renormalize: bool = False
@@ -111,9 +111,14 @@ class AttentionBendingVariationGenerator:
         # Returns: 5 × 2 × 2 = 20 BendingVariation objects
     """
     
-    def __init__(self):
-        """Initialize the variation generator."""
+    def __init__(self, prompt: Optional[str] = None):
+        """Initialize the variation generator.
+        
+        Args:
+            prompt: Optional prompt (kept for compatibility, not used for filtering)
+        """
         self.default_ranges = DEFAULT_OPERATION_RANGES
+        self.prompt = prompt
     
     def generate_variations(self, spec: OperationSpec) -> List[BendingVariation]:
         """
@@ -130,25 +135,29 @@ class AttentionBendingVariationGenerator:
         # Step 1: Generate parameter values
         param_values = self._generate_parameter_values(spec)
         
-        # Step 2: Generate timestep configurations
+        # Step 2: Generate token specifications (no filtering - uses target_token directly)
+        token_specs = self._generate_token_specs(spec)
+        
+        # Step 3: Generate timestep configurations
         timestep_specs = self._generate_timestep_specs(spec)
         
-        # Step 3: Generate layer configurations
+        # Step 4: Generate layer configurations
         layer_specs = self._generate_layer_specs(spec)
         
-        # Step 4: Create Cartesian product
+        # Step 5: Create Cartesian product
         variations = []
         for param_val in param_values:
-            for timestep_spec in timestep_specs:
-                for layer_spec in layer_specs:
-                    variation = self._create_variation(
-                        spec, param_val, timestep_spec, layer_spec
-                    )
-                    variations.append(variation)
+            for token_spec in token_specs:
+                for timestep_spec in timestep_specs:
+                    for layer_spec in layer_specs:
+                        variation = self._create_variation(
+                            spec, param_val, token_spec, timestep_spec, layer_spec
+                        )
+                        variations.append(variation)
         
         logger.info(
             f"Generated {len(variations)} variations for {spec.operation}: "
-            f"{len(param_values)} params × {len(timestep_specs)} timesteps × {len(layer_specs)} layers"
+            f"{len(param_values)} params × {len(token_specs)} tokens × {len(timestep_specs)} timesteps × {len(layer_specs)} layers"
         )
         
         return variations
@@ -208,17 +217,40 @@ class AttentionBendingVariationGenerator:
         else:
             return [spec.apply_to_layers]
     
+    def _generate_token_specs(self, spec: OperationSpec) -> List[str]:
+        """Generate list of token specifications.
+        
+        Returns target_token as a list without filtering.
+        Assumes tokens will be in the token map if bending is needed.
+        
+        Args:
+            spec: OperationSpec with target_token field
+            
+        Returns:
+            List of token strings to generate variations for
+        """
+        if spec.target_token is None:
+            return ["ALL"]
+        
+        # If target_token is already a list, return it
+        if isinstance(spec.target_token, list):
+            return spec.target_token
+        
+        # If single string, wrap in list
+        return [spec.target_token]
+    
     def _create_variation(
         self,
         spec: OperationSpec,
         param_value: float,
+        token_spec: str,
         timestep_spec: Any,
         layer_spec: Any
     ) -> BendingVariation:
         """Create a single BendingVariation from specifications."""
         # Create BendingConfig
         config = self._build_bending_config(
-            spec, param_value, timestep_spec, layer_spec
+            spec, param_value, token_spec, timestep_spec, layer_spec
         )
         
         # Generate variation ID
@@ -227,7 +259,8 @@ class AttentionBendingVariationGenerator:
             parameter_value=param_value,
             timestep_spec=timestep_spec,
             layer_spec=layer_spec,
-            parameter_name=spec.parameter_name
+            parameter_name=spec.parameter_name,
+            token_spec=token_spec
         )
         
         # Generate display name
@@ -236,7 +269,8 @@ class AttentionBendingVariationGenerator:
             parameter_value=param_value,
             timestep_spec=timestep_spec,
             layer_spec=layer_spec,
-            parameter_name=spec.parameter_name
+            parameter_name=spec.parameter_name,
+            token_spec=token_spec
         )
         
         # Build metadata using new attention bending format
@@ -293,7 +327,7 @@ class AttentionBendingVariationGenerator:
             "phase": spec.extra_params.get("phase"),  # Phase 1 or 2 (or None)
             "timestep_range": timestep_range,
             "layer_indices": layer_indices,
-            "target_token": spec.target_token if spec.target_token else None,
+            "target_token": token_spec if token_spec else None,
         }
         
         return BendingVariation(
@@ -312,6 +346,7 @@ class AttentionBendingVariationGenerator:
         self,
         spec: OperationSpec,
         param_value: float,
+        token_spec: str,
         timestep_spec: Any,
         layer_spec: Any
     ) -> BendingConfig:
@@ -327,7 +362,7 @@ class AttentionBendingVariationGenerator:
         
         # Build parameter dict
         params = {
-            "token": spec.target_token,
+            "token": token_spec,  # Use the specific token for this variation
             "mode": mode,
             "strength": spec.strength,
             "padding_mode": spec.padding_mode,
@@ -338,7 +373,8 @@ class AttentionBendingVariationGenerator:
         
         # Add operation-specific parameter
         if spec.parameter_name in ["scale_factor", "angle", "translate_x", "translate_y", 
-                                     "amplify_factor", "sigma", "sharpen_amount"]:
+                                     "amplify_factor", "sigma", "sharpen_amount",
+                                     "flip_horizontal", "flip_vertical"]:
             params[spec.parameter_name] = param_value
         
         # Add extra parameters
@@ -431,19 +467,20 @@ def format_variation_id(
     layer_spec: Any = None,
     prompt_id: Optional[str] = None,
     seed: Optional[int] = None,
-    parameter_name: Optional[str] = None
+    parameter_name: Optional[str] = None,
+    token_spec: Optional[str] = None
 ) -> str:
     """
     Format unique variation identifier.
     
-    Format: [prompt_id]_[seed]_operation_value_t<timesteps>_l<layers>
+    Format: [prompt_id]_[seed]_operation_value[_token]_t<timesteps>_l<layers>
     
     Examples:
         format_variation_id("scale", 0.75, "0-10", "ALL")
         → "scale_0.75_t0-10_lALL"
         
-        format_variation_id("scale", 0.75, "0-10", [14, 15], "prompt_000", 42)
-        → "prompt_000_seed_42_scale_0.75_t0-10_l14,15"
+        format_variation_id("scale", 0.75, "0-10", [14, 15], "prompt_000", 42, token_spec="rose")
+        → "prompt_000_seed_42_scale_0.75_rose_t0-10_l14,15"
         
         format_variation_id("flip", 1.0, parameter_name="flip_horizontal")
         → "flip_horizontal_1_tALL_lALL"
@@ -459,6 +496,10 @@ def format_variation_id(
     # Operation and value - use parameter_name if available for operations with sub-parameters
     op_name = parameter_name if parameter_name and operation in ["flip", "translate"] else operation
     parts.append(f"{op_name}_{parameter_value:.4g}")
+    
+    # Add token spec (only if not "ALL" - omit for brevity)
+    if token_spec and token_spec != "ALL":
+        parts.append(token_spec.lower())
     
     # Timestep suffix
     if timestep_spec is not None:
@@ -480,19 +521,20 @@ def format_display_name(
     parameter_value: float,
     timestep_spec: Any = None,
     layer_spec: Any = None,
-    parameter_name: Optional[str] = None
+    parameter_name: Optional[str] = None,
+    token_spec: Optional[str] = None
 ) -> str:
     """
     Format human-readable display name.
     
-    Format: Operation: value [unit] | T: <timesteps> | L: <layers>
+    Format: Operation: value [unit] | Token: <token> | T: <timesteps> | L: <layers>
     
     Examples:
-        format_display_name("scale", 0.75, "0-10", "ALL")
-        → "Scale: 0.75× | T: 0-10 | L: ALL"
+        format_display_name("scale", 0.75, "0-10", "ALL", token_spec="rose")
+        → "Scale: 0.75× | Token: rose | T: 0-10 | L: ALL"
         
-        format_display_name("rotate", 45, "ALL", [14, 15])
-        → "Rotate: 45° | T: ALL | L: 14,15"
+        format_display_name("rotate", 45, "ALL", [14, 15], token_spec="ALL")
+        → "Rotate: 45° | T: ALL | L: 14,15"  (token omitted for "ALL")
         
         format_display_name("flip", 1.0, parameter_name="flip_horizontal")
         → "Flip H: True | T: ALL | L: ALL"
@@ -516,6 +558,10 @@ def format_display_name(
     op_key = parameter_name if parameter_name in op_display else operation
     formatter = op_display.get(op_key, lambda v: f"{operation.title()}: {v}")
     name_parts = [formatter(parameter_value)]
+    
+    # Add token info (only if not "ALL" - omit for brevity)
+    if token_spec is not None and token_spec != "ALL":
+        name_parts.append(f"Token: {token_spec}")
     
     # Add timestep info
     if timestep_spec is not None:

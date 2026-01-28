@@ -74,6 +74,7 @@ def generate_videos_with_bending(
         
         prompt_text = prompt_var.weighted_text if use_weighted and prompt_var.weighted_text else prompt_var.text
         logger.info(f"Prompt: {prompt_text[:80]}{'...' if len(prompt_text) > 80 else ''}")
+        logger.info(f"Note: Token filtering happens automatically during bending application (comma-separated tokens filtered to those in prompt)")
         
         prompt_results = []
         

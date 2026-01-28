@@ -1364,7 +1364,8 @@ class AttentionStorage:
                 word.lower(): token_info["positions"][0] if token_info["positions"] else 0
                 for word, token_info in self.target_tokens.items()
             }
-            self.attention_bender.update_token_map(token_to_position)
+            # Pass both token map AND current prompt for comma-separated token filtering
+            self.attention_bender.update_token_map(token_to_position, prompt=self.current_prompt)
             self.logger.debug(f"Updated bender token map (word -> position): {token_to_position}")
     
     def set_current_timestep(self, timestep: Optional[Union[int, float, torch.Tensor]]):

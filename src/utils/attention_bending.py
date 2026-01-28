@@ -115,6 +115,7 @@ class AttentionBender:
         self.bending_configs = bending_configs
         logger.info(f"INITIAL TOKEN TO INDEX MAP: {token_to_index_map}")    
         self.token_to_index_map = token_to_index_map or {}
+        self.current_prompt = None  # Store prompt for comma-separated token filtering
         self.device = device
         self.apply_before_softmax = apply_before_softmax
         
@@ -133,10 +134,18 @@ class AttentionBender:
         for config in bending_configs:
             logger.info(f"  - Token '{config.token}': {config.mode.value} (strength={config.strength})")
     
-    def update_token_map(self, token_to_index_map: Dict[str, int]):
-        """Update the token-to-index mapping (called per generation with actual tokens)."""
+    def update_token_map(self, token_to_index_map: Dict[str, int], prompt: str = None):
+        """Update the token-to-index mapping (called per generation with actual tokens).
+        
+        Args:
+            token_to_index_map: Mapping from token strings to indices
+            prompt: The prompt text (used for filtering comma-separated tokens)
+        """
         self.token_to_index_map = token_to_index_map
+        self.current_prompt = prompt
         logger.debug(f"Updated token map: {token_to_index_map}")
+        if prompt:
+            logger.debug(f"Updated prompt: {prompt[:100]}...")
     
     def should_apply(self, config: BendingConfig, layer_idx: Optional[int], timestep: Optional[int]) -> bool:
         """Check if bending should be applied based on layer/timestep constraints."""
@@ -270,7 +279,62 @@ class AttentionBender:
                         (1 - config.strength) * token_attention
                     )
             else:
-                # Find specific token index
+                # NEW: Handle comma-separated token groups like "kiss, rose, ship"
+                # Split by comma and filter to tokens present in BOTH prompt text AND token map
+                if ',' in config.token:
+                    # Parse comma-separated tokens
+                    candidate_tokens = [t.strip().lower() for t in config.token.split(',')]
+                    
+                    # Filter to tokens present in prompt text (case-insensitive)
+                    prompt_lower = self.current_prompt.lower() if self.current_prompt else ""
+                    tokens_in_prompt = [t for t in candidate_tokens if t in prompt_lower]
+                    
+                    # Further filter to only tokens that have been tracked (in token map)
+                    # NOTE: For bending to work, tokens must be in parentheses in prompt for tracking
+                    active_tokens = [t for t in tokens_in_prompt if t in self.token_to_index_map]
+                    
+                    if active_tokens:
+                        logger.info(f"   📋 Comma-separated group '{config.token}':")
+                        logger.info(f"      In prompt: {len(tokens_in_prompt)}/{len(candidate_tokens)} tokens")
+                        logger.info(f"      In token map: {len(active_tokens)}/{len(tokens_in_prompt)} tokens: {active_tokens}")
+                        
+                        # Apply bending to each active token
+                        for token_name in active_tokens:
+                            token_idx = self.token_to_index_map[token_name]
+                            
+                            if token_idx >= seq_len:
+                                logger.warning(f"      ❌ Token '{token_name}' index {token_idx} >= seq_len {seq_len}, skipping")
+                                continue
+                            
+                            # Extract attention for this token
+                            token_attention = bent_attention[:, :, token_idx]
+                            
+                            # Apply transformation
+                            transformed = self._apply_transformation(
+                                token_attention,
+                                config,
+                                spatial_shape
+                            )
+                            
+                            # Blend with original based on strength
+                            bent_attention[:, :, token_idx] = (
+                                config.strength * transformed +
+                                (1 - config.strength) * token_attention
+                            )
+                            
+                            logger.info(f"      ✅ Applied {config.mode.value} to '{token_name}' (idx={token_idx})")
+                    else:
+                        if tokens_in_prompt:
+                            logger.warning(f"   ⚠️  Comma-separated group '{config.token}': {len(tokens_in_prompt)} tokens in prompt but not tracked (wrap in parentheses)")
+                        else:
+                            logger.debug(f"   ⏭️  Comma-separated group '{config.token}': no tokens found in prompt")
+                    
+                    # Continue to next config (already processed all active tokens in this group)
+                    # TODO: Handle multi-token words like "cinematic" → ["cinema", "tic"]
+                    # For now, user must use exact token strings that appear in token map
+                    continue
+                
+                # Standard single token lookup
                 token_idx = self.token_to_index_map.get(config.token.lower())
                 if token_idx is None:
                     logger.warning(f"   ❌ Token '{config.token}' not found in map: {self.token_to_index_map}")
@@ -686,6 +750,7 @@ class AttentionBender:
         """
         result = attention
         if config.flip_horizontal:
+            print("Flipping horizontally")
             result = torch.flip(result, dims=[2])  # Flip along width dimension
         if config.flip_vertical:
             result = torch.flip(result, dims=[1])  # Flip along height dimension
