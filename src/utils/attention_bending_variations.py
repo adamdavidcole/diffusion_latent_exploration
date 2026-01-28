@@ -211,7 +211,8 @@ class AttentionBendingVariationGenerator:
             operation=spec.operation,
             parameter_value=param_value,
             timestep_spec=timestep_spec,
-            layer_spec=layer_spec
+            layer_spec=layer_spec,
+            parameter_name=spec.parameter_name
         )
         
         # Generate display name
@@ -219,7 +220,8 @@ class AttentionBendingVariationGenerator:
             operation=spec.operation,
             parameter_value=param_value,
             timestep_spec=timestep_spec,
-            layer_spec=layer_spec
+            layer_spec=layer_spec,
+            parameter_name=spec.parameter_name
         )
         
         # Build metadata
@@ -366,7 +368,8 @@ def format_variation_id(
     timestep_spec: Any = None,
     layer_spec: Any = None,
     prompt_id: Optional[str] = None,
-    seed: Optional[int] = None
+    seed: Optional[int] = None,
+    parameter_name: Optional[str] = None
 ) -> str:
     """
     Format unique variation identifier.
@@ -379,6 +382,9 @@ def format_variation_id(
         
         format_variation_id("scale", 0.75, "0-10", [14, 15], "prompt_000", 42)
         → "prompt_000_seed_42_scale_0.75_t0-10_l14,15"
+        
+        format_variation_id("flip", 1.0, parameter_name="flip_horizontal")
+        → "flip_horizontal_1_tALL_lALL"
     """
     parts = []
     
@@ -388,8 +394,9 @@ def format_variation_id(
     if seed is not None:
         parts.append(f"seed_{seed}")
     
-    # Operation and value
-    parts.append(f"{operation}_{parameter_value:.4g}")
+    # Operation and value - use parameter_name if available for operations with sub-parameters
+    op_name = parameter_name if parameter_name and operation in ["flip", "translate"] else operation
+    parts.append(f"{op_name}_{parameter_value:.4g}")
     
     # Timestep suffix
     if timestep_spec is not None:
@@ -410,7 +417,8 @@ def format_display_name(
     operation: str,
     parameter_value: float,
     timestep_spec: Any = None,
-    layer_spec: Any = None
+    layer_spec: Any = None,
+    parameter_name: Optional[str] = None
 ) -> str:
     """
     Format human-readable display name.
@@ -423,6 +431,9 @@ def format_display_name(
         
         format_display_name("rotate", 45, "ALL", [14, 15])
         → "Rotate: 45° | T: ALL | L: 14,15"
+        
+        format_display_name("flip", 1.0, parameter_name="flip_horizontal")
+        → "Flip H: True | T: ALL | L: ALL"
     """
     # Format operation name and value with unit
     op_display = {
@@ -434,9 +445,13 @@ def format_display_name(
         "blur": lambda v: f"Blur: σ={v:.1f}",
         "sharpen": lambda v: f"Sharpen: {v:.2f}",
         "flip": lambda v: f"Flip: {v}",
+        "flip_horizontal": lambda v: f"Flip H: {bool(v)}",
+        "flip_vertical": lambda v: f"Flip V: {bool(v)}",
     }
     
-    formatter = op_display.get(operation, lambda v: f"{operation.title()}: {v}")
+    # Use parameter_name if available for operations with sub-parameters
+    op_key = parameter_name if parameter_name and operation in ["flip", "translate"] else operation
+    formatter = op_display.get(op_key, lambda v: f"{operation.title()}: {v}")
     name_parts = [formatter(parameter_value)]
     
     # Add timestep info

@@ -31,18 +31,26 @@ class VideoAnalyzer:
             return 'Baseline (No Bending)'
         
         # Parse the bending_id: operation_value_tTIMESTEPS_lLAYERS
+        # Handle compound operations like flip_horizontal, translate_x
         parts = bending_id.split('_')
         if len(parts) < 2:
             return bending_id  # Return as-is if can't parse
         
-        operation = parts[0].capitalize()
-        value = parts[1]
+        # Check for compound operation names (flip_horizontal, flip_vertical, translate_x, translate_y)
+        if parts[0] in ['flip', 'translate'] and len(parts) > 2 and parts[1] in ['horizontal', 'vertical', 'x', 'y']:
+            operation = f"{parts[0]}_{parts[1]}"
+            value = parts[2] if len(parts) > 2 else ''
+            value_offset = 3  # Parts after value start at index 3
+        else:
+            operation = parts[0]
+            value = parts[1] if len(parts) > 1 else ''
+            value_offset = 2  # Parts after value start at index 2
         
         # Extract timestep and layer info
         timesteps = None
         layers = None
         
-        for i, part in enumerate(parts[2:], start=2):
+        for i, part in enumerate(parts[value_offset:], start=value_offset):
             if part.startswith('t'):
                 timesteps = part[1:]  # Remove 't' prefix
             elif part.startswith('l'):
@@ -51,8 +59,19 @@ class VideoAnalyzer:
                 layers = layer_part[1:]  # Remove 'l' prefix
                 break
         
-        # Build readable string
-        label_parts = [f"{operation} {value}×"]
+        # Format operation-specific labels
+        op_formatters = {
+            'scale': lambda v: f"Scale {v}×",
+            'rotate': lambda v: f"Rotate {v}°",
+            'translate_x': lambda v: f"Translate X {v}",
+            'translate_y': lambda v: f"Translate Y {v}",
+            'flip_horizontal': lambda v: f"Flip H: {v}",
+            'flip_vertical': lambda v: f"Flip V: {v}",
+            'amplify': lambda v: f"Amplify {v}×",
+        }
+        
+        formatter = op_formatters.get(operation, lambda v: f"{operation.capitalize()} {v}")
+        label_parts = [formatter(value)]
         
         if timesteps:
             if timesteps == 'ALL':
@@ -316,6 +335,24 @@ class VideoAnalyzer:
                     for i, variation in enumerate(variations_list):
                         variations_data[str(i).zfill(3)] = variation  # "000", "001", etc.
             
+            # Load video metadata to get bending display names
+            video_metadata_map = {}
+            metadata_file = exp_dir / 'configs' / 'video_metadata.json'
+            if metadata_file.exists():
+                try:
+                    with open(metadata_file, 'r') as f:
+                        metadata = json.load(f)
+                        # Create map from video_id to metadata
+                        for video in metadata.get('videos', []):
+                            video_id = video.get('video_id')
+                            if video_id:
+                                video_metadata_map[video_id] = {
+                                    'bending_metadata': video.get('bending_metadata'),
+                                    'prompt_variation': video.get('prompt_variation', {}).get('text')
+                                }
+                except Exception as e:
+                    print(f"Warning: Could not load video metadata for {exp_dir.name}: {e}")
+            
             # Find all videos
             videos_dir = exp_dir / 'videos'
             videos = []
@@ -334,7 +371,8 @@ class VideoAnalyzer:
                             variations_data,
                             video_settings=video_settings,
                             model_settings=model_settings,
-                            cfg_scale=cfg_scale
+                            cfg_scale=cfg_scale,
+                            video_metadata_map=video_metadata_map
                         )
                         if video_info:
                             videos.append(video_info)
@@ -464,7 +502,8 @@ class VideoAnalyzer:
             return None
     
     def _extract_video_metadata_new_format(self, video_path, variations_data, 
-                                          video_settings=None, model_settings=None, cfg_scale=None):
+                                          video_settings=None, model_settings=None, cfg_scale=None,
+                                          video_metadata_map=None):
         """
         Extract metadata from NEW filename format.
         
@@ -525,8 +564,15 @@ class VideoAnalyzer:
             base_seed = model_settings.get('seed', 42)
             actual_seed = base_seed + seed_offset
             
-            # Create readable variation label
+            # Create video_id for metadata lookup (3-digit format)
+            video_id = f"p{prompt_idx:03d}_b{video_number - 1:03d}_s{seed_offset:03d}"
+            
+            # Get readable label from bending_metadata if available
             readable_label = self.format_bending_label(bending_id)
+            if video_metadata_map and video_id in video_metadata_map:
+                bending_meta = video_metadata_map[video_id].get('bending_metadata', {})
+                if bending_meta and 'display_name' in bending_meta:
+                    readable_label = bending_meta['display_name']
             
             metadata = {
                 'video_path': str(video_path.relative_to(self.outputs_dir)),
