@@ -142,9 +142,25 @@ class WanAttentionWrapper(torch.nn.Module):
                 apply_bending_before_softmax = getattr(self.attention_bender, 'apply_before_softmax', False) if self.attention_bender else False
                 
                 if self.attention_bender is not None and apply_bending_before_softmax:
-                    # PRE-SOFTMAX BENDING: Bend the raw attention scores before softmax
+                    # PRE-SOFTMAX BENDING: Pass raw attention scores before softmax
+                    # Note: Works best for AMPLIFY mode, spatial transforms may have unexpected results
                     try:
-                        self.attention_storage.logger.debug(f"🎯 PRE-SOFTMAX: Bending attention scores before softmax")
+                        # Check if this is amplify-only and warn if not
+                        from .attention_bending import BendingMode
+                        has_only_amplify = all(
+                            config.mode == BendingMode.AMPLIFY 
+                            for config in self.attention_bender.bending_configs
+                        )
+                        
+                        if not has_only_amplify:
+                            self.attention_storage.logger.warning(
+                                f"⚠️  Pre-softmax bending with non-AMPLIFY modes detected. "
+                                f"Spatial transforms (scale/rotate/blur) are designed for post-softmax probabilities [0,1]. "
+                                f"Pre-softmax scores are unbounded and may produce unexpected results. "
+                                f"Proceeding anyway..."
+                            )
+                        
+                        self.attention_storage.logger.debug(f"🎯 PRE-SOFTMAX: Bending raw attention scores before softmax")
                         
                         # Compute spatial shape for video model
                         spatial_shape = None
@@ -164,34 +180,34 @@ class WanAttentionWrapper(torch.nn.Module):
                             if expected_tokens == spatial_tokens:
                                 spatial_shape = (latent_f, latent_h, latent_w)
                         
-                        # First apply softmax to get attention probs for bending
-                        attention_probs_for_bending = torch.softmax(attention_scores, dim=-1)
-                        
-                        # Bend the attention probabilities (bender works with probabilities)
-                        bent_attention = self.attention_bender.bend_attention(
-                            attention_probs=attention_probs_for_bending,
+                        # Pass RAW SCORES directly to bending (no softmax!)
+                        # This allows amplification to affect scores before the exponential softmax
+                        bent_scores_tensor = self.attention_bender.bend_attention(
+                            attention_probs=attention_scores,  # Pass scores, not probs!
                             layer_idx=self.block_index,
                             timestep=diffusion_step,
                             spatial_shape=spatial_shape
                         )
                         
-                        # Convert bent probabilities back to scores (inverse softmax)
-                        # bent_scores = log(bent_attention) + constant
-                        # We can use the original scores' scale as reference
-                        bent_scores = torch.log(bent_attention.clamp(min=1e-10))
-                        
-                        self.attention_storage.logger.debug(f"✅ Pre-softmax bending applied, will apply softmax to bent scores")
+                        bent_scores = bent_scores_tensor
+                        self.attention_storage.logger.debug(
+                            f"✅ Pre-softmax bending applied to raw scores, will apply softmax next."
+                        )
                         
                     except Exception as e:
                         self.attention_storage.logger.warning(
                             f"Error applying pre-softmax bending: {e}, using original scores"
                         )
+                        import traceback
+                        traceback.print_exc()
                         bent_scores = None
                 
                 # Apply softmax (to either original or bent scores)
                 if bent_scores is not None:
                     attention_maps = torch.softmax(bent_scores, dim=-1)
                     self.attention_storage.logger.debug(f"Applied softmax to BENT scores")
+                    # IMPORTANT: Set bent_attention so it gets used for output!
+                    bent_attention = attention_maps
                 else:
                     attention_maps = torch.softmax(attention_scores, dim=-1)
                 

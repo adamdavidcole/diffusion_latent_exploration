@@ -126,12 +126,22 @@ class AttentionBender:
         self.apply_before_softmax = apply_before_softmax
         
         if apply_before_softmax:
-            logger.warning(
-                "⚠️  apply_before_softmax=True is NOT FULLY IMPLEMENTED.\n"
-                "   Current behavior: softmax → bend → log → softmax (not true pre-softmax bending)\n"
-                "   For strong amplification effects similar to prompt weighting, use prompt weighting instead: (token:2.0)\n"
-                "   Post-softmax amplification has minimal effect because attention already sums to 1."
-            )
+            # Check if all configs are AMPLIFY mode
+            has_only_amplify = all(config.mode == BendingMode.AMPLIFY for config in bending_configs)
+            
+            if has_only_amplify:
+                logger.info(
+                    "✅ Pre-softmax bending enabled for AMPLIFY mode.\n"
+                    "   Will amplify raw attention scores BEFORE softmax (like prompt weighting).\n"
+                    "   This provides stronger effects than post-softmax amplification."
+                )
+            else:
+                logger.warning(
+                    "⚠️  Pre-softmax bending enabled with non-AMPLIFY modes.\n"
+                    "   Spatial transforms (scale/rotate/blur) are designed for post-softmax probabilities [0,1].\n"
+                    "   Pre-softmax scores are unbounded and may produce unexpected results.\n"
+                    "   Consider using apply_before_softmax=False for spatial transforms."
+                )
         
         # Statistics tracking
         self.stats = {
@@ -183,14 +193,18 @@ class AttentionBender:
         Apply attention bending transformations.
         
         Args:
-            attention_probs: Attention probability tensor [B, num_heads, H*W, seq_len]
-                           or [B*num_heads, H*W, seq_len]
+            attention_probs: Attention tensor - either probabilities (post-softmax) or scores (pre-softmax)
+                           [B, num_heads, H*W, seq_len] or [B*num_heads, H*W, seq_len]
+                           - For pre-softmax AMPLIFY: Pass raw attention scores (unbounded)
+                           - For post-softmax transforms: Pass attention probabilities [0,1]
             layer_idx: Current transformer layer index
             timestep: Current denoising timestep
             spatial_shape: (height, width) of spatial dimensions if known
             
         Returns:
-            Transformed attention probabilities with same shape as input
+            Transformed attention tensor with same shape as input
+            - If input is scores (pre-softmax): Returns amplified scores
+            - If input is probs (post-softmax): Returns transformed probabilities
         """
         if not self.bending_configs:
             return attention_probs
@@ -237,59 +251,16 @@ class AttentionBender:
         
         # Apply each bending config
         configs_applied = 0
-        for config in self.bending_configs:
-            if not self.should_apply(config, layer_idx, timestep):
-                # logger.info(f"   ⏭️  Skipping config for '{config.token}' (conditions not met)")
-                continue
-            
-            # Check if this config applies to ALL tokens (special marker)
-            is_all_tokens_config = config.token.upper() in ["__ALL_TOKENS__", "ALL_TOKENS", "*"]
-            
-            if is_all_tokens_config:
-                # STRESS TEST MODE: Apply this config to ALL tokens
-                logger.info(f"   🔥 STRESS TEST: Applying '{config.mode.value}' to ALL {seq_len} tokens (token='{config.token}')")
-                
-                # Apply transformation to every token
-                for token_idx in range(seq_len):
-                    token_attention = bent_attention[:, :, token_idx]
-                    transformed = self._apply_transformation(
-                        token_attention,
-                        config,
-                        spatial_shape
-                    )
-                    
-                    # Blend with strength
-                    if config.strength < 1.0:
-                        transformed = config.strength * transformed + (1 - config.strength) * token_attention
-                    
-                    # Update token in full tensor
-                    bent_attention[:, :, token_idx] = transformed
-                
-                # Optionally renormalize entire attention tensor across token dimension ONCE
-                # This restores the softmax property: sum across tokens = 1 at each spatial position
-                if config.renormalize:
-                    # DIAGNOSTIC: Check sum BEFORE renormalization
-                    if logger.isEnabledFor(logging.DEBUG):
-                        pre_renorm_sums = bent_attention.sum(dim=2, keepdim=True)
-                        logger.debug(f"      PRE-renorm token sums: range [{pre_renorm_sums.min():.6f}, {pre_renorm_sums.max():.6f}], mean={pre_renorm_sums.mean():.6f}")
-                    
-                    bent_attention = bent_attention / (bent_attention.sum(dim=2, keepdim=True) + 1e-10)
-                    
-                    # DIAGNOSTIC: Check sum AFTER renormalization
-                    if logger.isEnabledFor(logging.DEBUG):
-                        post_renorm_sums = bent_attention.sum(dim=2, keepdim=True)
-                        logger.debug(f"      POST-renorm token sums: range [{post_renorm_sums.min():.6f}, {post_renorm_sums.max():.6f}], mean={post_renorm_sums.mean():.6f}")
-                
-                logger.info(f"   ✅ Applied to all {seq_len} tokens")
-                configs_applied += 1
-                
-                # Continue to next config (allows multiple all-tokens configs with special marker)
-                continue
         
+        should_renormalize = True  # Track if any config requests renormalization
+
         # Normal mode: Apply configs to specific tokens
         for config in self.bending_configs:
             if not self.should_apply(config, layer_idx, timestep):
                 continue
+
+            if not config.renormalize: 
+                should_renormalize = False
             
             # Check if this is a wildcard token (apply to all tokens)
             is_wildcard = config.token.upper() in ['ALL', '*', 'ALLTOKENS']
@@ -317,9 +288,7 @@ class AttentionBender:
                     # Update token in full tensor
                     bent_attention[:, :, token_idx] = blended
                 
-                # Optionally renormalize entire attention tensor across token dimension ONCE
-                if config.renormalize:
-                    bent_attention = bent_attention / (bent_attention.sum(dim=2, keepdim=True) + 1e-10)
+        
             else:
                 # NEW: Handle comma-separated token groups like "kiss, rose, ship"
                 # Split by comma and filter to tokens present in BOTH prompt text AND token map
@@ -368,129 +337,62 @@ class AttentionBender:
                             bent_attention[:, :, token_idx] = blended
                             
                             logger.info(f"      ✅ Applied {config.mode.value} to '{token_name}' (idx={token_idx})")
-                        
-                        # Optionally renormalize entire attention tensor across token dimension ONCE
-                        if config.renormalize:
-                            bent_attention = bent_attention / (bent_attention.sum(dim=2, keepdim=True) + 1e-10)
+                      
                     else:
                         if tokens_in_prompt:
                             logger.warning(f"   ⚠️  Comma-separated group '{config.token}': {len(tokens_in_prompt)} tokens in prompt but not tracked (wrap in parentheses)")
                         else:
                             logger.debug(f"   ⏭️  Comma-separated group '{config.token}': no tokens found in prompt")
                     
-                    # Continue to next config (already processed all active tokens in this group)
-                    # TODO: Handle multi-token words like "cinematic" → ["cinema", "tic"]
-                    # For now, user must use exact token strings that appear in token map
-                    continue
+                else:
                 
-                # Standard single token lookup
-                token_idx = self.token_to_index_map.get(config.token.lower())
-                if token_idx is None:
-                    logger.warning(f"   ❌ Token '{config.token}' not found in map: {self.token_to_index_map}")
-                    continue
+                    # Standard single token lookup
+                    token_idx = self.token_to_index_map.get(config.token.lower())
+                    if token_idx is None:
+                        logger.warning(f"   ❌ Token '{config.token}' not found in map: {self.token_to_index_map}")
+                        continue
                 
-                # logger.info(f"   ✅ Applying {config.mode.value} to token '{config.token}' (idx={token_idx})")
-                # logger.info(f"   ✅ Applying {config.mode.value} to token '{config.token}' (idx={token_idx})")
+                    # logger.info(f"   ✅ Applying {config.mode.value} to token '{config.token}' (idx={token_idx})")
+                    # logger.info(f"   ✅ Applying {config.mode.value} to token '{config.token}' (idx={token_idx})")
                 
-                if token_idx >= seq_len:
-                    logger.warning(f"   ❌ Token index {token_idx} >= seq_len {seq_len}, skipping")
-                    continue
+                    if token_idx >= seq_len:
+                        logger.warning(f"   ❌ Token index {token_idx} >= seq_len {seq_len}, skipping")
+                        continue
                 
-                # Extract attention for this token [batch_heads, spatial_tokens]
-                token_attention = bent_attention[:, :, token_idx]
-                # logger.info(f"      Token attention shape: {token_attention.shape}, mean: {token_attention.mean():.4f}, max: {token_attention.max():.4f}")
+                    # Extract attention for this token [batch_heads, spatial_tokens]
+                    token_attention = bent_attention[:, :, token_idx]
+                    # logger.info(f"      Token attention shape: {token_attention.shape}, mean: {token_attention.mean():.4f}, max: {token_attention.max():.4f}")
+                    
+                    # Apply transformation
+                    transformed = self._apply_transformation(
+                        token_attention,
+                        config,
+                        spatial_shape
+                    )
+                    # logger.info(f"      After transform: mean: {transformed.mean():.4f}, max: {transformed.max():.4f}")
+                    
+                    # Blend with original based on strength
+                    blended = (
+                        config.strength * transformed +
+                        (1 - config.strength) * token_attention
+                    )
+                    
+                    # Update token in full tensor
+                    bent_attention[:, :, token_idx] = blended
                 
-                # Apply transformation
-                transformed = self._apply_transformation(
-                    token_attention,
-                    config,
-                    spatial_shape
-                )
-                # logger.info(f"      After transform: mean: {transformed.mean():.4f}, max: {transformed.max():.4f}")
-                
-                # Blend with original based on strength
-                blended = (
-                    config.strength * transformed +
-                    (1 - config.strength) * token_attention
-                )
-                
-                # Update token in full tensor
-                bent_attention[:, :, token_idx] = blended
-                
-                # Optionally renormalize entire attention tensor across token dimension
-                if config.renormalize:
-                    bent_attention = bent_attention / (bent_attention.sum(dim=2, keepdim=True) + 1e-10)
+             
+                    # Track stats
+                    self.stats["tokens_bent"][config.token] = self.stats["tokens_bent"].get(config.token, 0) + 1
             
-            # DEBUG: Visualize original vs transformed attention
-            # if config.should_debug_visualize:
-            #     try:
-            #         from datetime import datetime
-            #         from ..visualization.attention_visualizer import visualize_attention_tensor
-                    
-            #         # Initialize batch directory on first use
-            #         if self._debug_batch_dir is None:
-            #             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            #             self._debug_batch_dir = Path("debug_bent_attention") / f"batch_{timestamp}"
-            #             self._debug_batch_dir.mkdir(parents=True, exist_ok=True)
-            #             # logger.info(f"      🎨 DEBUG: Created batch directory: {self._debug_batch_dir}")
-                    
-            #         # Create subdirectory for this step and token
-            #         debug_subdir = self._debug_batch_dir / f"step_{timestep:03d}-layer_{layer_idx}-token_{config.token}"
-            #         debug_subdir.mkdir(parents=True, exist_ok=True)
-                    
-            #         # logger.info(f"      🔍 DEBUG: Visualizing attention to {debug_subdir}")
-                    
-            #         # Determine target size from video dimensions if available
-            #         target_size = None  # Will use latent size by default
-                    
-            #         # Visualize original attention
-            #         orig_results = visualize_attention_tensor(
-            #             attention_tensor=token_attention,
-            #             spatial_shape=spatial_shape,
-            #             output_path=debug_subdir / "original",
-            #             format='both',
-            #             colormap='jet',
-            #             fps=15,
-            #             aggregate_heads=True,
-            #             target_size=target_size,
-            #             title=f"Original - Token '{config.token}' Step {timestep}"
-            #         )
-            #         logger.info(f"      ✅ Original visualization: {orig_results}")
-                    
-            #         # Visualize transformed attention
-            #         transformed_results = visualize_attention_tensor(
-            #             attention_tensor=transformed,
-            #             spatial_shape=spatial_shape,
-            #             output_path=debug_subdir / "transformed",
-            #             format='both',
-            #             colormap='jet',
-            #             fps=15,
-            #             aggregate_heads=True,
-            #             target_size=target_size,
-            #             title=f"Transformed - Token '{config.token}' Step {timestep} ({config.mode.value})"
-            #         )
-            #         logger.info(f"      ✅ Transformed visualization: {transformed_results}")
-                    
-            #     except Exception as viz_error:
-            #         logger.warning(f"      ⚠️  Debug visualization failed: {viz_error}")
-            #         import traceback
-            #         traceback.print_exc()
-            
-            # Blend with original based on strength
-            blended = (1 - config.strength) * token_attention + config.strength * transformed
-            # logger.info(f"      After blend (strength={config.strength}): mean: {blended.mean():.4f}, max: {blended.max():.4f}")
-            
-            # Update bent attention BEFORE renormalization
-            bent_attention[:, :, token_idx] = blended
-            configs_applied += 1
-            
-            # Track stats
-            self.stats["tokens_bent"][config.token] = self.stats["tokens_bent"].get(config.token, 0) + 1
-        
-        # NOTE: Renormalization is now done per-token immediately after transformation
-        # This allows different tokens to have different renormalize settings
-        # and prevents renormalization from affecting tokens that weren't bent
-        
+
+
+        if should_renormalize:
+            # Check for zero sums to avoid NaNs
+            row_sums = bent_attention.sum(dim=2, keepdim=True)
+            # Use a safe division
+            bent_attention = bent_attention / (row_sums + 1e-8)
+
+
         self.stats["applications"] += 1
         # logger.info(f"   📊 Applied {configs_applied}/{len(self.bending_configs)} configs")
         # logger.info(f"🎨 === ATTENTION BENDING END ===")

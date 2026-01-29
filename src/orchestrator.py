@@ -228,7 +228,7 @@ class VideoGenerationOrchestrator:
                 values=op_config.get("values"),
                 apply_to_timesteps=op_config.get("apply_to_timesteps", None),
                 apply_to_layers=op_config.get("apply_to_layers", None),
-                target_token=op_config.get("target_token", ""),
+                target_token=op_config.get("target_token", None),  # Default to None -> "ALL"
                 strength=op_config.get("strength", 1.0),
                 padding_mode=op_config.get("padding_mode", "border"),
                 renormalize=op_config.get("renormalize", global_renormalize),  # Override or use global
@@ -714,7 +714,7 @@ class VideoGenerationOrchestrator:
                     values=op_config.get("values"),
                     apply_to_timesteps=op_config.get("apply_to_timesteps", None),
                     apply_to_layers=op_config.get("apply_to_layers", None),
-                    target_token=op_config.get("target_token", ""),
+                    target_token=op_config.get("target_token", None),  # Default to None, not ""
                     strength=op_config.get("strength", 1.0),
                     padding_mode=op_config.get("padding_mode", "border"),
                     renormalize=op_config.get("renormalize", global_renormalize),  # Override or use global
