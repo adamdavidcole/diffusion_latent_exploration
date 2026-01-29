@@ -301,7 +301,7 @@ const TreeExperimentList = ({ onRescan }) => {
         try {
             actions.setLoading(true);
             await api.scanExperiments();
-            const experimentsData = await api.getExperiments();
+            const experimentsData = await api.getExperimentsSummary(); // Use fast summary endpoint
             actions.setExperimentsTree(experimentsData);
 
             // Also maintain backward compatibility by setting flat experiments list

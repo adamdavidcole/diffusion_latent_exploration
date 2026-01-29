@@ -37,7 +37,7 @@ export const getThumbnailUrl = (imgPath) => {
 
 export const api = {
   async getExperiments() {
-    console.log('API: Fetching experiments tree...');
+    console.log('API: Fetching experiments tree (full data)...');
     try {
       const response = await fetchWithTimeout(`${API_BASE}/api/experiments`);
       console.log('API: Experiments response status:', response.status);
@@ -49,6 +49,23 @@ export const api = {
       return data;
     } catch (error) {
       console.error('API: Error fetching experiments:', error);
+      throw error;
+    }
+  },
+
+  async getExperimentsSummary() {
+    console.log('API: Fetching experiments summary (fast)...');
+    try {
+      const response = await fetchWithTimeout(`${API_BASE}/api/experiments/summary`, {}, 30000); // 30s timeout for large datasets
+      console.log('API: Experiments summary response status:', response.status);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch experiments summary: ${response.status}`);
+      }
+      const data = await response.json();
+      console.log('API: Experiments summary loaded:', data);
+      return data;
+    } catch (error) {
+      console.error('API: Error fetching experiments summary:', error);
       throw error;
     }
   },

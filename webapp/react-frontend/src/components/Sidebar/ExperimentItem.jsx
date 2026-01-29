@@ -66,13 +66,14 @@ const ExperimentItem = ({ experiment, isActive, onSelect }) => {
         setShowTooltip(false);
     }, []);
 
-    const truncatedName = experiment.name.length > 30
+    const truncatedName = experiment.name && experiment.name.length > 30
         ? experiment.name.substring(0, 30) + '...'
-        : experiment.name;
+        : (experiment.name || 'Unknown');
 
-    const truncatedPrompt = experiment.base_prompt.length > 100
-        ? experiment.base_prompt.substring(0, 100) + '...'
-        : experiment.base_prompt;
+    const basePrompt = experiment.base_prompt || 'No prompt available';
+    const truncatedPrompt = basePrompt.length > 100
+        ? basePrompt.substring(0, 100) + '...'
+        : basePrompt;
 
     // Extract a shorter model name for display
     const getModelDisplayName = (modelId) => {

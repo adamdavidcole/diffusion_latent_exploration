@@ -141,21 +141,34 @@ class VideoAnalyzer:
         
         return ' | '.join(label_parts)
         
-    def scan_outputs(self):
-        """Scan the outputs directory and build hierarchical experiment tree"""
-        print(f"Scanning outputs directory: {self.outputs_dir}")
+    def scan_outputs(self, summary_only=False):
+        """
+        Scan the outputs directory and build hierarchical experiment tree.
+        
+        Args:
+            summary_only: If True, only load minimal data for tree view (fast).
+                         If False, load full experiment data (slow but complete).
+        """
+        print(f"Scanning outputs directory: {self.outputs_dir} (summary_only={summary_only})")
         
         if not self.outputs_dir.exists():
             print(f"Outputs directory not found: {self.outputs_dir}")
             return {"type": "folder", "name": "outputs", "path": "", "children": []}
         
         # Build the tree structure
-        tree = self._build_tree(self.outputs_dir, "")
+        tree = self._build_tree(self.outputs_dir, "", summary_only=summary_only)
         print(f"Built experiment tree with {self._count_experiments(tree)} experiments")
         return tree
     
-    def _build_tree(self, directory, relative_path):
-        """Recursively build tree structure from directory"""
+    def _build_tree(self, directory, relative_path, summary_only=False):
+        """
+        Recursively build tree structure from directory.
+        
+        Args:
+            directory: Directory to scan
+            relative_path: Path relative to outputs root
+            summary_only: If True, use fast summary analysis instead of full analysis
+        """
         node = {
             "type": "folder",
             "name": directory.name or "outputs",
@@ -174,8 +187,11 @@ class VideoAnalyzer:
             if item.is_dir():
                 item_relative_path = str(Path(relative_path) / item.name) if relative_path else item.name
                 
-                # Try to analyze as experiment first
-                exp_data = self._analyze_experiment(item)
+                # Try to analyze as experiment first (using appropriate method)
+                if summary_only:
+                    exp_data = self._analyze_experiment_summary(item)
+                else:
+                    exp_data = self._analyze_experiment(item)
                 if exp_data:
                     # This is an experiment directory
                     experiment_node = {
@@ -188,7 +204,7 @@ class VideoAnalyzer:
                     items.append(experiment_node)
                 else:
                     # This is a regular folder, recurse into it
-                    folder_node = self._build_tree(item, item_relative_path)
+                    folder_node = self._build_tree(item, item_relative_path, summary_only=summary_only)
                     # Only include folders that have experiments (directly or in subfolders)
                     if self._has_experiments(folder_node):
                         items.append(folder_node)
@@ -247,6 +263,108 @@ class VideoAnalyzer:
                     return self._find_experiment_in_tree(child, path_parts[1:])
         
         return None
+    
+    def _analyze_experiment_summary(self, exp_dir):
+        """
+        Fast experiment analysis for tree view - only config files, no video enumeration.
+        Returns minimal data needed for sidebar display and filtering.
+        """
+        try:
+            # Get creation timestamp from filesystem
+            creation_time = exp_dir.stat().st_ctime
+            creation_datetime = datetime.fromtimestamp(creation_time)
+            
+            # Try to load base prompt from prompt_template.txt first (fast)
+            prompt_template_path = exp_dir / 'configs' / 'prompt_template.txt'
+            base_prompt = "Unknown prompt"
+            
+            if prompt_template_path.exists():
+                try:
+                    with open(prompt_template_path, 'r') as f:
+                        base_prompt = f.read().strip()
+                except Exception:
+                    pass
+            
+            # Load basic config to check if this is a valid experiment
+            config_path = exp_dir / 'configs' / 'generation_config.yaml'
+            if not config_path.exists():
+                return None  # Not a valid experiment
+            
+            # Read minimal config data
+            model_id = "Unknown model"
+            duration_seconds = None
+            attention_bending_settings = None
+            
+            try:
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+                    
+                    # Get base prompt from config if not found in template file
+                    if base_prompt == "Unknown prompt":
+                        base_prompt = config.get('base_prompt', 'Unknown prompt')
+                    
+                    model_settings = config.get('model_settings', {})
+                    model_id = model_settings.get('model_id', 'Unknown model')
+                    
+                    # Extract duration
+                    video_settings = config.get('video_settings', {})
+                    duration_seconds = video_settings.get('duration')
+                    if duration_seconds is None:
+                        frames = video_settings.get('frames')
+                        fps = video_settings.get('fps')
+                        if frames and fps:
+                            try:
+                                duration_seconds = float(frames) / float(fps)
+                            except Exception:
+                                duration_seconds = None
+                    
+                    # Check attention bending (just enabled flag)
+                    attention_bending_raw = config.get('attention_bending_settings')
+                    if attention_bending_raw and attention_bending_raw.get('enabled'):
+                        attention_bending_settings = {'enabled': True}
+            except Exception as e:
+                print(f"Warning: Could not parse config for {exp_dir.name}: {e}")
+                return None
+            
+            # Fast video count - just count files without parsing
+            videos_dir = exp_dir / 'videos'
+            videos_count = 0
+            if videos_dir.exists():
+                # Count .mp4 files (both old and new format)
+                videos_count = len(list(videos_dir.glob('**/*.mp4')))
+            
+            if videos_count == 0:
+                return None  # Skip experiments with no videos
+            
+            # Fast checks for analysis availability (just directory/file existence)
+            vlm_analysis_dir = exp_dir / 'vlm_analysis'
+            has_vlm_analysis = vlm_analysis_dir.exists() and any(vlm_analysis_dir.glob('prompt_*/aggregated_results.json'))
+            
+            trajectory_analysis_dir = exp_dir / 'latent_trajectory_analysis'
+            has_trajectory_analysis = trajectory_analysis_dir.exists()
+            
+            # Check for attention videos
+            attention_videos_dir = exp_dir / 'attention_videos'
+            attention_videos_available = attention_videos_dir.exists() and len(list(attention_videos_dir.glob('**/*.mp4'))) > 0
+            
+            return {
+                'name': exp_dir.name,
+                'base_prompt': base_prompt,
+                'model_id': model_id,
+                'videos_count': videos_count,
+                'duration_seconds': duration_seconds,
+                'path': str(exp_dir),
+                'created_at': creation_datetime.isoformat(),
+                'created_timestamp': creation_time,
+                'has_vlm_analysis': has_vlm_analysis,
+                'has_trajectory_analysis': has_trajectory_analysis,
+                'attention_videos': {'available': attention_videos_available} if attention_videos_available else None,
+                'attention_bending_settings': attention_bending_settings
+            }
+            
+        except Exception as e:
+            print(f"Error analyzing experiment summary {exp_dir.name}: {e}")
+            return None
     
     def _analyze_experiment(self, exp_dir):
         """Analyze a single experiment directory"""
@@ -1300,9 +1418,26 @@ def create_app():
     
     @app.route('/api/experiments')
     def get_experiments():
-        """Get hierarchical experiment tree"""
+        """
+        Get hierarchical experiment tree with full details.
+        WARNING: Slow for large datasets. Use /api/experiments/summary for tree view.
+        """
         try:
-            tree = analyzer.scan_outputs()
+            tree = analyzer.scan_outputs(summary_only=False)
+            return jsonify(tree)
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/experiments/summary')
+    def get_experiments_summary():
+        """
+        Get hierarchical experiment tree with minimal data (fast).
+        Returns only name, path, counts, and flags - no video lists or metadata.
+        Ideal for initial tree view rendering.
+        """
+        try:
+            tree = analyzer.scan_outputs(summary_only=True)
             return jsonify(tree)
             
         except Exception as e:

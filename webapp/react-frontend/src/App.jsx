@@ -47,7 +47,7 @@ const ExperimentRoute = () => {
 
         // Load experiments tree if not already loaded
         if (!state.experimentsTree) {
-          const experimentsData = await api.getExperiments();
+          const experimentsData = await api.getExperimentsSummary(); // Use fast summary endpoint
           actions.setExperimentsTree(experimentsData);
 
           // Also maintain flat list for backward compatibility
@@ -225,7 +225,7 @@ const HomeRoute = () => {
 
       try {
         actions.setLoading(true);
-        const experimentsData = await api.getExperiments();
+        const experimentsData = await api.getExperimentsSummary(); // Use fast summary endpoint
         actions.setExperimentsTree(experimentsData);
 
         // Also maintain flat list for backward compatibility
