@@ -109,8 +109,14 @@ class AttentionBender:
             bending_configs: List of bending configurations for different tokens
             token_to_index_map: Mapping from token strings to indices in attention map
             device: Device for tensor operations
-            apply_before_softmax: If True, bend attention scores BEFORE softmax (then apply softmax to bent scores)
-                                 If False, bend attention probabilities AFTER softmax (default, may need renormalization)
+            apply_before_softmax: [NOT IMPLEMENTED] If True, bend attention scores BEFORE softmax.
+                                 Currently IGNORED - bending always happens post-softmax.
+                                 Pre-softmax bending would require pipeline changes to intercept
+                                 attention scores before softmax is applied.
+        
+        IMPORTANT: Current implementation bends POST-softmax attention probabilities, which has
+        minimal effect for amplification because values already sum to 1. For effects similar to
+        prompt weighting, we would need to bend pre-softmax scores (not currently supported).
         """
         self.bending_configs = bending_configs
         logger.info(f"INITIAL TOKEN TO INDEX MAP: {token_to_index_map}")    
@@ -118,6 +124,14 @@ class AttentionBender:
         self.current_prompt = None  # Store prompt for comma-separated token filtering
         self.device = device
         self.apply_before_softmax = apply_before_softmax
+        
+        if apply_before_softmax:
+            logger.warning(
+                "⚠️  apply_before_softmax=True is NOT FULLY IMPLEMENTED.\n"
+                "   Current behavior: softmax → bend → log → softmax (not true pre-softmax bending)\n"
+                "   For strong amplification effects similar to prompt weighting, use prompt weighting instead: (token:2.0)\n"
+                "   Post-softmax amplification has minimal effect because attention already sums to 1."
+            )
         
         # Statistics tracking
         self.stats = {
@@ -211,6 +225,16 @@ class AttentionBender:
         # Clone to avoid modifying original
         bent_attention = attention_probs.clone()
         
+        # DIAGNOSTIC: Check normalization state BEFORE bending
+        if logger.isEnabledFor(logging.DEBUG):
+            # For cross-attention, each token's attention should sum to 1 across spatial dimension (dim=-1)?
+            # OR each spatial position's attention should sum to 1 across tokens (dim=2)?
+            spatial_sums = bent_attention.sum(dim=-1)  # Sum across spatial dimension for each token
+            token_sums = bent_attention.sum(dim=2, keepdim=True)  # Sum across tokens for each spatial position
+            logger.debug(f"   📊 PRE-BENDING normalization check:")
+            logger.debug(f"      Spatial sums (per token): range [{spatial_sums.min():.6f}, {spatial_sums.max():.6f}], mean={spatial_sums.mean():.6f}")
+            logger.debug(f"      Token sums (per spatial pos): range [{token_sums.min():.6f}, {token_sums.max():.6f}], mean={token_sums.mean():.6f}")
+        
         # Apply each bending config
         configs_applied = 0
         for config in self.bending_configs:
@@ -238,12 +262,23 @@ class AttentionBender:
                     if config.strength < 1.0:
                         transformed = config.strength * transformed + (1 - config.strength) * token_attention
                     
-                    # Optionally renormalize
-                    if config.renormalize:
-                        # Normalize this single token's attention across spatial dimension
-                        transformed = transformed / (transformed.sum(dim=-1, keepdim=True) + 1e-10)
-                    
+                    # Update token in full tensor
                     bent_attention[:, :, token_idx] = transformed
+                
+                # Optionally renormalize entire attention tensor across token dimension ONCE
+                # This restores the softmax property: sum across tokens = 1 at each spatial position
+                if config.renormalize:
+                    # DIAGNOSTIC: Check sum BEFORE renormalization
+                    if logger.isEnabledFor(logging.DEBUG):
+                        pre_renorm_sums = bent_attention.sum(dim=2, keepdim=True)
+                        logger.debug(f"      PRE-renorm token sums: range [{pre_renorm_sums.min():.6f}, {pre_renorm_sums.max():.6f}], mean={pre_renorm_sums.mean():.6f}")
+                    
+                    bent_attention = bent_attention / (bent_attention.sum(dim=2, keepdim=True) + 1e-10)
+                    
+                    # DIAGNOSTIC: Check sum AFTER renormalization
+                    if logger.isEnabledFor(logging.DEBUG):
+                        post_renorm_sums = bent_attention.sum(dim=2, keepdim=True)
+                        logger.debug(f"      POST-renorm token sums: range [{post_renorm_sums.min():.6f}, {post_renorm_sums.max():.6f}], mean={post_renorm_sums.mean():.6f}")
                 
                 logger.info(f"   ✅ Applied to all {seq_len} tokens")
                 configs_applied += 1
@@ -274,10 +309,17 @@ class AttentionBender:
                     )
                     
                     # Blend with original based on strength
-                    bent_attention[:, :, token_idx] = (
+                    blended = (
                         config.strength * transformed +
                         (1 - config.strength) * token_attention
                     )
+                    
+                    # Update token in full tensor
+                    bent_attention[:, :, token_idx] = blended
+                
+                # Optionally renormalize entire attention tensor across token dimension ONCE
+                if config.renormalize:
+                    bent_attention = bent_attention / (bent_attention.sum(dim=2, keepdim=True) + 1e-10)
             else:
                 # NEW: Handle comma-separated token groups like "kiss, rose, ship"
                 # Split by comma and filter to tokens present in BOTH prompt text AND token map
@@ -317,12 +359,19 @@ class AttentionBender:
                             )
                             
                             # Blend with original based on strength
-                            bent_attention[:, :, token_idx] = (
+                            blended = (
                                 config.strength * transformed +
                                 (1 - config.strength) * token_attention
                             )
                             
+                            # Update token in full tensor
+                            bent_attention[:, :, token_idx] = blended
+                            
                             logger.info(f"      ✅ Applied {config.mode.value} to '{token_name}' (idx={token_idx})")
+                        
+                        # Optionally renormalize entire attention tensor across token dimension ONCE
+                        if config.renormalize:
+                            bent_attention = bent_attention / (bent_attention.sum(dim=2, keepdim=True) + 1e-10)
                     else:
                         if tokens_in_prompt:
                             logger.warning(f"   ⚠️  Comma-separated group '{config.token}': {len(tokens_in_prompt)} tokens in prompt but not tracked (wrap in parentheses)")
@@ -360,10 +409,17 @@ class AttentionBender:
                 # logger.info(f"      After transform: mean: {transformed.mean():.4f}, max: {transformed.max():.4f}")
                 
                 # Blend with original based on strength
-                bent_attention[:, :, token_idx] = (
+                blended = (
                     config.strength * transformed +
                     (1 - config.strength) * token_attention
                 )
+                
+                # Update token in full tensor
+                bent_attention[:, :, token_idx] = blended
+                
+                # Optionally renormalize entire attention tensor across token dimension
+                if config.renormalize:
+                    bent_attention = bent_attention / (bent_attention.sum(dim=2, keepdim=True) + 1e-10)
             
             # DEBUG: Visualize original vs transformed attention
             # if config.should_debug_visualize:
@@ -431,16 +487,9 @@ class AttentionBender:
             # Track stats
             self.stats["tokens_bent"][config.token] = self.stats["tokens_bent"].get(config.token, 0) + 1
         
-        # Re-normalize AFTER all tokens modified (across sequence dimension to maintain probability distribution)
-        # NOTE: Renormalization forces attention to sum to 1 across all tokens, which can undo transformations!
-        # - AMPLIFY: Renormalization will scale back amplified values to maintain sum=1
-        # - SCALE/ROTATE/TRANSLATE: Renormalization redistributes probability mass
-        # For visualization purposes, you may want renormalize=False to see raw transformation effects
-        if configs_applied > 0 and any(cfg.renormalize for cfg in self.bending_configs):
-            # Normalize across the sequence dimension (dim=2) so all tokens sum to 1
-            bent_attention = self._safe_normalize(bent_attention, dim=2)
-            # logger.info(f"   🔄 Renormalized attention across sequence dimension (sum={bent_attention.sum(dim=2).mean():.4f})")
-            # logger.info(f"   ⚠️  NOTE: Renormalization forces sum=1, which scales back amplifications!")
+        # NOTE: Renormalization is now done per-token immediately after transformation
+        # This allows different tokens to have different renormalize settings
+        # and prevents renormalization from affecting tokens that weren't bent
         
         self.stats["applications"] += 1
         # logger.info(f"   📊 Applied {configs_applied}/{len(self.bending_configs)} configs")
@@ -545,7 +594,23 @@ class AttentionBender:
             return attention_2d
     
     def _apply_amplify(self, attention: torch.Tensor, config: BendingConfig) -> torch.Tensor:
-        """Simple multiplicative scaling (amplify/dampen attention weights)."""
+        """Simple multiplicative scaling (amplify/dampen attention weights).
+        
+        NOTE: This multiplies POST-softmax attention probabilities, which has minimal effect
+        because values already sum to 1. Amplifying by 2.0 then renormalizing just slightly
+        redistributes probabilities.
+        
+        For stronger effects similar to prompt weighting, we would need to amplify BEFORE
+        softmax (which requires modifying the pipeline to bend attention scores, not probs).
+        """
+        # Diagnostic: Check if attention is actually normalized
+        if logger.isEnabledFor(logging.DEBUG):
+            # Sum across token dimension (should be ~1.0 if normalized)
+            token_sums = attention.sum(dim=-1)  # Sum across last dim
+            logger.debug(f"   🔍 AMPLIFY diagnostic: token_sums range [{token_sums.min():.6f}, {token_sums.max():.6f}], mean={token_sums.mean():.6f}")
+            if token_sums.mean() < 0.99 or token_sums.mean() > 1.01:
+                logger.warning(f"   ⚠️  Attention does NOT sum to 1! Mean sum: {token_sums.mean():.6f}")
+        
         return attention * config.amplify_factor
     
     def _apply_scale(self, attention: torch.Tensor, config: BendingConfig) -> torch.Tensor:
