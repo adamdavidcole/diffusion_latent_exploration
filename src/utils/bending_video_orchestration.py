@@ -14,8 +14,38 @@ from pathlib import Path
 import logging
 import re
 from datetime import datetime
+import signal
+import atexit
 
 logger = logging.getLogger(__name__)
+
+# Global state for signal handler
+_video_metadata_state = {
+    'batch_dirs': None,
+    'video_metadata': [],
+    'batch_name': ''
+}
+
+def _save_metadata_on_exit():
+    """Save metadata when process exits (normal or via signal)."""
+    if _video_metadata_state['batch_dirs'] and _video_metadata_state['video_metadata']:
+        try:
+            logger.info("\n⚠️ Process interrupted - saving metadata for generated videos...")
+            save_video_metadata(
+                _video_metadata_state['batch_dirs'],
+                _video_metadata_state['video_metadata'],
+                _video_metadata_state['batch_name']
+            )
+        except Exception as e:
+            logger.error(f"Failed to save metadata on exit: {e}")
+
+def _signal_handler(signum, frame):
+    """Handle termination signals by saving metadata."""
+    logger.info(f"\n⚠️ Received signal {signum} - saving metadata before exit...")
+    _save_metadata_on_exit()
+    # Re-raise to allow normal signal handling
+    signal.signal(signum, signal.SIG_DFL)
+    signal.raise_signal(signum)
 
 
 def generate_videos_with_bending(
@@ -45,6 +75,16 @@ def generate_videos_with_bending(
     """
     results = {}
     video_metadata = []  # Track metadata for each video
+    
+    # Set up global state for signal handler
+    _video_metadata_state['batch_dirs'] = batch_dirs
+    _video_metadata_state['video_metadata'] = video_metadata
+    _video_metadata_state['batch_name'] = config.batch_name if hasattr(config, 'batch_name') else ""
+    
+    # Register signal handlers for graceful shutdown
+    signal.signal(signal.SIGINT, _signal_handler)  # Ctrl+C
+    signal.signal(signal.SIGTERM, _signal_handler)  # kill command
+    atexit.register(_save_metadata_on_exit)  # Normal exit or other termination
     
     total_videos = len(prompt_variations) * len(bending_configs) * videos_per_var
     current_video = video_number_offset  # Start from offset for secondary GPU
@@ -192,6 +232,13 @@ def generate_videos_with_bending(
                 
                 prompt_results.append(result)
                 
+                # Enrich bending metadata with resolved tokens if available
+                enriched_metadata = bending_metadata.copy() if bending_metadata else None
+                if enriched_metadata and attention_storage and hasattr(attention_storage.attention_bender, 'last_resolved_tokens'):
+                    resolved_map = attention_storage.attention_bender.last_resolved_tokens
+                    if resolved_map:
+                        enriched_metadata['resolved_tokens'] = resolved_map
+                
                 # Store metadata for this video
                 video_meta = {
                     'video_id': video_id,
@@ -204,7 +251,7 @@ def generate_videos_with_bending(
                     },
                     'seed': current_seed,
                     'seed_offset': seed_offset,
-                    'bending_metadata': bending_metadata,
+                    'bending_metadata': enriched_metadata,
                     'success': result.success,
                     'generation_time': result.generation_time if result.success else None,
                     'error': result.error_message if not result.success else None

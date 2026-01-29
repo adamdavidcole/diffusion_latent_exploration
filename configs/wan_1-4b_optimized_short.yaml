@@ -58,9 +58,9 @@ output_dir: outputs
 prompt_settings:
   base_weight: 1.0
   embedding_method: norm_preserving
-  enable_prompt_weighting: true
+  enable_prompt_weighting: false
   enable_weighting: false
-  use_weighted_embeddings: false
+  use_weighted_embeddings: true
   variation_weight: 1.5
 use_timestamp: true
 video_settings:

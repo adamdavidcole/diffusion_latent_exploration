@@ -25,6 +25,36 @@ class VideoAnalyzer:
         self.experiments = {}
     
     @staticmethod
+    @staticmethod
+    def apply_resolved_tokens_to_display(display_name, bending_metadata):
+        """Update display name to show resolved tokens instead of full comma-separated spec."""
+        if not bending_metadata:
+            return display_name
+        
+        # Check if we have resolved tokens
+        resolved_tokens = bending_metadata.get('resolved_tokens', {})
+        target_token = bending_metadata.get('target_token')
+        
+        # If no comma-separated tokens or no resolution, return as-is
+        if not target_token or ',' not in target_token or not resolved_tokens:
+            return display_name
+        
+        # Get the resolved list for this token spec
+        resolved_list = resolved_tokens.get(target_token, [])
+        
+        # Build the display string
+        if resolved_list:
+            resolved_str = ', '.join(resolved_list)
+        else:
+            resolved_str = '(none active)'
+        
+        # Replace the full token spec with resolved tokens in the display name
+        # The display_name format is "Token: <tokens> | Operation..." 
+        updated_display = display_name.replace(target_token, resolved_str)
+        
+        return updated_display
+    
+    @staticmethod
     def format_bending_label(bending_id):
         """Convert technical bending_id to human-readable label."""
         if bending_id == 'baseline' or bending_id is None:
@@ -595,6 +625,8 @@ class VideoAnalyzer:
                 bending_meta = video_metadata_map[video_id].get('bending_metadata', {})
                 if bending_meta and 'display_name' in bending_meta:
                     readable_label = bending_meta['display_name']
+                    # Apply resolved tokens to update the display
+                    readable_label = self.apply_resolved_tokens_to_display(readable_label, bending_meta)
             
             metadata = {
                 'video_path': str(video_path.relative_to(self.outputs_dir)),
@@ -1040,10 +1072,11 @@ class VideoAnalyzer:
                 'video_metadata_map': {}
             }
         
-        # Load video metadata to get bending labels
+        # Load video metadata to get bending labels (may have GPU suffix)
         video_metadata_map = {}
-        metadata_file = exp_dir / 'configs' / 'video_metadata.json'
-        if metadata_file.exists():
+        metadata_files = list((exp_dir / 'configs').glob('video_metadata*.json'))
+        
+        for metadata_file in metadata_files:
             try:
                 with open(metadata_file, 'r') as f:
                     metadata = json.load(f)
@@ -1056,7 +1089,7 @@ class VideoAnalyzer:
                                 'prompt_variation': video.get('prompt_variation', {}).get('text')
                             }
             except Exception as e:
-                print(f"Warning: Could not load video metadata for {exp_dir.name}: {e}")
+                print(f"Warning: Could not load video metadata from {metadata_file.name} for {exp_dir.name}: {e}")
         
         try:
             attention_videos_data = {}

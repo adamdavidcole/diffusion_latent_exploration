@@ -125,6 +125,9 @@ class AttentionBender:
         self.device = device
         self.apply_before_softmax = apply_before_softmax
         
+        # Track resolved tokens per config (for logging and metadata)
+        self.resolved_tokens = {}  # config.token -> list of actual active tokens
+        
         if apply_before_softmax:
             # Check if all configs are AMPLIFY mode
             has_only_amplify = all(config.mode == BendingMode.AMPLIFY for config in bending_configs)
@@ -170,6 +173,52 @@ class AttentionBender:
         logger.debug(f"Updated token map: {token_to_index_map}")
         if prompt:
             logger.debug(f"Updated prompt: {prompt[:100]}...")
+        
+        # Resolve active tokens for each config
+        self._resolve_active_tokens()
+    
+    def _resolve_active_tokens(self):
+        """Resolve which tokens from comma-separated specs are actually active in current prompt."""
+        self.resolved_tokens = {}
+        
+        for config in self.bending_configs:
+            if ',' in config.token:
+                # Parse comma-separated tokens
+                candidate_tokens = [t.strip().lower() for t in config.token.split(',')]
+                
+                # Filter to tokens present in prompt text
+                prompt_lower = self.current_prompt.lower() if self.current_prompt else ""
+                tokens_in_prompt = [t for t in candidate_tokens if t in prompt_lower]
+                
+                # Further filter to only tokens that have been tracked
+                active_tokens = [t for t in tokens_in_prompt if t in self.token_to_index_map]
+                
+                self.resolved_tokens[config.token] = active_tokens
+                
+                # Log resolved tokens
+                if active_tokens:
+                    logger.info(f"  📋 Resolved '{config.token}' → {active_tokens} ({len(active_tokens)}/{len(candidate_tokens)} active)")
+                else:
+                    logger.debug(f"  ⏭️  Resolved '{config.token}' → no active tokens")
+            else:
+                # Single token - check if it's in the map
+                if config.token.upper() in ["ALL", "*", "ALLTOKENS"]:
+                    self.resolved_tokens[config.token] = ["ALL"]
+                elif config.token.lower() in self.token_to_index_map:
+                    self.resolved_tokens[config.token] = [config.token.lower()]
+                else:
+                    self.resolved_tokens[config.token] = []
+    
+    def get_resolved_tokens(self, token_spec: str) -> List[str]:
+        """Get the list of resolved active tokens for a token specification.
+        
+        Args:
+            token_spec: Token specification (may be comma-separated)
+            
+        Returns:
+            List of actual active tokens that will have bending applied
+        """
+        return self.resolved_tokens.get(token_spec, [])
     
     def should_apply(self, config: BendingConfig, layer_idx: Optional[int], timestep: Optional[int]) -> bool:
         """Check if bending should be applied based on layer/timestep constraints."""
@@ -305,9 +354,7 @@ class AttentionBender:
                     active_tokens = [t for t in tokens_in_prompt if t in self.token_to_index_map]
                     
                     if active_tokens:
-                        logger.info(f"   📋 Comma-separated group '{config.token}':")
-                        logger.info(f"      In prompt: {len(tokens_in_prompt)}/{len(candidate_tokens)} tokens")
-                        logger.info(f"      In token map: {len(active_tokens)}/{len(tokens_in_prompt)} tokens: {active_tokens}")
+                        logger.debug(f"   📋 Comma-separated group '{config.token}': {len(active_tokens)}/{len(candidate_tokens)} tokens active")
                         
                         # Apply bending to each active token
                         for token_name in active_tokens:
@@ -336,7 +383,7 @@ class AttentionBender:
                             # Update token in full tensor
                             bent_attention[:, :, token_idx] = blended
                             
-                            logger.info(f"      ✅ Applied {config.mode.value} to '{token_name}' (idx={token_idx})")
+                            logger.debug(f"      ✅ Applied {config.mode.value} to '{token_name}' (idx={token_idx})")
                       
                     else:
                         if tokens_in_prompt:

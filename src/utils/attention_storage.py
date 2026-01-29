@@ -1386,6 +1386,22 @@ class AttentionStorage:
             # Pass both token map AND current prompt for comma-separated token filtering
             self.attention_bender.update_token_map(token_to_position, prompt=self.current_prompt)
             self.logger.debug(f"Updated bender token map (word -> position): {token_to_position}")
+            
+            # Log resolved tokens for comma-separated specs (for user visibility)
+            # Also build a map for metadata storage
+            resolved_tokens_map = {}
+            for config in self.attention_bender.bending_configs:
+                if ',' in config.token:
+                    resolved = self.attention_bender.get_resolved_tokens(config.token)
+                    resolved_tokens_map[config.token] = resolved
+                    if resolved:
+                        resolved_str = ', '.join(resolved)
+                        self.logger.info(f"🔍 Token spec '{config.token}' → Active: [{resolved_str}]")
+                    else:
+                        self.logger.info(f"⚠️ Token spec '{config.token}' → No tokens active in prompt")
+            
+            # Store resolved tokens map for access by metadata collection
+            self.attention_bender.last_resolved_tokens = resolved_tokens_map
     
     def set_current_timestep(self, timestep: Optional[Union[int, float, torch.Tensor]]):
         """
