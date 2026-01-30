@@ -120,6 +120,7 @@
 .corner-header {
   min-width: 140px;
   max-width: 140px;
+  width: 140px;
   background: var(--bg-secondary);
   border-right: 2px solid var(--bg-tertiary);
 }
@@ -153,6 +154,8 @@
 .operation-section {
   border-bottom: 1px solid var(--bg-tertiary);
   padding: 15px 0;
+  width: max-content;
+  min-width: 100%;
 }
 
 .operation-type-header {
@@ -171,10 +174,13 @@
   display: flex;
   align-items: flex-start;
   margin-bottom: 8px;
+  position: relative;
+  width: max-content;
+  min-width: 100%;
 }
 
-/* Row Headers */
-.row-header {
+/* Grid Row Headers */
+.grid-row-header {
   position: sticky;
   left: 0;
   z-index: 10;
@@ -183,6 +189,7 @@
   padding: 8px 12px;
   min-width: 140px;
   max-width: 140px;
+  width: 140px;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
@@ -190,6 +197,7 @@
   flex-direction: column;
   gap: 4px;
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
 }
 
 .operation-name {

@@ -102,21 +102,59 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
 
     const opTypeLower = opType.toLowerCase();
     
-    // Handle SCALE operations specially
+    // Handle SCALE operations
     if (opTypeLower === 'scale') {
       const scaleX = params.scale_x ?? params.scale;
       const scaleY = params.scale_y ?? params.scale;
       
       if (scaleX === scaleY || scaleY == null) {
-        return `scale: ${formatNumber(scaleX)}×`;
+        return `Scale: ${formatNumber(scaleX)}×`;
       }
-      return `scale: ${formatNumber(scaleX)}×${formatNumber(scaleY)}×`;
+      return `Scale: ${formatNumber(scaleX)}×${formatNumber(scaleY)}×`;
     }
     
     // Handle ROTATE operations
     if (opTypeLower === 'rotate') {
       const angle = params.angle ?? params.rotation;
-      return `rotate: ${formatNumber(angle)}°`;
+      return `Rotate: ${formatNumber(angle)}°`;
+    }
+    
+    // Handle AMPLIFY operations
+    if (opTypeLower === 'amplify') {
+      const factor = params.amplify_factor ?? params.factor;
+      return `Amplify: ${formatNumber(factor)}×`;
+    }
+    
+    // Handle SHARPEN operations
+    if (opTypeLower === 'sharpen') {
+      const amount = params.sharpen_amount ?? params.amount;
+      return `Sharpen: ${formatNumber(amount)}×`;
+    }
+    
+    // Handle BLUR operations
+    if (opTypeLower === 'blur') {
+      const sigma = params.sigma;
+      return `Blur: ${formatNumber(sigma)}×`;
+    }
+    
+    // Handle FLIP_HORIZONTAL operations
+    if (opTypeLower === 'flip_horizontal') {
+      return 'Flip Horizontal';
+    }
+    
+    // Handle FLIP_VERTICAL operations
+    if (opTypeLower === 'flip_vertical') {
+      return 'Flip Vertical';
+    }
+    
+    // Handle TRANSLATE operations
+    if (opTypeLower === 'translate') {
+      if (params.translate_x !== undefined && params.translate_x !== null) {
+        return `Translate X: ${formatNumber(params.translate_x)}`;
+      }
+      if (params.translate_y !== undefined && params.translate_y !== null) {
+        return `Translate Y: ${formatNumber(params.translate_y)}`;
+      }
     }
     
     // Generic formatting for other operations
@@ -318,7 +356,7 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
       <div className="grid-container">
         {/* Header Row with Column Labels */}
         <div className="header-row">
-          <div className="row-header corner-header"></div>
+          <div className="grid-row-header corner-header"></div>
           <div className="video-row">
             {displayedCombos.map(combo => {
               const [promptPart, seedPart] = combo.split('_');
@@ -351,7 +389,7 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
         {/* Baseline Row (Sticky when pinned) */}
         <div className={`baseline-section ${pinBaseline ? 'pinned' : ''}`}>
           <div className="operation-row">
-            <div className="row-header baseline-header">
+            <div className="grid-row-header baseline-header">
               📌 Baseline
             </div>
             <div className="video-row">
@@ -370,7 +408,7 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
             <div className="operation-type-header">{opType}</div>
             {Object.entries(operations).map(([paramKey, opData]) => (
               <div key={paramKey} className="operation-row">
-                <div className="row-header">
+                <div className="grid-row-header">
                   <div className="operation-name">{opData.displayName}</div>
                   <div className="operation-metadata">
                     <div>token: {opData.metadata.tokenDisplay}</div>
