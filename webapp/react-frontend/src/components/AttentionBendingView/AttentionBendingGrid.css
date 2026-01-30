@@ -79,15 +79,19 @@
   position: sticky;
   top: 0;
   z-index: 102;
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   border-bottom: 2px solid var(--bg-tertiary);
   padding: 8px 0;
+  width: fit-content;
+  min-width: 100%;
 }
 
 /* Baseline Section - Sticky just below header row when pinned */
 .baseline-section {
   background: var(--bg-primary);
   border-bottom: 1px solid var(--bg-tertiary);
+  width: fit-content;
+  min-width: 100%;
 }
 
 .baseline-section.pinned {
@@ -121,7 +125,7 @@
   min-width: 140px;
   max-width: 140px;
   width: 140px;
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   border-right: 2px solid var(--bg-tertiary);
 }
 
@@ -137,6 +141,8 @@
   cursor: help;
   transition: background 0.2s;
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .column-header-cell:hover {
@@ -154,25 +160,46 @@
 .operation-section {
   border-bottom: 1px solid var(--bg-tertiary);
   padding: 15px 0;
-  width: max-content;
+  position: relative;
+  width: fit-content;
   min-width: 100%;
 }
 
 .operation-type-header {
-  padding: 10px 15px;
   background: var(--bg-tertiary);
   color: var(--accent);
+  border-bottom: 2px solid var(--accent);
+  margin-bottom: 10px;
+  position: sticky;
+  top: 44px; /* Below the header-row */
+  z-index: 50; /* Below baseline (101) but above content */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  width: 100%;
+  padding: 0;
+}
+
+.sticky-label {
+  position: sticky;
+  left: 0;
+  padding: 10px 15px;
+  display: inline-block;
+  white-space: nowrap;
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  border-bottom: 2px solid var(--accent);
-  margin-bottom: 10px;
+  background: var(--bg-tertiary);
+  z-index: 2;
+}
+
+/* When baseline is pinned, operation headers need more top offset */
+.baseline-section.pinned ~ .operation-section .operation-type-header {
+  top: 160px;
 }
 
 .operation-row {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   margin-bottom: 8px;
   position: relative;
   width: max-content;
@@ -198,6 +225,8 @@
   gap: 4px;
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.3);
   flex-shrink: 0;
+  align-self: stretch;
+  justify-content: flex-start;
 }
 
 .operation-name {
@@ -228,6 +257,9 @@
   gap: 8px;
   padding: 0 15px;
   flex: 1;
+  width: fit-content;
+  min-width: 100%;
+  background: var(--bg-primary);
 }
 
 .video-column {

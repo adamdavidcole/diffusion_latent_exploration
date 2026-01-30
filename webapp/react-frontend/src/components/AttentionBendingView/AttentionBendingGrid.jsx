@@ -405,7 +405,9 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
         {/* Bending Sections by Operation Type */}
         {Object.entries(groupedVideos).map(([opType, operations]) => (
           <div key={opType} className="operation-section">
-            <div className="operation-type-header">{opType}</div>
+            <div className="operation-type-header">
+              <span className="sticky-label">{opType}</span>
+            </div>
             {Object.entries(operations).map(([paramKey, opData]) => (
               <div key={paramKey} className="operation-row">
                 <div className="grid-row-header">

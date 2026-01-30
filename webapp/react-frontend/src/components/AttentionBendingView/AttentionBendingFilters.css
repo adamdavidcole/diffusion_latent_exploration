@@ -137,8 +137,12 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
-  padding-bottom: 15px;
+  padding: 12px 0 15px 0;
   border-bottom: 1px solid var(--bg-tertiary);
+  position: sticky;
+  top: -12px;
+  background: var(--bg-secondary);
+  z-index: 10;
 }
 
 .filters-header h3 {
