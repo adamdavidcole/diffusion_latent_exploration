@@ -135,6 +135,19 @@ export const api = {
     return latentVideosData;
   },
 
+  async getExperimentAttentionBending(experimentPath) {
+    console.log('API: Fetching experiment attention bending data:', experimentPath);
+    const response = await fetch(`${API_BASE}/api/experiment/${experimentPath}/attention-bending`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch attention bending data: ${response.status}`);
+    }
+    const bendingData = await response.json();
+    if (bendingData.error) {
+      throw new Error(bendingData.error);
+    }
+    return bendingData;
+  },
+
   // Helper function to flatten tree into list for search/filtering
   flattenExperimentTree(tree) {
     const experiments = [];

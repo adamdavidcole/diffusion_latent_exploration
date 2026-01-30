@@ -13,11 +13,13 @@ const TabNavigation = ({ experimentPath }) => {
   const isAnalysisTab = location.pathname.endsWith('/analysis');
   const isTrajectoryAnalysisTab = location.pathname.endsWith('/trajectory-analysis');
   const isLatentVideosTab = location.pathname.endsWith('/latent-videos');
+  const isAttentionBendingTab = location.pathname.endsWith('/attention-bending');
 
   let activeTab = 'videos';
   if (isAnalysisTab) activeTab = 'analysis';
   if (isTrajectoryAnalysisTab) activeTab = 'trajectory-analysis';
   if (isLatentVideosTab) activeTab = 'latent-videos';
+  if (isAttentionBendingTab) activeTab = 'attention-bending';
 
   const handleTabChange = (tab) => {
     if (tab === 'videos') {
@@ -28,6 +30,8 @@ const TabNavigation = ({ experimentPath }) => {
       navigate(`/experiment/${experimentPath}/trajectory-analysis`);
     } else if (tab === 'latent-videos') {
       navigate(`/experiment/${experimentPath}/latent-videos`);
+    } else if (tab === 'attention-bending') {
+      navigate(`/experiment/${experimentPath}/attention-bending`);
     }
   };
 
@@ -98,6 +102,25 @@ const TabNavigation = ({ experimentPath }) => {
         >
           🎬 Latent Videos
           {!currentExperiment?.has_latent_videos && !currentExperiment?.has_attention_videos && (
+            <span className="disabled-indicator"> (unavailable)</span>
+          )}
+        </button>
+
+        <button
+          className={`tab-button ${activeTab === 'attention-bending' ? 'active' : ''} ${!currentExperiment?.attention_bending_settings?.enabled ? 'disabled' : ''
+            }`}
+          role="tab"
+          aria-selected={activeTab === 'attention-bending'}
+          onClick={() => currentExperiment?.attention_bending_settings?.enabled && handleTabChange('attention-bending')}
+          disabled={!currentExperiment?.attention_bending_settings?.enabled}
+          title={
+            !currentExperiment?.attention_bending_settings?.enabled
+              ? 'Attention bending not enabled for this experiment'
+              : 'View attention bending visualization and analysis'
+          }
+        >
+          🎛️ Attention Bending
+          {!currentExperiment?.attention_bending_settings?.enabled && (
             <span className="disabled-indicator"> (unavailable)</span>
           )}
         </button>

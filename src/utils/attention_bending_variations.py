@@ -310,13 +310,8 @@ class AttentionBendingVariationGenerator:
             elif isinstance(timestep_spec, int):
                 timestep_range = [timestep_spec, timestep_spec]
         
-        # Convert layer_spec to indices list
-        layer_indices = None
-        if layer_spec is not None and layer_spec != "ALL":
-            if isinstance(layer_spec, list):
-                layer_indices = layer_spec
-            elif isinstance(layer_spec, int):
-                layer_indices = [layer_spec]
+        # Convert layer_spec to indices list using the same parser as BendingConfig
+        layer_indices = self._parse_layer_spec(layer_spec)
         
         # For flip operations, use parameter_name as transformation_type
         transformation_type = spec.parameter_name if spec.operation == "flip" else spec.operation

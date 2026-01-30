@@ -1349,6 +1349,172 @@ class VideoAnalyzer:
             }
             
         except Exception as e:
+            print(f"Error loading latent videos: {e}")
+            return {
+                'has_latent_videos': False,
+                'latent_videos': None,
+                'video_metadata_map': None
+            }
+
+    def _load_attention_bending_data(self, exp_dir):
+        """
+        Load and structure attention bending data for the visualization UI.
+        Returns organized data with baseline videos, bending videos, and filter options.
+        """
+        try:
+            # Load video metadata for bending information
+            video_metadata_files = list((exp_dir / 'configs').glob('video_metadata*.json'))
+            
+            if not video_metadata_files:
+                return {
+                    'available': False,
+                    'error': 'No video metadata found'
+                }
+            
+            all_videos = []
+            for metadata_file in video_metadata_files:
+                try:
+                    with open(metadata_file, 'r') as f:
+                        metadata = json.load(f)
+                        all_videos.extend(metadata.get('videos', []))
+                except Exception as e:
+                    print(f"Warning: Could not load {metadata_file.name}: {e}")
+            
+            if not all_videos:
+                return {
+                    'available': False,
+                    'error': 'No videos found in metadata'
+                }
+            
+            # Separate baseline and bending videos
+            baseline_videos = []
+            bending_videos = []
+            
+            # Track unique values for filters
+            operations = set()
+            tokens = set()
+            timestep_ranges = set()
+            layer_ranges = set()
+            prompts_dict = {}
+            seeds = set()
+            
+            for video in all_videos:
+                if not video.get('success', False):
+                    continue
+                
+                bending_meta = video.get('bending_metadata', {})
+                prompt_var = video.get('prompt_variation', {})
+                
+                # Categorize baseline vs bending
+                is_baseline = not bending_meta or bending_meta.get('variation_id') == 'baseline'
+                
+                video_data = {
+                    'video_id': video.get('video_id'),
+                    'filename': video.get('filename'),
+                    'video_path': str(Path(exp_dir.name) / 'videos' / video.get('filename')),
+                    'seed': video.get('seed'),
+                    'prompt_index': prompt_var.get('index'),
+                    'prompt_text': prompt_var.get('text', ''),
+                    'prompt_variation': prompt_var,
+                    'bending_metadata': bending_meta
+                }
+                
+                if is_baseline:
+                    baseline_videos.append(video_data)
+                else:
+                    bending_videos.append(video_data)
+                    
+                    # Extract filter values from bending metadata
+                    transform_type = bending_meta.get('transformation_type', 'unknown')
+                    operations.add(transform_type)
+                    
+                    # Use resolved_tokens if available, otherwise fall back to target_token
+                    target_token = bending_meta.get('target_token', 'ALL')
+                    resolved_token_list = bending_meta.get('resolved_tokens', {}).get(target_token, [])
+                    
+                    if resolved_token_list:
+                        # Add each resolved token individually
+                        for token in resolved_token_list:
+                            tokens.add(token)
+                    else:
+                        # Fall back to the target token (could be comma-separated or "ALL")
+                        if target_token and ',' not in target_token:
+                            tokens.add(target_token)
+                        elif target_token == 'ALL' or not target_token:
+                            tokens.add('ALL')
+                    
+                    timestep_range = bending_meta.get('timestep_range')
+                    if timestep_range:
+                        # Format: "0-2" or "ALL"
+                        if isinstance(timestep_range, list) and len(timestep_range) == 2:
+                            range_str = f"{timestep_range[0]}-{timestep_range[1]}"
+                        else:
+                            range_str = "ALL"
+                        timestep_ranges.add(range_str)
+                    else:
+                        timestep_ranges.add("ALL")
+                    
+                    # Get layer information - check multiple possible field names
+                    layer_indices = bending_meta.get('layer_indices') or bending_meta.get('apply_to_layers')
+                    if layer_indices:
+                        # Format: "0-5" or "ALL"
+                        if isinstance(layer_indices, list) and len(layer_indices) >= 2:
+                            range_str = f"{min(layer_indices)}-{max(layer_indices)}"
+                            layer_ranges.add(range_str)
+                            print(f"DEBUG: Added layer range: {range_str} from video {video.get('filename')}")
+                        elif layer_indices == "ALL" or (isinstance(layer_indices, str) and layer_indices.upper() == "ALL"):
+                            layer_ranges.add("ALL")
+                            print(f"DEBUG: Added ALL (explicit) from video {video.get('filename')}")
+                        else:
+                            layer_ranges.add("ALL")
+                            print(f"DEBUG: Added ALL (list too short or unexpected format) from video {video.get('filename')}: {layer_indices}")
+                    else:
+                        layer_ranges.add("ALL")
+                        print(f"DEBUG: Added ALL (no layer info) from video {video.get('filename')}, bending_meta keys: {list(bending_meta.keys())}")
+                
+                # Track prompts and seeds
+                prompt_idx = prompt_var.get('index', 0)
+                if prompt_idx not in prompts_dict:
+                    prompts_dict[prompt_idx] = {
+                        'index': prompt_idx,
+                        'text': prompt_var.get('text', f'Prompt {prompt_idx}'),
+                        'id': f'p{prompt_idx}'
+                    }
+                
+                seeds.add(video.get('seed'))
+            
+            # Sort and format filter options
+            filter_options = {
+                'operations': sorted(list(operations)),
+                'tokens': sorted(list(tokens)),
+                'timestep_ranges': sorted(list(timestep_ranges), key=lambda x: (x != "ALL", x)),
+                'layer_ranges': sorted(list(layer_ranges), key=lambda x: (x != "ALL", x)),
+                'prompts': [prompts_dict[idx] for idx in sorted(prompts_dict.keys())],
+                'seeds': sorted(list(seeds))
+            }
+            
+            return {
+                'available': True,
+                'baseline_videos': baseline_videos,
+                'bending_videos': bending_videos,
+                'filter_options': filter_options,
+                'video_count': {
+                    'total': len(all_videos),
+                    'baseline': len(baseline_videos),
+                    'bending': len(bending_videos)
+                }
+            }
+            
+        except Exception as e:
+            print(f"Error loading attention bending data: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                'available': False,
+                'error': str(e)
+            }
+
+        except Exception as e:
             print(f"Error loading latent videos for {exp_dir.name}: {e}")
             return {
                 'has_latent_videos': False,
@@ -1516,6 +1682,24 @@ def create_app():
             }
             
             return jsonify(combined_data)
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/experiment/<path:experiment_path>/attention-bending')
+    def get_experiment_attention_bending(experiment_path):
+        """Get structured attention bending data with filter options for visualization UI"""
+        try:
+            # Find the experiment directory
+            full_experiment_path = Path(app.config['VIDEO_OUTPUTS_DIR']) / experiment_path
+            
+            if not full_experiment_path.exists():
+                return jsonify({'error': 'Experiment not found'}), 404
+            
+            # Load attention bending data
+            bending_data = analyzer._load_attention_bending_data(full_experiment_path)
+            
+            return jsonify(bending_data)
             
         except Exception as e:
             return jsonify({'error': str(e)}), 500
