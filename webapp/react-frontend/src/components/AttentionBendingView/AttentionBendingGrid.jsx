@@ -104,10 +104,10 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
     
     // Handle SCALE operations specially
     if (opTypeLower === 'scale') {
-      const scaleX = params.scale_x || params.scale;
-      const scaleY = params.scale_y || params.scale;
+      const scaleX = params.scale_x ?? params.scale;
+      const scaleY = params.scale_y ?? params.scale;
       
-      if (scaleX === scaleY || !scaleY) {
+      if (scaleX === scaleY || scaleY == null) {
         return `scale: ${formatNumber(scaleX)}×`;
       }
       return `scale: ${formatNumber(scaleX)}×${formatNumber(scaleY)}×`;
@@ -115,7 +115,7 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
     
     // Handle ROTATE operations
     if (opTypeLower === 'rotate') {
-      const angle = params.angle || params.rotation;
+      const angle = params.angle ?? params.rotation;
       return `rotate: ${formatNumber(angle)}°`;
     }
     
@@ -320,11 +320,31 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
         <div className="header-row">
           <div className="row-header corner-header"></div>
           <div className="video-row">
-            {displayedCombos.map(combo => (
-              <div key={combo} className="column-header-cell">
-                {combo.replace('_', ' ')}
-              </div>
-            ))}
+            {displayedCombos.map(combo => {
+              const [promptPart, seedPart] = combo.split('_');
+              const promptIdx = parseInt(promptPart.substring(1));
+              const seed = parseInt(seedPart.substring(1));
+              
+              // Find prompt text
+              const promptText = baselineVideos.find(v => 
+                (v.prompt_variation?.index || 0) === promptIdx
+              )?.prompt_variation?.text || `Prompt ${promptIdx}`;
+              
+              return (
+                <div 
+                  key={combo} 
+                  className="column-header-cell"
+                  style={{
+                    width: `${videoSize * aspectRatio}px`,
+                    minWidth: `${videoSize * aspectRatio}px`,
+                    maxWidth: `${videoSize * aspectRatio}px`
+                  }}
+                  title={`Prompt: ${promptText}\nSeed: ${seed}`}
+                >
+                  <span className="combo-label">{combo.replace('_', ' ')}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
 

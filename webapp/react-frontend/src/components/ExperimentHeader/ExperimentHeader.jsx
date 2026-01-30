@@ -84,37 +84,36 @@ const ExperimentHeader = () => {
     <div className="experiment-header">
       <div className="experiment-title-row">
         <h2 id="experiment-title">{currentExperiment.name}</h2>
-      </div>
-
-      <div className="experiment-stats">
-        {currentExperiment.model_id && (
-          <span className="stat-item">
-            {currentExperiment.model_id.split('/').pop().replace('-Diffusers', '').replace('Wan2.1-T2V-', '')}
-          </span>
-        )}
-        <span className="stat-item">{currentExperiment.videos_count} videos</span>
-        <span className="stat-item">{currentExperiment.variations_count} variations</span>
-        <span className="stat-item">{currentExperiment.seeds_count} seeds</span>
-        {currentExperiment.duration_seconds && (
-          <span className="stat-item">{formatDuration(currentExperiment.duration_seconds)} duration</span>
-        )}
-        {formatCfgInfo(currentExperiment) && (
-          <span className="stat-item cfg-info">{formatCfgInfo(currentExperiment)}</span>
-        )}
-        {currentExperiment.has_vlm_analysis && (
-          <span className="stat-item analysis-indicator">📊 VLM Analysis</span>
-        )}
-        {currentExperiment.has_trajectory_analysis && (
-          <span className="stat-item analysis-indicator">🎯 Trajectory Analysis</span>
-        )}
-        {formatAttentionBendingInfo(currentExperiment) && (
-          <span
-            className={`stat-item attention-bending-indicator ${formatAttentionBendingInfo(currentExperiment).phase}`}
-            title={formatAttentionBendingInfo(currentExperiment).details.join(' • ')}
-          >
-            {formatAttentionBendingInfo(currentExperiment).summary}
-          </span>
-        )}
+        <div className="experiment-stats">
+          {currentExperiment.model_id && (
+            <span className="stat-item">
+              {currentExperiment.model_id.split('/').pop().replace('-Diffusers', '').replace('Wan2.1-T2V-', '')}
+            </span>
+          )}
+          <span className="stat-item">{currentExperiment.videos_count} videos</span>
+          <span className="stat-item">{currentExperiment.variations_count} variations</span>
+          <span className="stat-item">{currentExperiment.seeds_count} seeds</span>
+          {currentExperiment.duration_seconds && (
+            <span className="stat-item">{formatDuration(currentExperiment.duration_seconds)} duration</span>
+          )}
+          {formatCfgInfo(currentExperiment) && (
+            <span className="stat-item cfg-info">{formatCfgInfo(currentExperiment)}</span>
+          )}
+          {currentExperiment.has_vlm_analysis && (
+            <span className="stat-item analysis-indicator">📊 VLM Analysis</span>
+          )}
+          {currentExperiment.has_trajectory_analysis && (
+            <span className="stat-item analysis-indicator">🎯 Trajectory Analysis</span>
+          )}
+          {formatAttentionBendingInfo(currentExperiment) && (
+            <span
+              className={`stat-item attention-bending-indicator ${formatAttentionBendingInfo(currentExperiment).phase}`}
+              title={formatAttentionBendingInfo(currentExperiment).details.join(' • ')}
+            >
+              {formatAttentionBendingInfo(currentExperiment).summary}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Attention Bending Details Section */}

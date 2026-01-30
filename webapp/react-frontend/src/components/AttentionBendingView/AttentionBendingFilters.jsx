@@ -1,7 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import './AttentionBendingFilters.css';
 
-const AttentionBendingFilters = ({ filterOptions, onFiltersChange }) => {
+const AttentionBendingFilters = ({ filterOptions, onFiltersChange, videoSize, onVideoSizeChange }) => {
+  // Collapsible state - collapsed by default
+  const [isExpanded, setIsExpanded] = useState(false);
+  
   // Helper to get default selection for tokens/timesteps/layers
   const getDefaultSelection = (options) => {
     // If "ALL" exists, select only "ALL"
@@ -203,14 +206,87 @@ const AttentionBendingFilters = ({ filterOptions, onFiltersChange }) => {
     });
   };
 
+  // Generate compact filter summary
+  const getFilterSummary = () => {
+    const parts = [];
+    
+    // Operations
+    const opText = selectedOperations.size === filterOptions.operations.length 
+      ? 'All' 
+      : selectedOperations.size === 0 
+        ? 'None' 
+        : `${selectedOperations.size} selected`;
+    parts.push(`operations: ${opText}`);
+    
+    // Tokens
+    const tokenList = Array.from(selectedTokens).slice(0, 3).join(', ');
+    const tokenSuffix = selectedTokens.size > 3 ? '...' : '';
+    parts.push(`tokens: ${tokenList}${tokenSuffix}`);
+    
+    // Timesteps
+    const timestepList = Array.from(selectedTimesteps).slice(0, 2).join(', ');
+    const timestepSuffix = selectedTimesteps.size > 2 ? '...' : '';
+    parts.push(`timesteps: ${timestepList}${timestepSuffix}`);
+    
+    // Layers
+    const layerList = Array.from(selectedLayers).slice(0, 2).join(', ');
+    const layerSuffix = selectedLayers.size > 2 ? '...' : '';
+    parts.push(`layers: ${layerList}${layerSuffix}`);
+    
+    // Prompts & Seeds (compact counts)
+    parts.push(`${selectedPrompts.size} prompts`);
+    parts.push(`${selectedSeeds.size} seeds`);
+    
+    return parts.join(', ');
+  };
+
   return (
     <div className="attention-bending-filters">
-      <div className="filters-header">
-        <h3>Filters</h3>
-        <button className="reset-button" onClick={handleResetAll}>
-          Reset All to Default
-        </button>
-      </div>
+      {!isExpanded ? (
+        <div className="filters-collapsed">
+          <span className="filters-summary">
+            <strong>Filters:</strong> {getFilterSummary()}
+          </span>
+          <div className="collapsed-actions">
+            <button 
+              className="reset-button-icon" 
+              onClick={handleResetAll}
+              title="Reset filters to default"
+            >
+              ↻
+            </button>
+            <button className="toggle-filters-button" onClick={() => setIsExpanded(true)}>
+              Show Filters
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="filters-header">
+            <h3>Filters</h3>
+            <div className="filters-header-actions">
+              <button className="reset-button" onClick={handleResetAll}>
+                Reset All to Default
+              </button>
+              <button className="toggle-filters-button" onClick={() => setIsExpanded(false)}>
+                Hide Filters
+              </button>
+            </div>
+          </div>
+
+          {/* Video Size Control */}
+          <div className="size-control">
+            <label htmlFor="video-size-slider">Video Size: {videoSize}px</label>
+            <input
+              id="video-size-slider"
+              type="range"
+              min="100"
+              max="400"
+              value={videoSize}
+              onChange={(e) => onVideoSizeChange(Number(e.target.value))}
+              className="size-slider"
+            />
+          </div>
 
       <div className="filters-grid">
         {/* Operations Filter */}
@@ -356,6 +432,8 @@ const AttentionBendingFilters = ({ filterOptions, onFiltersChange }) => {
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };

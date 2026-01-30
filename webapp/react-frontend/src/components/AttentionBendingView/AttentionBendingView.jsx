@@ -72,31 +72,12 @@ const AttentionBendingView = ({ experimentPath }) => {
 
     return (
         <div className="attention-bending-view">
-            <div className="attention-bending-header">
-                <h2>🎛️ Attention Bending Visualization</h2>
-                <div className="video-count-badge">
-                    {bendingData.video_count.total} videos ({bendingData.video_count.baseline} baseline, {bendingData.video_count.bending} bending)
-                </div>
-            </div>
-
-            {/* Video Size Control */}
-            <div className="size-control">
-                <label htmlFor="video-size-slider">Video Size: {videoSize}px</label>
-                <input
-                    id="video-size-slider"
-                    type="range"
-                    min="100"
-                    max="400"
-                    value={videoSize}
-                    onChange={(e) => setVideoSize(Number(e.target.value))}
-                    className="size-slider"
-                />
-            </div>
-
             {/* Phase 3: Filters */}
             <AttentionBendingFilters 
                 filterOptions={bendingData.filter_options}
                 onFiltersChange={setActiveFilters}
+                videoSize={videoSize}
+                onVideoSizeChange={setVideoSize}
             />
 
             {/* Phase 4: Grid View */}

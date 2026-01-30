@@ -1,5 +1,9 @@
 .attention-bending-grid {
-  margin-top: 20px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin-top: 12px;
 }
 
 .cutoff-warning {
@@ -8,10 +12,11 @@
   color: #ef4444;
   padding: 12px 20px;
   border-radius: 6px;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
   text-align: center;
   font-size: 14px;
   font-weight: 500;
+  flex-shrink: 0;
 }
 
 .grid-empty {
@@ -21,6 +26,11 @@
   padding: 60px 20px;
   text-align: center;
   color: var(--text-secondary);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 
 .grid-empty p {
@@ -38,12 +48,15 @@
   border: 1px solid var(--bg-tertiary);
   border-radius: 8px;
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
-/* Custom scrollbar */
+/* Custom scrollbars */
 .grid-container::-webkit-scrollbar {
   height: 12px;
+  width: 12px;
 }
 
 .grid-container::-webkit-scrollbar-track {
@@ -60,11 +73,22 @@
   opacity: 0.8;
 }
 
-/* Baseline Section - Sticky */
-.baseline-section {
+/* Header Row - Sticky at very top */
+.header-row {
+  display: flex;
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 102;
+  background: var(--bg-secondary);
+  border-bottom: 2px solid var(--bg-tertiary);
+  padding: 8px 0;
+}
+
+/* Baseline Section - Sticky just below header row */
+.baseline-section {
+  position: sticky;
+  top: 44px; /* Height of header-row (8px padding top + 28px content + 8px padding bottom) */
+  z-index: 101;
   background: var(--bg-primary);
   border-bottom: 3px solid var(--accent);
 }
@@ -79,17 +103,6 @@
   font-weight: 700;
   font-size: 14px;
   letter-spacing: 1px;
-}
-
-/* Header Row */
-.header-row {
-  display: flex;
-  position: sticky;
-  top: 0;
-  z-index: 101;
-  background: var(--bg-secondary);
-  border-bottom: 2px solid var(--bg-tertiary);
-  padding: 8px 0;
 }
 
 .corner-header {
@@ -109,6 +122,20 @@
   font-weight: 500;
   white-space: nowrap;
   margin: 0 4px;
+  cursor: help;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.column-header-cell:hover {
+  background: var(--bg-tertiary-hover);
+  color: var(--text-primary);
+}
+
+.column-header-cell .combo-label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Operation Sections */

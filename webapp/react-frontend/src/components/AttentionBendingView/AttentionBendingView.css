@@ -1,7 +1,9 @@
 .attention-bending-view {
     padding: 20px;
     height: 100%;
-    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .attention-bending-header {
