@@ -232,7 +232,26 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
         const aParams = a[1].params;
         const bParams = b[1].params;
         
-        // Sort by the first parameter value numerically
+        // Special handling for translate operations - group by axis first
+        if (opType.toLowerCase() === 'translate') {
+          const aHasX = aParams.translate_x !== undefined && aParams.translate_x !== null;
+          const bHasX = bParams.translate_x !== undefined && bParams.translate_x !== null;
+          
+          // Group all X translations before Y translations
+          if (aHasX && !bHasX) return -1;
+          if (!aHasX && bHasX) return 1;
+          
+          // Within the same axis, sort by value
+          const aVal = aHasX ? aParams.translate_x : aParams.translate_y;
+          const bVal = bHasX ? bParams.translate_x : bParams.translate_y;
+          
+          if (typeof aVal === 'number' && typeof bVal === 'number') {
+            return aVal - bVal;
+          }
+          return String(aVal).localeCompare(String(bVal));
+        }
+        
+        // Default sorting for other operations by the first parameter value numerically
         const aVal = Object.values(aParams)[0];
         const bVal = Object.values(bParams)[0];
         
