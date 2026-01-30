@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import './AttentionBendingFilters.css';
 
-const AttentionBendingFilters = ({ filterOptions, onFiltersChange, videoSize, onVideoSizeChange }) => {
+const AttentionBendingFilters = ({ filterOptions, onFiltersChange, videoSize, onVideoSizeChange, pinBaseline, onPinBaselineChange }) => {
   // Collapsible state - collapsed by default
   const [isExpanded, setIsExpanded] = useState(false);
   
@@ -249,9 +249,16 @@ const AttentionBendingFilters = ({ filterOptions, onFiltersChange, videoSize, on
           </span>
           <div className="collapsed-actions">
             <button 
+              className={`pin-baseline-button ${pinBaseline ? 'active' : ''}`}
+              onClick={() => onPinBaselineChange(!pinBaseline)}
+              title={pinBaseline ? "Unpin baseline (allow scrolling)" : "Pin baseline (keep visible)"}
+            >
+              📌
+            </button>
+            <button 
               className="reset-button-icon" 
               onClick={handleResetAll}
-              title="Reset filters to default"
+              title="Reset all filters to default"
             >
               ↻
             </button>
@@ -265,6 +272,13 @@ const AttentionBendingFilters = ({ filterOptions, onFiltersChange, videoSize, on
           <div className="filters-header">
             <h3>Filters</h3>
             <div className="filters-header-actions">
+              <button 
+                className={`pin-baseline-button ${pinBaseline ? 'active' : ''}`}
+                onClick={() => onPinBaselineChange(!pinBaseline)}
+                title={pinBaseline ? "Unpin baseline (allow scrolling)" : "Pin baseline (keep visible)"}
+              >
+                📌
+              </button>
               <button className="reset-button" onClick={handleResetAll}>
                 Reset All to Default
               </button>

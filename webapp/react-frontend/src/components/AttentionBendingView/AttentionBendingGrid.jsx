@@ -2,7 +2,7 @@ import React, { useMemo, useState, useCallback, useRef } from 'react';
 import { getThumbnailUrl, getVideoUrl } from '../../services/api';
 import './AttentionBendingGrid.css';
 
-const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, videoSize = 180 }) => {
+const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, videoSize = 180, pinBaseline = true }) => {
   // Calculate aspect ratio from first available video metadata
   const aspectRatio = useMemo(() => {
     const firstVideo = bendingVideos[0] || baselineVideos[0];
@@ -335,9 +335,9 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
                   key={combo} 
                   className="column-header-cell"
                   style={{
-                    width: `${videoSize * aspectRatio}px`,
-                    minWidth: `${videoSize * aspectRatio}px`,
-                    maxWidth: `${videoSize * aspectRatio}px`
+                    width: `${videoSize}px`,
+                    minWidth: `${videoSize}px`,
+                    maxWidth: `${videoSize}px`
                   }}
                   title={`Prompt: ${promptText}\nSeed: ${seed}`}
                 >
@@ -348,8 +348,8 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
           </div>
         </div>
 
-        {/* Baseline Row (Sticky) */}
-        <div className="baseline-section">
+        {/* Baseline Row (Sticky when pinned) */}
+        <div className={`baseline-section ${pinBaseline ? 'pinned' : ''}`}>
           <div className="operation-row">
             <div className="row-header baseline-header">
               📌 Baseline

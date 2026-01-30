@@ -56,6 +56,39 @@
   display: flex;
   gap: 8px;
   flex-shrink: 0;
+  align-items: center;
+}
+
+.pin-baseline-button {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 700;
+  transition: all 0.2s;
+  white-space: nowrap;
+  line-height: 1;
+  opacity: 0.3;
+  filter: grayscale(1);
+}
+
+.pin-baseline-button.active {
+  color: var(--accent);
+  background: rgba(74, 144, 226, 0.15);
+  border-color: var(--accent);
+  opacity: 1;
+  filter: grayscale(0);
+}
+
+.pin-baseline-button:hover {
+  background: var(--accent);
+  color: var(--text-primary);
+  border-color: var(--accent);
+  opacity: 1;
+  filter: grayscale(0);
 }
 
 .reset-button-icon {
@@ -117,6 +150,39 @@
 .filters-header-actions {
   display: flex;
   gap: 10px;
+  align-items: center;
+}
+
+.filters-header-actions .pin-baseline-button {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 700;
+  transition: all 0.2s;
+  white-space: nowrap;
+  line-height: 1;
+  opacity: 0.3;
+  filter: grayscale(1);
+}
+
+.filters-header-actions .pin-baseline-button.active {
+  color: var(--accent);
+  background: rgba(74, 144, 226, 0.15);
+  border-color: var(--accent);
+  opacity: 1;
+  filter: grayscale(0);
+}
+
+.filters-header-actions .pin-baseline-button:hover {
+  background: var(--accent);
+  color: var(--text-primary);
+  border-color: var(--accent);
+  opacity: 1;
+  filter: grayscale(0);
 }
 
 .reset-button {

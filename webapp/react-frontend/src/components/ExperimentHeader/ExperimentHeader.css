@@ -15,6 +15,14 @@
   margin-bottom: 0.4rem;
 }
 
+.title-with-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
 #experiment-title {
   margin: 0;
   font-size: 1.1rem;
@@ -25,6 +33,20 @@
   text-overflow: ellipsis;
   flex-shrink: 1;
   min-width: 0;
+}
+
+.info-icon {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  cursor: help;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+  flex-shrink: 0;
+}
+
+.info-icon:hover {
+  opacity: 1;
+  color: var(--accent);
 }
 
 .experiment-stats {
@@ -227,4 +249,31 @@
     margin-left: 0;
     margin-top: 0.25rem;
   }
+}
+/* Prompt Tooltip */
+.prompt-tooltip {
+  position: fixed;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--text-primary);
+  max-width: 400px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 10000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+  line-height: 1.5;
+}
+
+.prompt-tooltip.show {
+  opacity: 1;
+}
+
+.prompt-tooltip strong {
+  color: var(--accent);
+  display: block;
+  margin-bottom: 8px;
 }

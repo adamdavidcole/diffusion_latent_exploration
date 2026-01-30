@@ -84,13 +84,25 @@
   padding: 8px 0;
 }
 
-/* Baseline Section - Sticky just below header row */
+/* Baseline Section - Sticky just below header row when pinned */
 .baseline-section {
-  position: sticky;
-  top: 44px; /* Height of header-row (8px padding top + 28px content + 8px padding bottom) */
-  z-index: 101;
   background: var(--bg-primary);
-  border-bottom: 3px solid var(--accent);
+  border-bottom: 1px solid var(--bg-tertiary);
+}
+
+.baseline-section.pinned {
+  position: sticky;
+  top: 44px;
+  /* Height of header-row (8px padding top + 28px content + 8px padding bottom) */
+  z-index: 101;
+  padding-top: 8px;
+  /* Add top padding that stays pinned */
+  padding-bottom: 8px;
+  /* Add bottom padding that stays pinned */
+  margin-top: -8px;
+  /* Compensate for added padding to maintain spacing */
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .baseline-section .operation-row {
@@ -121,7 +133,6 @@
   border-radius: 4px;
   font-weight: 500;
   white-space: nowrap;
-  margin: 0 4px;
   cursor: help;
   transition: background 0.2s;
   flex-shrink: 0;
@@ -238,13 +249,11 @@
 }
 
 .video-cell.empty {
-  background: repeating-linear-gradient(
-    45deg,
-    var(--bg-tertiary),
-    var(--bg-tertiary) 10px,
-    var(--bg-primary) 10px,
-    var(--bg-primary) 20px
-  );
+  background: repeating-linear-gradient(45deg,
+      var(--bg-tertiary),
+      var(--bg-tertiary) 10px,
+      var(--bg-primary) 10px,
+      var(--bg-primary) 20px);
   opacity: 0.3;
 }
 
@@ -257,7 +266,7 @@
 }
 
 /* Baseline video cells get special styling */
-.baseline-section .video-cell {
+/* .baseline-section .video-cell {
   border: 2px solid var(--accent);
   box-shadow: 0 2px 8px rgba(74, 144, 226, 0.2);
 }
@@ -265,4 +274,4 @@
 .baseline-section .video-cell:hover {
   transform: scale(1.08);
   box-shadow: 0 6px 16px rgba(74, 144, 226, 0.4);
-}
+} */

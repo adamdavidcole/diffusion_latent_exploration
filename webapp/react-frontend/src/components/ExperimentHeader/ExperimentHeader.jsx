@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { useApp } from '../../context/AppContext';
 import { formatAttentionBendingInfo } from '../../utils/attentionBendingUtils';
 import './ExperimentHeader.css';
@@ -75,15 +75,60 @@ const renderPromptDisplay = (experiment) => {
 const ExperimentHeader = () => {
   const { state } = useApp();
   const { currentExperiment } = state;
+  const [showPromptTooltip, setShowPromptTooltip] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+
+  const handleInfoIconMouseEnter = useCallback((e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const tooltipWidth = 400; // max-width
+    const tooltipHeight = 200; // estimated height
+
+    let x = rect.right + 10;
+    let y = rect.top + rect.height / 2;
+
+    // Ensure tooltip doesn't go off right edge of screen
+    if (x + tooltipWidth > window.innerWidth) {
+      x = rect.left - tooltipWidth - 10;
+    }
+
+    // Ensure tooltip doesn't go off bottom edge of screen
+    if (y + tooltipHeight / 2 > window.innerHeight) {
+      y = window.innerHeight - tooltipHeight / 2 - 20;
+    }
+
+    // Ensure tooltip doesn't go off top edge of screen
+    if (y - tooltipHeight / 2 < 40) {
+      y = tooltipHeight / 2 + 40;
+    }
+
+    setTooltipPosition({ x, y });
+    setShowPromptTooltip(true);
+  }, []);
+
+  const handleInfoIconMouseLeave = useCallback(() => {
+    setShowPromptTooltip(false);
+  }, []);
 
   if (!currentExperiment) {
     return null;
   }
 
   return (
-    <div className="experiment-header">
-      <div className="experiment-title-row">
-        <h2 id="experiment-title">{currentExperiment.name}</h2>
+    <>
+      <div className="experiment-header">
+        <div className="experiment-title-row">
+          <div className="title-with-info">
+            <h2 id="experiment-title">{currentExperiment.name}</h2>
+            {currentExperiment.base_prompt && (
+              <span 
+                className="info-icon"
+                onMouseEnter={handleInfoIconMouseEnter}
+                onMouseLeave={handleInfoIconMouseLeave}
+              >
+                ⓘ
+              </span>
+            )}
+          </div>
         <div className="experiment-stats">
           {currentExperiment.model_id && (
             <span className="stat-item">
@@ -126,9 +171,24 @@ const ExperimentHeader = () => {
           ))}
         </div>
       )}
+      </div>
 
-      {renderPromptDisplay(currentExperiment)}
-    </div>
+      {/* Prompt Tooltip */}
+      {showPromptTooltip && currentExperiment.base_prompt && (
+        <div
+          className="prompt-tooltip show"
+          style={{
+            left: tooltipPosition.x,
+            top: tooltipPosition.y,
+            transform: 'translateY(-50%)'
+          }}
+        >
+          <strong>Base Prompt:</strong>
+          <br />
+          {currentExperiment.base_prompt}
+        </div>
+      )}
+    </>
   );
 };
 
