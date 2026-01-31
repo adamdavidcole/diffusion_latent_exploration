@@ -1,0 +1,430 @@
+/* Attention Bending Lightbox */
+.attention-bending-lightbox {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+.attention-bending-lightbox .lightbox-content {
+    position: relative;
+    width: 100%;
+    max-width: 1600px;
+    background: var(--bg-primary);
+    border-radius: 8px;
+    padding: 16px 24px 24px 24px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+/* Header row with title, toggles, and close */
+.attention-bending-lightbox .lightbox-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    width: 100%;
+}
+
+.attention-bending-lightbox .lightbox-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+    flex: 0 0 auto;
+    /* Don't grow or shrink */
+}
+
+.attention-bending-lightbox .lightbox-toggles {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+    /* Push to right side */
+}
+
+.attention-bending-lightbox .toggle-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.attention-bending-lightbox .toggle-button:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--accent);
+}
+
+.attention-bending-lightbox .toggle-button.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+}
+
+.attention-bending-lightbox .toggle-x {
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+/* Close button */
+.attention-bending-lightbox .attention-lightbox-close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 18px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.attention-bending-lightbox .attention-lightbox-close-btn:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--accent);
+}
+
+.attention-bending-lightbox .lightbox-nav-container {
+    display: none;
+    /* Hidden - use keyboard navigation only */
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    transform: translateY(-50%);
+    pointer-events: none;
+    z-index: 5;
+}
+
+.attention-bending-lightbox .lightbox-nav {
+    position: absolute;
+    width: 48px;
+    height: 48px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 2px solid var(--border);
+    border-radius: 50%;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(4px);
+}
+
+.attention-bending-lightbox .lightbox-nav:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    transform: scale(1.1);
+}
+
+.attention-bending-lightbox .lightbox-nav-left {
+    left: -60px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.attention-bending-lightbox .lightbox-nav-right {
+    right: -60px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.attention-bending-lightbox .lightbox-nav-up {
+    top: -60px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.attention-bending-lightbox .lightbox-nav-down {
+    bottom: -60px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* Main content */
+.attention-bending-lightbox .lightbox-main-content {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
+}
+
+/* Old control toggles - remove */
+.attention-bending-lightbox .lightbox-controls,
+.attention-bending-lightbox .control-toggle {
+    display: none;
+}
+
+/* Video container */
+.attention-bending-lightbox .video-container {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+}
+
+.attention-bending-lightbox .video-container.single {
+    justify-content: center;
+}
+
+.attention-bending-lightbox .video-container.split {
+    align-items: center;
+    /* Center when stacking vertically */
+}
+
+.attention-bending-lightbox .video-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.attention-bending-lightbox .lightbox-video {
+    width: 100%;
+    max-width: 720px;
+    height: auto;
+    border-radius: 6px;
+    background: black;
+    display: block;
+    margin: 0 auto;
+}
+
+/* Condensed metadata below video */
+.attention-bending-lightbox .video-metadata-compact {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.4;
+    padding: 0 4px;
+}
+
+.attention-bending-lightbox .video-metadata-compact .metadata-line {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.attention-bending-lightbox .video-metadata-compact .metadata-line:first-child {
+    color: var(--text-primary);
+}
+
+/* Old metadata display (remove) */
+.attention-bending-lightbox .lightbox-metadata {
+    display: none;
+}
+
+.attention-bending-lightbox .video-label {
+    display: none;
+}
+
+.attention-bending-lightbox .metadata-section h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 12px 0;
+}
+
+.attention-bending-lightbox .metadata-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px 16px;
+    font-size: 14px;
+}
+
+.attention-bending-lightbox .metadata-label {
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.attention-bending-lightbox .metadata-value {
+    color: var(--text-primary);
+}
+
+.attention-bending-lightbox .operation-details {
+    font-size: 14px;
+    color: var(--text-primary);
+    padding: 12px;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+}
+
+/* Attention maps section */
+.attention-bending-lightbox .attention-maps-section {
+    padding: 20px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.attention-bending-lightbox .attention-maps-section h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 16px 0;
+}
+
+.attention-bending-lightbox .attention-maps-grid {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: visible;
+}
+
+.attention-bending-lightbox .attention-row {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 12px;
+    align-items: flex-start;
+    width: fit-content;
+    min-width: 100%;
+    margin-bottom: 8px;
+}
+
+.attention-bending-lightbox .attention-row.baseline-row {
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+    /* Tighter spacing for visual comparison */
+}
+
+.attention-bending-lightbox .attention-row.bent-row {
+    margin-bottom: 16px;
+    /* Spacing after bent row before next token pair */
+}
+
+.attention-bending-lightbox .row-label {
+    width: 120px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+.attention-bending-lightbox .row-videos {
+    display: flex;
+    gap: 8px;
+    padding: 4px;
+}
+
+.attention-bending-lightbox .attention-cell {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.attention-bending-lightbox .attention-video {
+    width: 120px;
+    height: 67px;
+    /* 16:9 aspect ratio */
+    object-fit: cover;
+    border-radius: 4px;
+    background: black;
+    cursor: pointer;
+    border: 2px solid var(--border);
+    transition: all 0.2s ease;
+}
+
+.attention-bending-lightbox .attention-video:hover {
+    border-color: var(--accent);
+    transform: scale(1.05);
+}
+
+.attention-bending-lightbox .step-label {
+    position: absolute;
+    bottom: 4px;
+    left: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    color: white;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 2px 6px;
+    border-radius: 3px;
+    pointer-events: none;
+}
+
+.attention-bending-lightbox .coming-soon {
+    padding: 20px;
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.attention-bending-lightbox .loading-state,
+.attention-bending-lightbox .error-state {
+    padding: 20px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.attention-bending-lightbox .error-state {
+    color: var(--error);
+}
+
+/* Navigation hint */
+.attention-bending-lightbox .navigation-hint {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 12px;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    border: 1px solid var(--border);
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+    .attention-bending-lightbox .video-container.split {
+        flex-direction: column;
+    }
+
+    .attention-bending-lightbox .lightbox-metadata {
+        grid-template-columns: 1fr;
+    }
+
+    .attention-bending-lightbox .lightbox-nav-left,
+    .attention-bending-lightbox .lightbox-nav-right {
+        left: 12px;
+        right: auto;
+    }
+
+    .attention-bending-lightbox .lightbox-nav-right {
+        left: auto;
+        right: 12px;
+    }
+}

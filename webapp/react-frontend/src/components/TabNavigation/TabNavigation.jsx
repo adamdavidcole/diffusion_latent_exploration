@@ -47,83 +47,61 @@ const TabNavigation = ({ experimentPath }) => {
           📹 Videos
         </button>
 
-        <button
-          className={`tab-button ${activeTab === 'analysis' ? 'active' : ''} ${!currentExperiment?.has_vlm_analysis ? 'disabled' : ''
-            }`}
-          role="tab"
-          aria-selected={activeTab === 'analysis'}
-          onClick={() => currentExperiment?.has_vlm_analysis && handleTabChange('analysis')}
-          disabled={!currentExperiment?.has_vlm_analysis}
-          title={
-            !currentExperiment?.has_vlm_analysis
-              ? 'VLM analysis not available for this experiment'
-              : 'View VLM analysis results'
-          }
-        >
-          📊 VLM Analysis
-          {!currentExperiment?.has_vlm_analysis && (
-            <span className="disabled-indicator"> (unavailable)</span>
-          )}
-        </button>
+        {/* Only show VLM Analysis tab if available */}
+        {currentExperiment?.has_vlm_analysis && (
+          <button
+            className={`tab-button ${activeTab === 'analysis' ? 'active' : ''}`}
+            role="tab"
+            aria-selected={activeTab === 'analysis'}
+            onClick={() => handleTabChange('analysis')}
+            title="View VLM analysis results"
+          >
+            📊 VLM Analysis
+          </button>
+        )}
 
-        <button
-          className={`tab-button ${activeTab === 'trajectory-analysis' ? 'active' : ''} ${!currentExperiment?.has_trajectory_analysis ? 'disabled' : ''
-            }`}
-          role="tab"
-          aria-selected={activeTab === 'trajectory-analysis'}
-          onClick={() => currentExperiment?.has_trajectory_analysis && handleTabChange('trajectory-analysis')}
-          disabled={!currentExperiment?.has_trajectory_analysis}
-          title={
-            !currentExperiment?.has_trajectory_analysis
-              ? 'Trajectory analysis not available for this experiment'
-              : 'View trajectory analysis results'
-          }
-        >
-          📈 Trajectory Analysis
-          {!currentExperiment?.has_trajectory_analysis && (
-            <span className="disabled-indicator"> (unavailable)</span>
-          )}
-        </button>
+        {/* Only show Trajectory Analysis tab if available */}
+        {currentExperiment?.has_trajectory_analysis && (
+          <button
+            className={`tab-button ${activeTab === 'trajectory-analysis' ? 'active' : ''}`}
+            role="tab"
+            aria-selected={activeTab === 'trajectory-analysis'}
+            onClick={() => handleTabChange('trajectory-analysis')}
+            title="View trajectory analysis results"
+          >
+            📈 Trajectory Analysis
+          </button>
+        )}
 
-        <button
-          className={`tab-button ${activeTab === 'latent-videos' ? 'active' : ''} ${!currentExperiment?.has_latent_videos && !currentExperiment?.has_attention_videos ? 'disabled' : ''
-            }`}
-          role="tab"
-          aria-selected={activeTab === 'latent-videos'}
-          onClick={() => (currentExperiment?.has_latent_videos || currentExperiment?.has_attention_videos) && handleTabChange('latent-videos')}
-          disabled={!currentExperiment?.has_latent_videos && !currentExperiment?.has_attention_videos}
-          title={
-            !currentExperiment?.has_latent_videos && !currentExperiment?.has_attention_videos
-              ? 'Latent/attention videos not available for this experiment'
-              : currentExperiment?.has_attention_videos && !currentExperiment?.has_latent_videos
+        {/* Only show Latent Videos tab if available */}
+        {(currentExperiment?.has_latent_videos || currentExperiment?.has_attention_videos) && (
+          <button
+            className={`tab-button ${activeTab === 'latent-videos' ? 'active' : ''}`}
+            role="tab"
+            aria-selected={activeTab === 'latent-videos'}
+            onClick={() => handleTabChange('latent-videos')}
+            title={
+              currentExperiment?.has_attention_videos && !currentExperiment?.has_latent_videos
                 ? 'View attention videos (latent videos not decoded)'
                 : 'View latent videos progression'
-          }
-        >
-          🎬 Latent Videos
-          {!currentExperiment?.has_latent_videos && !currentExperiment?.has_attention_videos && (
-            <span className="disabled-indicator"> (unavailable)</span>
-          )}
-        </button>
+            }
+          >
+            🎬 Latent Videos
+          </button>
+        )}
 
-        <button
-          className={`tab-button ${activeTab === 'attention-bending' ? 'active' : ''} ${!currentExperiment?.attention_bending_settings?.enabled ? 'disabled' : ''
-            }`}
-          role="tab"
-          aria-selected={activeTab === 'attention-bending'}
-          onClick={() => currentExperiment?.attention_bending_settings?.enabled && handleTabChange('attention-bending')}
-          disabled={!currentExperiment?.attention_bending_settings?.enabled}
-          title={
-            !currentExperiment?.attention_bending_settings?.enabled
-              ? 'Attention bending not enabled for this experiment'
-              : 'View attention bending visualization and analysis'
-          }
-        >
-          🎛️ Attention Bending
-          {!currentExperiment?.attention_bending_settings?.enabled && (
-            <span className="disabled-indicator"> (unavailable)</span>
-          )}
-        </button>
+        {/* Only show Attention Bending tab if enabled */}
+        {currentExperiment?.attention_bending_settings?.enabled && (
+          <button
+            className={`tab-button ${activeTab === 'attention-bending' ? 'active' : ''}`}
+            role="tab"
+            aria-selected={activeTab === 'attention-bending'}
+            onClick={() => handleTabChange('attention-bending')}
+            title="View attention bending visualization and analysis"
+          >
+            🎛️ Attention Bending
+          </button>
+        )}
       </div>
     </div>
   );
