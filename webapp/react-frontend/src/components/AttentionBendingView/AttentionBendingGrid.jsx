@@ -1,8 +1,17 @@
-import React, { useMemo, useState, useCallback, useRef } from 'react';
-import { getThumbnailUrl, getVideoUrl } from '../../services/api';
+import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
+import { getThumbnailUrl, getVideoUrl, api } from '../../services/api';
+import AttentionBendingLightbox from './AttentionBendingLightbox';
 import './AttentionBendingGrid.css';
 
-const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, videoSize = 180, pinBaseline = true }) => {
+const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, videoSize = 180, pinBaseline = true, experimentPath }) => {
+  // Lightbox state
+  const [lightboxVideo, setLightboxVideo] = useState(null);
+  const [lightboxPosition, setLightboxPosition] = useState(null);
+  
+  // Cached attention data - fetch once per experiment session
+  const [cachedAttentionData, setCachedAttentionData] = useState(null);
+  const [attentionDataLoading, setAttentionDataLoading] = useState(false);
+  const [attentionDataError, setAttentionDataError] = useState(null);
   // Calculate aspect ratio from first available video metadata
   const aspectRatio = useMemo(() => {
     const firstVideo = bendingVideos[0] || baselineVideos[0];
@@ -13,6 +22,29 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
   }, [bendingVideos, baselineVideos]);
 
   const videoHeight = Math.round(videoSize / aspectRatio);
+  
+  // Load attention data once and cache it
+  useEffect(() => {
+    const loadAttentionData = async () => {
+      if (!experimentPath || cachedAttentionData || attentionDataLoading) return;
+      
+      setAttentionDataLoading(true);
+      setAttentionDataError(null);
+      
+      try {
+        const latentVideosData = await api.getExperimentLatentVideos(experimentPath);
+        setCachedAttentionData(latentVideosData);
+      } catch (error) {
+        console.error('Error loading attention data:', error);
+        setAttentionDataError(error.message);
+      } finally {
+        setAttentionDataLoading(false);
+      }
+    };
+    
+    loadAttentionData();
+  }, [experimentPath]); // Only re-fetch if experiment changes
+  
   // Filter and organize videos
   const { filteredVideos, promptSeedCombos } = useMemo(() => {
     if (!activeFilters) {
@@ -267,6 +299,13 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
     return groups;
   }, [filteredVideos, formatOperationName]);
 
+  // Calculate displayed combos early so callbacks can use it
+  const MAX_COLUMNS = 5000;
+  const showingAll = promptSeedCombos.length <= MAX_COLUMNS;
+  const displayedCombos = useMemo(() => {
+    return showingAll ? promptSeedCombos : promptSeedCombos.slice(0, MAX_COLUMNS);
+  }, [promptSeedCombos, showingAll]);
+
   // Get baseline video for a prompt×seed combo
   const getBaselineVideo = (comboKey) => {
     const [promptPart, seedPart] = comboKey.split('_');
@@ -279,7 +318,7 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
   };
 
   // Video cell component with hover-to-play functionality
-  const VideoCell = ({ video }) => {
+  const VideoCell = ({ video, onOpenLightbox }) => {
     const [useVideoElement, setUseVideoElement] = useState(false);
     const hoverTimeoutRef = useRef(null);
 
@@ -299,6 +338,12 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
       }, 300);
     }, []);
 
+    const handleClick = useCallback(() => {
+      if (onOpenLightbox && video) {
+        onOpenLightbox();
+      }
+    }, [onOpenLightbox, video]);
+
     const getThumbnailPath = (videoPath) => {
       if (!videoPath) return null;
       const thumbnailPath = videoPath.replace(/\.mp4$/, '.jpg');
@@ -314,9 +359,11 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
         className="video-cell"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        onClick={handleClick}
         style={{
           width: `${videoSize}px`,
-          height: `${videoHeight}px`
+          height: `${videoHeight}px`,
+          cursor: onOpenLightbox ? 'pointer' : 'default'
         }}
       >
         {useVideoElement ? (
@@ -347,8 +394,127 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
     );
   };
 
-  const renderVideoCell = (video) => {
-    return <VideoCell video={video} />;
+  // Handle lightbox open
+  const handleOpenLightbox = useCallback((video, rowType, rowIndex, videoIndex) => {
+    setLightboxVideo(video);
+    setLightboxPosition({ rowType, rowIndex, videoIndex });
+  }, []);
+
+  // Handle lightbox close
+  const handleCloseLightbox = useCallback(() => {
+    setLightboxVideo(null);
+    setLightboxPosition(null);
+  }, []);
+
+  // Handle lightbox navigation
+  const handleLightboxNavigation = useCallback((direction) => {
+    if (!lightboxPosition) return;
+
+    const { rowType, rowIndex, videoIndex } = lightboxPosition;
+    let newRowType = rowType;
+    let newRowIndex = rowIndex;
+    let newVideoIndex = videoIndex;
+
+    switch (direction) {
+      case 'left':
+        // Move to previous video (seed)
+        newVideoIndex = videoIndex > 0 ? videoIndex - 1 : displayedCombos.length - 1;
+        break;
+      case 'right':
+        // Move to next video (seed)
+        newVideoIndex = videoIndex < displayedCombos.length - 1 ? videoIndex + 1 : 0;
+        break;
+      case 'up':
+        // Move to previous operation row
+        if (rowType === 'baseline') {
+          // Already at top, wrap to bottom
+          const opTypes = Object.keys(groupedVideos);
+          const lastOpType = opTypes[opTypes.length - 1];
+          const lastOpOperations = Object.keys(groupedVideos[lastOpType]);
+          newRowType = lastOpType;
+          newRowIndex = lastOpOperations.length - 1;
+        } else if (rowIndex === 0) {
+          // Check if we need to go to previous operation type or baseline
+          const opTypes = Object.keys(groupedVideos);
+          const currentOpTypeIndex = opTypes.indexOf(rowType);
+          if (currentOpTypeIndex === 0) {
+            // First operation type, go to baseline
+            newRowType = 'baseline';
+            newRowIndex = 0;
+          } else {
+            // Go to last row of previous operation type
+            newRowType = opTypes[currentOpTypeIndex - 1];
+            const prevOpOperations = Object.keys(groupedVideos[newRowType]);
+            newRowIndex = prevOpOperations.length - 1;
+          }
+        } else {
+          // Move up within same operation type
+          newRowIndex = rowIndex - 1;
+        }
+        break;
+      case 'down':
+        // Move to next operation row
+        if (rowType === 'baseline') {
+          // Move to first bending operation
+          const firstOpType = Object.keys(groupedVideos)[0];
+          newRowType = firstOpType;
+          newRowIndex = 0;
+        } else {
+          const operations = Object.keys(groupedVideos[rowType]);
+          if (rowIndex < operations.length - 1) {
+            // Move down within same operation type
+            newRowIndex = rowIndex + 1;
+          } else {
+            // Move to next operation type or wrap to baseline
+            const opTypes = Object.keys(groupedVideos);
+            const currentOpTypeIndex = opTypes.indexOf(rowType);
+            if (currentOpTypeIndex < opTypes.length - 1) {
+              newRowType = opTypes[currentOpTypeIndex + 1];
+              newRowIndex = 0;
+            } else {
+              // Wrap to baseline
+              newRowType = 'baseline';
+              newRowIndex = 0;
+            }
+          }
+        }
+        break;
+    }
+
+    // Get the new video
+    let newVideo = null;
+    const newCombo = displayedCombos[newVideoIndex];
+
+    if (newRowType === 'baseline') {
+      newVideo = getBaselineVideo(newCombo);
+    } else {
+      const operations = Object.entries(groupedVideos[newRowType]);
+      const [, opData] = operations[newRowIndex];
+      newVideo = opData.videos[newCombo];
+    }
+
+    if (newVideo) {
+      setLightboxVideo(newVideo);
+      setLightboxPosition({ rowType: newRowType, rowIndex: newRowIndex, videoIndex: newVideoIndex });
+    }
+  }, [lightboxPosition, displayedCombos, groupedVideos, getBaselineVideo]);
+
+  // Get baseline video for lightbox (same prompt/seed as current video)
+  const getBaselineForLightbox = useCallback(() => {
+    if (!lightboxVideo) return null;
+    const promptIdx = lightboxVideo.prompt_variation?.index || 0;
+    const seed = lightboxVideo.seed;
+    const combo = `p${promptIdx}_s${seed}`;
+    return getBaselineVideo(combo);
+  }, [lightboxVideo, getBaselineVideo]);
+
+  const renderVideoCell = (video, rowType, rowIndex, videoIndex) => {
+    return (
+      <VideoCell 
+        video={video}
+        onOpenLightbox={() => video && handleOpenLightbox(video, rowType, rowIndex, videoIndex)}
+      />
+    );
   };
 
   if (promptSeedCombos.length === 0) {
@@ -359,10 +525,6 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
       </div>
     );
   }
-
-  const MAX_COLUMNS = 5000;
-  const showingAll = promptSeedCombos.length <= MAX_COLUMNS;
-  const displayedCombos = showingAll ? promptSeedCombos : promptSeedCombos.slice(0, MAX_COLUMNS);
 
   return (
     <div className="attention-bending-grid">
@@ -412,9 +574,9 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
               📌 Baseline
             </div>
             <div className="video-row">
-              {displayedCombos.map(combo => (
+              {displayedCombos.map((combo, videoIndex) => (
                 <div key={combo} className="video-column">
-                  {renderVideoCell(getBaselineVideo(combo))}
+                  {renderVideoCell(getBaselineVideo(combo), 'baseline', 0, videoIndex)}
                 </div>
               ))}
             </div>
@@ -427,7 +589,7 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
             <div className="operation-type-header">
               <span className="sticky-label">{opType}</span>
             </div>
-            {Object.entries(operations).map(([paramKey, opData]) => (
+            {Object.entries(operations).map(([paramKey, opData], rowIndex) => (
               <div key={paramKey} className="operation-row">
                 <div className="grid-row-header">
                   <div className="operation-name">{opData.displayName}</div>
@@ -438,9 +600,9 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
                   </div>
                 </div>
                 <div className="video-row">
-                  {displayedCombos.map(combo => (
+                  {displayedCombos.map((combo, videoIndex) => (
                     <div key={combo} className="video-column">
-                      {renderVideoCell(opData.videos[combo])}
+                      {renderVideoCell(opData.videos[combo], opType, rowIndex, videoIndex)}
                     </div>
                   ))}
                 </div>
@@ -449,6 +611,17 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
           </div>
         ))}
       </div>
+      
+      {/* Lightbox */}
+      <AttentionBendingLightbox
+        video={lightboxVideo}
+        baselineVideo={getBaselineForLightbox()}
+        isOpen={!!lightboxVideo}
+        onClose={handleCloseLightbox}
+        onNavigate={handleLightboxNavigation}
+        experimentPath={experimentPath}        cachedAttentionData={cachedAttentionData}
+        attentionDataLoading={attentionDataLoading}
+        attentionDataError={attentionDataError}      />
     </div>
   );
 };

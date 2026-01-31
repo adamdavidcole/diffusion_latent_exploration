@@ -91,6 +91,7 @@ const AttentionBendingView = ({ experimentPath }) => {
                     activeFilters={activeFilters}
                     videoSize={videoSize}
                     pinBaseline={pinBaseline}
+                    experimentPath={experimentPath}
                 />
             )}
         </div>
