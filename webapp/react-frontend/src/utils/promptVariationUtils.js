@@ -11,19 +11,15 @@
  */
 export const extractVariationFromPrompt = (fullPrompt, basePrompt) => {
     if (!basePrompt || !fullPrompt) return fullPrompt;
-    
-    console.log('Extracting variation from:', { fullPrompt, basePrompt });
-    
+        
     // Look for patterns like [variation] in base prompt
     const bracketMatch = basePrompt.match(/\[(.*?)\]/);
     if (bracketMatch) {
-        console.log('Found bracket pattern:', bracketMatch);
         // Base prompt has [placeholder], find what replaced it
         const placeholder = bracketMatch[0]; // e.g., "[variation]"
         const beforePlaceholder = basePrompt.split(placeholder)[0];
         const afterPlaceholder = basePrompt.split(placeholder)[1];
         
-        console.log('Placeholder parts:', { placeholder, beforePlaceholder, afterPlaceholder });
         
         // Extract the variation by finding what's between the before/after parts
         const beforeIndex = fullPrompt.indexOf(beforePlaceholder);
@@ -32,7 +28,6 @@ export const extractVariationFromPrompt = (fullPrompt, basePrompt) => {
         if (beforeIndex !== -1 && afterIndex !== -1) {
             const startIndex = beforeIndex + beforePlaceholder.length;
             const variation = fullPrompt.substring(startIndex, afterIndex).trim();
-            console.log('Extracted variation:', variation);
             
             // Handle empty variation case
             if (variation === '') {
@@ -58,7 +53,6 @@ export const extractVariationFromPrompt = (fullPrompt, basePrompt) => {
     });
     
     const result = variations.length > 0 ? variations.join(' ') : fullPrompt;
-    console.log('Fallback extraction result:', result);
     return result;
 };
 
@@ -121,7 +115,6 @@ export const findVideoGridRowByPromptKey = (promptKey, videoGrid) => {
         const matchingRow = videoGrid.find((row, index) => strategy(row, index));
         
         if (matchingRow) {
-            console.log(`Found matching row using strategy ${i + 1}:`, matchingRow);
             return matchingRow;
         }
     }

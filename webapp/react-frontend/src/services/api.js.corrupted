@@ -64,15 +64,6 @@ export const api = {
       }
       const data = await response.json();
       console.log('API: Experiments tree data:', data);
-      return data;
-    } catch (error) {
-      console.error('API: Error fetching experiments:', error);
-      throw error;
-    }
-  },
-
-  async getExperimentsSummary() {
-    console.log('APIv2: Fetching experiments summary (fast)...');
     
     // Static mode - fetch from bundled JSON
     if (isStaticMode) {
@@ -86,10 +77,31 @@ export const api = {
       return data;
     }
     
+      return data;
+    } catch (error) {
+      console.error('API: Error fetching experiments:', error);
+      throw error;
+    }
+  },
+
+  async getExperimentsSummary() {
+    console.log('API: Fetching experiments summary (fast)...');
     try {
       const response = await fetchWithTimeout(`${API_BASE}/api/experiments/summary`, {}, 30000); // 30s timeout for large datasets
       console.log('API: Experiments summary response status:', response.status);
       if (!response.ok) {
+    
+    // Static mode - fetch from bundled JSON
+    if (isStaticMode) {
+      console.log(`API: Static mode - fetching from /data/experiments/${experimentPath}/experiment.json`);
+      const response = await fetch(`/data/experiments/${experimentPath}/experiment.json`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch experiment: ${response.status}`);
+      }
+      const experiment = await response.json();
+      return experiment;
+    }
+    
         throw new Error(`Failed to fetch experiments summary: ${response.status}`);
       }
       const data = await response.json();
@@ -103,19 +115,18 @@ export const api = {
 
   async getExperiment(experimentPath) {
     console.log('API: Fetching experiment:', experimentPath);
+    const response = await fetch(`${API_BASE}/api/experiment/${experimentPath}`);
     
     // Static mode - fetch from bundled JSON
     if (isStaticMode) {
-      console.log(`API: Static mode - fetching from /data/experiments/${experimentPath}/experiment.json`);
-      const response = await fetch(`/data/experiments/${experimentPath}/experiment.json`);
+      console.log(`API: Static mode - fetching from /data/experiments/${experimentPath}/analysis.json`);
+      const response = await fetch(`/data/experiments/${experimentPath}/analysis.json`);
       if (!response.ok) {
-        throw new Error(`Failed to fetch experiment: ${response.status}`);
+        throw new Error(`Failed to fetch experiment analysis: ${response.status}`);
       }
-      const experiment = await response.json();
-      return experiment;
+      return response.json();
     }
     
-    const response = await fetch(`${API_BASE}/api/experiment/${experimentPath}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch experiment: ${response.status}`);
     }
@@ -128,30 +139,8 @@ export const api = {
 
   async getExperimentAnalysis(experimentPath) {
     console.log('API: Fetching experiment analysis:', experimentPath);
-    
-    // Static mode - fetch from bundled JSON
-    if (isStaticMode) {
-      console.log(`API: Static mode - fetching from /data/experiments/${experimentPath}/analysis.json`);
-      const response = await fetch(`/data/experiments/${experimentPath}/analysis.json`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch experiment analysis: ${response.status}`);
-      }
-      return response.json();
-    }
-    
     const response = await fetch(`${API_BASE}/api/experiment/${experimentPath}/analysis`);
     if (!response.ok) {
-      throw new Error(`Failed to fetch experiment analysis: ${response.status}`);
-    }
-    const analysisData = await response.json();
-    if (analysisData.error) {
-      throw new Error(analysisData.error);
-    }
-    return analysisData;
-  },
-
-  async getAnalysisSchema() {
-    console.log('API: Fetching analysis schema');
     
     // Static mode - fetch from bundled JSON
     if (isStaticMode) {
@@ -163,19 +152,19 @@ export const api = {
       return response.json();
     }
     
-    const response = await fetch(`${API_BASE}/api/analysis-schema`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch analysis schema: ${response.status}`);
+      throw new Error(`Failed to fetch experiment analysis: ${response.status}`);
     }
-    const schemaData = await response.json();
-    if (schemaData.error) {
-      throw new Error(schemaData.error);
+    const analysisData = await response.json();
+    if (analysisData.error) {
+      throw new Error(analysisData.error);
     }
-    return schemaData;
+    return analysisData;
   },
 
-  async getExperimentTrajectoryAnalysis(experimentPath) {
-    console.log('API: Fetching experiment trajectory analysis:', experimentPath);
+  async getAnalysisSchema() {
+    console.log('API: Fetching analysis schema');
+    const response = await fetch(`${API_BASE}/api/analysis-schema`);
+    if (!response.ok) {
     
     // Static mode - fetch from bundled JSON
     if (isStaticMode) {
@@ -187,19 +176,8 @@ export const api = {
       return response.json();
     }
     
-    const response = await fetch(`${API_BASE}/api/experiment/${experimentPath}/trajectory-analysis`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch experiment trajectory analysis: ${response.status}`);
+      throw new Error(`Failed to fetch analysis schema: ${response.status}`);
     }
-    const trajectoryData = await response.json();
-    if (trajectoryData.error) {
-      throw new Error(trajectoryData.error);
-    }
-    return trajectoryData;
-  },
-
-  async getExperimentLatentVideos(experimentPath) {
-    console.log('API: Fetching experiment latent videos:', experimentPath);
     
     // Static mode - fetch from bundled JSON
     if (isStaticMode) {
@@ -211,6 +189,39 @@ export const api = {
       return response.json();
     }
     
+    const schemaData = await response.json();
+    if (schemaData.error) {
+      throw new Error(schemaData.error);
+    }
+    return schemaData;
+  },
+
+  async getExperimentTrajectoryAnalysis(experimentPath) {
+    console.log('API: Fetching experiment trajectory analysis:', experimentPath);
+    const response = await fetch(`${API_BASE}/api/experiment/${experimentPath}/trajectory-analysis`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch experiment trajectory analysis: ${response.status}`);
+    }
+    
+    // Static mode - fetch from bundled JSON
+    if (isStaticMode) {
+      console.log(`API: Static mode - fetching from /data/experiments/${experimentPath}/attention-bending.json`);
+      const response = await fetch(`/data/experiments/${experimentPath}/attention-bending.json`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch attention bending data: ${response.status}`);
+      }
+      return response.json();
+    }
+    
+    const trajectoryData = await response.json();
+    if (trajectoryData.error) {
+      throw new Error(trajectoryData.error);
+    }
+    return trajectoryData;
+  },
+
+  async getExperimentLatentVideos(experimentPath) {
+    console.log('API: Fetching experiment latent videos:', experimentPath);
     const response = await fetch(`${API_BASE}/api/experiment/${experimentPath}/latent-videos`);
     if (!response.ok) {
       throw new Error(`Failed to fetch experiment latent videos: ${response.status}`);
@@ -224,17 +235,6 @@ export const api = {
 
   async getExperimentAttentionBending(experimentPath) {
     console.log('API: Fetching experiment attention bending data:', experimentPath);
-    
-    // Static mode - fetch from bundled JSON
-    if (isStaticMode) {
-      console.log(`API: Static mode - fetching from /data/experiments/${experimentPath}/attention-bending.json`);
-      const response = await fetch(`/data/experiments/${experimentPath}/attention-bending.json`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch attention bending data: ${response.status}`);
-      }
-      return response.json();
-    }
-    
     const response = await fetch(`${API_BASE}/api/experiment/${experimentPath}/attention-bending`);
     if (!response.ok) {
       throw new Error(`Failed to fetch attention bending data: ${response.status}`);
@@ -248,6 +248,12 @@ export const api = {
 
   // Helper function to flatten tree into list for search/filtering
   flattenExperimentTree(tree) {
+    // Static mode - scanning not available (experiments are frozen at build time)
+    if (isStaticMode) {
+      console.warn('API: scanExperiments() not available in static mode');
+      return { message: 'Scan not available in static mode' };
+    }
+    
     const experiments = [];
     
     const traverse = (node, path = '') => {
@@ -270,12 +276,6 @@ export const api = {
   },
 
   async scanExperiments() {
-    // Static mode - scanning not available (experiments are frozen at build time)
-    if (isStaticMode) {
-      console.warn('API: scanExperiments() not available in static mode');
-      return { message: 'Scan not available in static mode' };
-    }
-    
     const response = await fetch(`${API_BASE}/api/scan`);
     if (!response.ok) {
       throw new Error(`Failed to scan experiments: ${response.status}`);

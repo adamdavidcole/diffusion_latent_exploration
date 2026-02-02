@@ -80,8 +80,6 @@ export const formatAttentionBendingInfo = (experiment, options = {}) => {
   const { abbreviated = false } = options;
   const { attention_bending_settings } = experiment;
 
-  console.log("attention_bending_settings", attention_bending_settings)
-
   if (!attention_bending_settings?.enabled) {
     return null;
   }
