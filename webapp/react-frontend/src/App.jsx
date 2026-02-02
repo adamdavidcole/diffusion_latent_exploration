@@ -96,6 +96,16 @@ const ExperimentRoute = () => {
     loadExperiment();
   }, [cleanExperimentPath, navigate]); // Removed state and actions dependencies to prevent loops
 
+  // Separate effect to handle redirect to attention bending when experiment is loaded
+  useEffect(() => {
+    if (state.currentExperiment?.attention_bending_settings?.enabled &&
+        cleanExperimentPath &&
+        !isAnalysisRoute && !isTrajectoryAnalysisRoute &&
+        !isLatentVideosRoute && !isAttentionBendingRoute) {
+      navigate(`/experiment/${cleanExperimentPath}/attention-bending`, { replace: true });
+    }
+  }, [state.currentExperiment, cleanExperimentPath, isAnalysisRoute, isTrajectoryAnalysisRoute, isLatentVideosRoute, isAttentionBendingRoute, navigate]);
+
   return <AppContent experimentPath={cleanExperimentPath} isAnalysisRoute={isAnalysisRoute} isTrajectoryAnalysisRoute={isTrajectoryAnalysisRoute} isLatentVideosRoute={isLatentVideosRoute} isAttentionBendingRoute={isAttentionBendingRoute} />;
 };
 
@@ -360,6 +370,12 @@ const AppContent = ({ experimentPath, isAnalysisRoute, isTrajectoryAnalysisRoute
                 <LatentVideosView experimentPath={experimentPath} />
               ) : isAttentionBendingRoute ? (
                 <AttentionBendingView experimentPath={experimentPath} />
+              ) : state.currentExperiment?.attention_bending_settings?.enabled ? (
+                // Show loading while redirecting to attention bending
+                <div className="loading">
+                  <div className="loading-spinner"></div>
+                  <p>Loading attention bending view...</p>
+                </div>
               ) : (
                 <VideoGrid />
               )}

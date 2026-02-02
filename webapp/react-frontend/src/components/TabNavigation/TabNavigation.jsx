@@ -35,17 +35,36 @@ const TabNavigation = ({ experimentPath }) => {
     }
   };
 
+  // Check if experiment has attention bending
+  const hasAttentionBending = currentExperiment?.attention_bending_settings?.enabled;
+
   return (
     <div className="tab-navigation">
       <div className="tab-list" role="tablist">
-        <button
-          className={`tab-button ${activeTab === 'videos' ? 'active' : ''}`}
-          role="tab"
-          aria-selected={activeTab === 'videos'}
-          onClick={() => handleTabChange('videos')}
-        >
-          📹 Videos
-        </button>
+        {/* Only show Attention Bending tab if enabled - FIRST position */}
+        {hasAttentionBending && (
+          <button
+            className={`tab-button ${activeTab === 'attention-bending' ? 'active' : ''}`}
+            role="tab"
+            aria-selected={activeTab === 'attention-bending'}
+            onClick={() => handleTabChange('attention-bending')}
+            title="View attention bending visualization and analysis"
+          >
+            🎛️ Attention Bending
+          </button>
+        )}
+
+        {/* Hide Videos tab if attention bending is enabled */}
+        {!hasAttentionBending && (
+          <button
+            className={`tab-button ${activeTab === 'videos' ? 'active' : ''}`}
+            role="tab"
+            aria-selected={activeTab === 'videos'}
+            onClick={() => handleTabChange('videos')}
+          >
+            📹 Videos
+          </button>
+        )}
 
         {/* Only show VLM Analysis tab if available */}
         {currentExperiment?.has_vlm_analysis && (
@@ -73,7 +92,7 @@ const TabNavigation = ({ experimentPath }) => {
           </button>
         )}
 
-        {/* Only show Latent Videos tab if available */}
+        {/* Only show Latent Videos tab if available - SECOND position when attention bending enabled */}
         {(currentExperiment?.has_latent_videos || currentExperiment?.has_attention_videos) && (
           <button
             className={`tab-button ${activeTab === 'latent-videos' ? 'active' : ''}`}
@@ -87,19 +106,6 @@ const TabNavigation = ({ experimentPath }) => {
             }
           >
             🎬 Latent Videos
-          </button>
-        )}
-
-        {/* Only show Attention Bending tab if enabled */}
-        {currentExperiment?.attention_bending_settings?.enabled && (
-          <button
-            className={`tab-button ${activeTab === 'attention-bending' ? 'active' : ''}`}
-            role="tab"
-            aria-selected={activeTab === 'attention-bending'}
-            onClick={() => handleTabChange('attention-bending')}
-            title="View attention bending visualization and analysis"
-          >
-            🎛️ Attention Bending
           </button>
         )}
       </div>
