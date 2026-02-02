@@ -64,6 +64,12 @@ body {
     justify-content: space-between;
 }
 
+.sidebar-header-buttons {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
 .sidebar-header h1 {
     font-size: 1.5rem;
     font-weight: 600;
@@ -72,7 +78,7 @@ body {
 }
 
 .sidebar.collapsed .sidebar-header {
-    padding: 1rem;
+    padding: 11px;
     justify-content: center;
 }
 
@@ -94,15 +100,108 @@ body {
     padding: 0.5rem;
     border-radius: 4px;
     transition: background 0.2s;
+    font-size: 1rem;
 }
 
 .collapse-btn:hover {
     background: var(--bg-tertiary);
 }
 
+.hide-sidebar-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 4px;
+    transition: all 0.2s;
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+.hide-sidebar-btn:hover {
+    background: var(--bg-tertiary);
+    color: var(--accent);
+}
+
+/* Invisible hover zone in top-left corner */
+.sidebar-hover-zone {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 120px;
+    height: 120px;
+    z-index: 1000;
+    pointer-events: auto;
+}
+
+/* Show Sidebar Button (appears when sidebar is hidden) */
+.show-sidebar-btn {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 0.75rem;
+    border-radius: 8px;
+    font-size: 1.5rem;
+    line-height: 1;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    opacity: 0;
+    pointer-events: auto;
+}
+
+/* Fade in button when hovering in the zone */
+.sidebar-hover-zone:hover .show-sidebar-btn {
+    opacity: 0.6;
+}
+
+/* Full opacity when hovering directly on button */
+.show-sidebar-btn:hover {
+    opacity: 1 !important;
+    background: var(--accent);
+    color: white;
+    transform: scale(1.05);
+}
+
+.show-icon {
+    display: block;
+}
+
 .sidebar-content {
     flex-grow: 1;
     overflow: hidden;
+}
+
+/* Show Sidebar Button (appears when sidebar is hidden) */
+.show-sidebar-btn {
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    z-index: 1000;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 0.75rem;
+    border-radius: 8px;
+    font-size: 1.5rem;
+    line-height: 1;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.show-sidebar-btn:hover {
+    background: var(--accent);
+    color: white;
+    transform: scale(1.05);
+}
+
+.show-icon {
+    display: block;
 }
 
 /* Search Filter */

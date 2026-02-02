@@ -261,7 +261,7 @@ const HomeRoute = () => {
 
 // Main App Content Component
 const AppContent = ({ experimentPath, isAnalysisRoute, isTrajectoryAnalysisRoute, isLatentVideosRoute, isAttentionBendingRoute }) => {
-  const { state } = useApp();
+  const { state, actions } = useApp();
   const { clearCache } = useVideoCache();
 
   // Hide the initial loader once React is mounted
@@ -294,7 +294,21 @@ const AppContent = ({ experimentPath, isAnalysisRoute, isTrajectoryAnalysisRoute
 
   return (
     <div className="app-container">
-      <Sidebar />
+        {/* Invisible hover zone for show sidebar button */}
+        {state.sidebarHidden && (
+          <div className="sidebar-hover-zone">
+            <button
+              className="show-sidebar-btn"
+              onClick={actions.toggleSidebarHidden}
+              aria-label="Show sidebar"
+              title="Show sidebar"
+            >
+              <span className="show-icon">☰</span>
+            </button>
+          </div>
+        )}
+
+        <Sidebar />
 
       <div className="main-content">
         <div id="video-grid-wrapper">

@@ -4,26 +4,47 @@ import TreeExperimentList from './TreeExperimentList';
 
 const Sidebar = () => {
     const { state, actions } = useApp();
-    const { sidebarCollapsed, isLoading } = state;
+    const { sidebarCollapsed, sidebarHidden, isLoading } = state;
     const [rescanFn, setRescanFn] = useState(null);
 
     const handleRescanRef = useCallback((rescanFunction) => {
         setRescanFn(() => rescanFunction);
     }, []);
 
+    // Don't render sidebar at all when hidden
+    if (sidebarHidden) {
+        return null;
+    }
+
     return (
         <div className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
             <div className="sidebar-header">
-                {!sidebarCollapsed && <h1>WAN Video Matrix</h1>}
-                <button
-                    className="collapse-btn"
-                    onClick={actions.toggleSidebar}
-                    aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                >
-                    <span className="collapse-icon">
-                        {sidebarCollapsed ? '→' : '←'}
-                    </span>
-                </button>
+                {!sidebarCollapsed && <h1>Diffusion Explorer</h1>}
+                <div className="sidebar-header-buttons">
+                    <button
+                        className="hide-sidebar-btn"
+                        onClick={actions.toggleSidebarHidden}
+                        aria-label="Hide sidebar"
+                        title="Hide Sidebar"
+                    >
+                        <span className="hide-icon">
+                            <span style={{ position: 'relative' }}>
+                                <span style={{ position: 'absolute', left: '-5px', top: '0px', fontSize: "0.66rem" }}>←</span>
+                                <span>☰</span>
+                            </span>
+                        </span>
+                    </button>
+                    <button
+                        className="collapse-btn"
+                        onClick={actions.toggleSidebar}
+                        aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                        title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                    >
+                        <span className="collapse-icon">
+                            {sidebarCollapsed ? '→' : '←'}
+                        </span>
+                    </button>
+                </div>
             </div>
 
             <div className="sidebar-content">

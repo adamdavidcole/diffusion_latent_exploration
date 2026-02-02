@@ -29,6 +29,7 @@ const initialState = {
     videoSize: 200,
     showLabels: true,
     sidebarCollapsed: true,
+    sidebarHidden: false,
     loading: false,
     error: null,
     videoDuration: 4.0,
@@ -168,6 +169,7 @@ const ActionTypes = {
     SET_VIDEO_SIZE: 'SET_VIDEO_SIZE',
     TOGGLE_LABELS: 'TOGGLE_LABELS',
     TOGGLE_SIDEBAR: 'TOGGLE_SIDEBAR',
+    TOGGLE_SIDEBAR_HIDDEN: 'TOGGLE_SIDEBAR_HIDDEN',
     SET_VIDEO_DURATION: 'SET_VIDEO_DURATION',
     SET_SCRUBBING_ACTIVE: 'SET_SCRUBBING_ACTIVE',
     SET_LOADING: 'SET_LOADING',
@@ -236,6 +238,9 @@ const appReducer = (state, action) => {
 
         case ActionTypes.TOGGLE_SIDEBAR:
             return { ...state, sidebarCollapsed: !state.sidebarCollapsed };
+
+        case ActionTypes.TOGGLE_SIDEBAR_HIDDEN:
+            return { ...state, sidebarHidden: !state.sidebarHidden };
 
         case ActionTypes.SET_VIDEO_DURATION:
             return { ...state, videoDuration: action.payload };
@@ -350,6 +355,9 @@ export const AppProvider = ({ children }) => {
 
         toggleSidebar: useCallback(() =>
             dispatch({ type: ActionTypes.TOGGLE_SIDEBAR }), []),
+
+        toggleSidebarHidden: useCallback(() =>
+            dispatch({ type: ActionTypes.TOGGLE_SIDEBAR_HIDDEN }), []),
 
         setVideoDuration: useCallback((duration) =>
             dispatch({ type: ActionTypes.SET_VIDEO_DURATION, payload: duration }), []),
