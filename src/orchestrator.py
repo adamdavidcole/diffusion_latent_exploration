@@ -21,6 +21,13 @@ from src.utils.attention_bending_variations import (
     format_display_name
 )
 from src.utils.bending_video_orchestration import generate_videos_with_bending
+from src.utils.resume_utils import (
+    analyze_batch_state,
+    validate_resume_safety,
+    calculate_resume_offsets,
+    filter_completed_variations,
+    merge_and_save_metadata
+)
 
 
 class VideoGenerationOrchestrator:
@@ -509,6 +516,220 @@ class VideoGenerationOrchestrator:
                 self._generate_attention_videos(attention_storage)
         
         return results
+    
+    def resume_batch(self,
+                    batch_directory: str,
+                    config_override: Optional[str] = None,
+                    force_regenerate: Optional[set] = None) -> Dict[str, Any]:
+        """
+        Resume video generation from existing batch directory.
+        
+        Args:
+            batch_directory: Path to existing batch directory
+            config_override: Optional path to updated config (for appending variations)
+            force_regenerate: Optional set of video_ids to force regenerate
+        
+        Returns:
+            Dictionary with batch results and metadata
+        """
+        batch_path = Path(batch_directory)
+        
+        self.logger.info("="*70)
+        self.logger.info("RESUME BATCH GENERATION")
+        self.logger.info("="*70)
+        self.logger.info(f"Batch directory: {batch_path}")
+        
+        # Analyze existing batch state
+        resume_info = analyze_batch_state(batch_path, force_regenerate)
+        
+        # Load original config
+        original_config_file = batch_path / "configs" / "generation_config.yaml"
+        if not original_config_file.exists():
+            raise ValueError(f"Original config not found: {original_config_file}")
+        
+        # Use override config if provided, otherwise use original
+        config_file = config_override if config_override else str(original_config_file)
+        self.logger.info(f"Loading config: {config_file}")
+        
+        self.config = self.config_manager.load_config(config_file)
+        
+        # Recreate generators with loaded config
+        self.video_generator = WAN13BVideoGenerator(self.config)
+        self.batch_generator = BatchVideoGenerator(self.video_generator)
+        self._setup_progress_callback()
+        
+        # Use existing batch structure
+        self.batch_dirs = {
+            "root": batch_path,
+            "videos": batch_path / "videos",
+            "logs": batch_path / "logs",
+            "configs": batch_path / "configs",
+            "reports": batch_path / "reports",
+            "latents": batch_path / "latents" if (batch_path / "latents").exists() else None,
+            "attention_maps": batch_path / "attention_maps" if (batch_path / "attention_maps").exists() else None,
+            "attention_videos": batch_path / "attention_videos" if (batch_path / "attention_videos").exists() else None
+        }
+        
+        # Setup logging (append mode)
+        current_level = logging.getLevelName(logging.getLogger().level)
+        batch_logger = LogManager.setup_logging(
+            log_dir=str(self.batch_dirs["logs"]),
+            log_level=current_level
+        )
+        self.logger = batch_logger
+        
+        # Load original template
+        template_file = batch_path / "configs" / "prompt_template.txt"
+        if not template_file.exists():
+            raise ValueError(f"Original template not found: {template_file}")
+        
+        with open(template_file, 'r', encoding='utf-8') as f:
+            original_template = f.read().strip()
+        
+        self.logger.info(f"Original template: {original_template}")
+        
+        # Generate all variations from current config
+        self.logger.info("\nGenerating variation list from current config...")
+        prompt_variations = self.process_prompt_template(
+            original_template, 
+            max_variations=None,
+            save_template_files=False  # Don't overwrite original files
+        )
+        
+        # Generate bending variations
+        bending_variations = None
+        if self.config.attention_bending_variations_settings.enabled:
+            bending_variations = self._generate_all_bending_variations()
+            self.logger.info(f"Generated {len(bending_variations)} bending variations")
+        
+        # Build bending configs list (with baseline if enabled)
+        bending_configs_to_apply = []
+        if bending_variations:
+            if self.config.attention_bending_variations_settings.generate_baseline:
+                bending_configs_to_apply.append(None)  # Baseline
+            bending_configs_to_apply.extend(bending_variations)
+        else:
+            bending_configs_to_apply = [None]  # Just baseline
+        
+        # Validate config safety
+        self.logger.info("\nValidating resume safety...")
+        validation_issues = validate_resume_safety(
+            batch_path,
+            resume_info,
+            self.config,
+            bending_configs_to_apply
+        )
+        
+        # Check for errors
+        errors = [issue for issue in validation_issues if issue.startswith('ERROR')]
+        if errors:
+            self.logger.error("\nResume validation failed:")
+            for error in errors:
+                self.logger.error(f"  {error}")
+            raise ValueError("Resume aborted due to validation errors. See log for details.")
+        
+        # Log warnings and info
+        for issue in validation_issues:
+            if issue.startswith('WARNING'):
+                self.logger.warning(issue)
+            elif issue.startswith('INFO'):
+                self.logger.info(issue)
+        
+        # Calculate offsets
+        offsets = calculate_resume_offsets(resume_info)
+        self.logger.info(f"\nResume offsets:")
+        self.logger.info(f"  video_number_offset: {offsets['video_number_offset']}")
+        
+        # Filter to uncompleted variations
+        self.logger.info("\nFiltering to uncompleted videos...")
+        
+        # Build video_id to metadata mapping
+        existing_videos_by_id = {
+            video['video_id']: video 
+            for video in resume_info.existing_metadata.get('videos', [])
+        }
+        
+        todo_combinations, todo_count = filter_completed_variations(
+            prompt_variations=prompt_variations,
+            bending_configs=bending_configs_to_apply,
+            num_seeds=self.config.videos_per_variation,
+            completed_video_ids=resume_info.completed_video_ids,
+            existing_videos_by_id=existing_videos_by_id,
+            bending_index_offset=0,
+            strict_mode=True
+        )
+        
+        self.logger.info(f"  Already completed: {resume_info.total_successful}")
+        self.logger.info(f"  Failed (will retry): {resume_info.total_failed}")
+        self.logger.info(f"  Todo: {todo_count}")
+        
+        if todo_count == 0:
+            self.logger.info("\n✓ All videos already completed! Nothing to do.")
+            return {
+                "batch_info": {
+                    "batch_name": self.config.batch_name,
+                    "output_directory": str(batch_path),
+                    "already_complete": True
+                },
+                "results": {"message": "Batch already complete"}
+            }
+        
+        # Setup storage if needed
+        latent_storage = None
+        attention_storage = None
+        
+        if self.config.latent_storage_settings.enabled:
+            if self.batch_dirs["latents"]:
+                latent_storage = LatentStorage(
+                    storage_dir=str(self.batch_dirs["latents"]),
+                    config=self.config.latent_storage_settings
+                )
+                self.logger.info(f"Latent storage: {self.batch_dirs['latents']}")
+        
+        if self.config.attention_analysis_settings.enabled:
+            if self.batch_dirs["attention_maps"]:
+                attention_storage = AttentionStorage(
+                    storage_dir=str(self.batch_dirs["attention_maps"]),
+                    config=self.config.attention_analysis_settings
+                )
+                self.logger.info(f"Attention storage: {self.batch_dirs['attention_maps']}")
+        
+        # Generate missing videos
+        self.logger.info("\n" + "="*70)
+        self.logger.info("STARTING RESUME GENERATION")
+        self.logger.info("="*70)
+        
+        results = generate_videos_with_bending(
+            video_generator=self.video_generator,
+            batch_dirs=self.batch_dirs,
+            prompt_variations=prompt_variations,
+            bending_configs=bending_configs_to_apply,
+            videos_per_var=self.config.videos_per_variation,
+            use_weighted=self.config.prompt_settings.use_weighted_prompts,
+            config=self.config,
+            latent_storage=latent_storage,
+            attention_storage=attention_storage,
+            original_template=original_template,
+            video_number_offset=offsets['video_number_offset'],
+            bending_index_offset=0,
+            existing_metadata=resume_info.existing_metadata,  # Pass for merging
+            todo_combinations=todo_combinations  # Only generate these
+        )
+        
+        self.logger.info("\n" + "="*70)
+        self.logger.info("RESUME COMPLETE")
+        self.logger.info("="*70)
+        
+        return {
+            "batch_info": {
+                "batch_name": self.config.batch_name,
+                "output_directory": str(batch_path),
+                "resumed": True,
+                "previously_completed": resume_info.total_successful,
+                "newly_generated": todo_count
+            },
+            "results": results
+        }
     
     def run_full_batch(self, 
                       template: str,

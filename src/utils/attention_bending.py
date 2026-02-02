@@ -764,7 +764,6 @@ class AttentionBender:
         """
         result = attention
         if config.flip_horizontal:
-            print("Flipping horizontally")
             result = torch.flip(result, dims=[2])  # Flip along width dimension
         if config.flip_vertical:
             result = torch.flip(result, dims=[1])  # Flip along height dimension

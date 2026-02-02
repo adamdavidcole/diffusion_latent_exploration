@@ -60,8 +60,17 @@ Examples:
     parser.add_argument('--config', '-c', type=str, default='configs/default.yaml',
                        help='Configuration file path')
     
+    parser.add_argument('--resume', type=str,
+                       help='Resume generation from existing batch directory')
+    
+    parser.add_argument('--resume-config', type=str,
+                       help='Override config for resume (e.g., to append variations at end)')
+    
+    parser.add_argument('--force-regenerate', type=str,
+                       help='Comma-separated list of video_ids to force regenerate (e.g., p000_b001_s000,p000_b002_s001)')
+    
     parser.add_argument('--continue-from', type=str,
-                       help='Continue generation from existing batch directory')
+                       help='[DEPRECATED] Use --resume instead')
     
     parser.add_argument('--output', '-o', type=str,
                        help='Output directory (overrides config)')
@@ -360,11 +369,17 @@ def main():
         print(f"Created default configuration: {config_path}")
         return 0
     
-    # Require template for main operations unless continuing from existing batch
-    if not args.template and not args.validate and not args.continue_from:
+    # Require template for main operations unless continuing/resuming from existing batch
+    if not args.template and not args.validate and not args.continue_from and not args.resume:
         print("Error: --template is required for generation operations")
         print("Use --help for usage information or --create-examples to see example templates")
         return 1
+    
+    # Handle deprecated --continue-from
+    if args.continue_from:
+        print("WARNING: --continue-from is deprecated. Use --resume instead.")
+        if not args.resume:
+            args.resume = args.continue_from
     
     try:
         # Load configuration
@@ -383,10 +398,37 @@ def main():
                 return 1
             else:
                 print("Setup validation passed ✓")
-                if not args.template and not args.continue_from:
+                if not args.template and not args.continue_from and not args.resume:
                     return 0
         
-        # Handle continue from existing batch
+        # Handle resume from existing batch
+        if args.resume:
+            print(f"Resuming generation from: {args.resume}")
+            
+            # Parse force-regenerate list
+            force_regenerate = None
+            if args.force_regenerate:
+                force_regenerate = set(args.force_regenerate.split(','))
+                print(f"Force regenerating {len(force_regenerate)} videos")
+            
+            batch_results = orchestrator.resume_batch(
+                batch_directory=args.resume,
+                config_override=args.resume_config,
+                force_regenerate=force_regenerate
+            )
+            
+            if batch_results['batch_info'].get('already_complete'):
+                print(f"\n✓ Batch already complete! Nothing to do.")
+            else:
+                print(f"\n🎉 Resume complete!")
+                print(f"Previously completed: {batch_results['batch_info']['previously_completed']}")
+                print(f"Newly generated: {batch_results['batch_info']['newly_generated']}")
+            
+            print(f"Results saved to: {batch_results['batch_info']['output_directory']}")
+            
+            return 0
+        
+        # Handle continue from existing batch (old method, still supported)
         if args.continue_from:
             print(f"Continuing generation from: {args.continue_from}")
             
@@ -398,6 +440,33 @@ def main():
             )
             
             print(f"\n🎉 Batch continuation complete!")
+            print(f"Results saved to: {batch_results['batch_info']['output_directory']}")
+            
+            return 0
+        
+        # Handle resume from existing batch
+        if args.resume:
+            print(f"Resuming generation from: {args.resume}")
+            
+            # Parse force-regenerate list
+            force_regenerate = None
+            if args.force_regenerate:
+                force_regenerate = set(args.force_regenerate.split(','))
+                print(f"Force regenerating {len(force_regenerate)} videos")
+            
+            batch_results = orchestrator.resume_batch(
+                batch_directory=args.resume,
+                config_override=args.resume_config,
+                force_regenerate=force_regenerate
+            )
+            
+            if batch_results['batch_info'].get('already_complete'):
+                print(f"\n✓ Batch already complete! Nothing to do.")
+            else:
+                print(f"\n🎉 Resume complete!")
+                print(f"Previously completed: {batch_results['batch_info']['previously_completed']}")
+                print(f"Newly generated: {batch_results['batch_info']['newly_generated']}")
+            
             print(f"Results saved to: {batch_results['batch_info']['output_directory']}")
             
             return 0

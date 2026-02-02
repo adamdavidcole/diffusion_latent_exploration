@@ -36,6 +36,8 @@ def _save_metadata_on_exit():
                 _video_metadata_state['video_metadata'],
                 _video_metadata_state['batch_name']
             )
+            # Merge dual GPU metadata if applicable
+            _merge_dual_gpu_metadata()
         except Exception as e:
             logger.error(f"Failed to save metadata on exit: {e}")
 
@@ -46,6 +48,35 @@ def _signal_handler(signum, frame):
     # Re-raise to allow normal signal handling
     signal.signal(signum, signal.SIG_DFL)
     signal.raise_signal(signum)
+
+
+def _merge_dual_gpu_metadata():
+    """Merge dual GPU metadata files if this is a multi-GPU run."""
+    if not _video_metadata_state['batch_dirs']:
+        return
+    
+    try:
+        # Import here to avoid circular dependency
+        import sys
+        from pathlib import Path
+        
+        # Add scripts directory to path if not already there
+        scripts_dir = Path(__file__).parent.parent.parent / "scripts"
+        if str(scripts_dir) not in sys.path:
+            sys.path.insert(0, str(scripts_dir))
+        
+        from merge_dual_gpu_metadata import merge_metadata
+        
+        # Get output directory from batch_dirs
+        output_dir = _video_metadata_state['batch_dirs'].get('videos')
+        if output_dir:
+            # Navigate up to the main output directory (parent of 'videos' folder)
+            output_dir = Path(output_dir).parent
+            merged = merge_metadata(output_dir, verbose=False)
+            if merged:
+                logger.info("✓ Merged dual GPU metadata files")
+    except Exception as e:
+        logger.warning(f"Could not merge dual GPU metadata: {e}")
 
 
 def generate_videos_with_bending(
@@ -60,7 +91,9 @@ def generate_videos_with_bending(
     attention_storage=None,
     original_template: Optional[str] = None,
     video_number_offset: int = 0,
-    bending_index_offset: int = 0
+    bending_index_offset: int = 0,
+    existing_metadata: Optional[Dict[str, Any]] = None,
+    todo_combinations: Optional[List[tuple]] = None
 ) -> Dict[str, List]:
     """
     Generate videos with bending variation support.
@@ -71,10 +104,21 @@ def generate_videos_with_bending(
         - For each seed
           - Generate one video
     
+    Args:
+        existing_metadata: Optional existing metadata to merge with (for resume)
+        todo_combinations: Optional list of (prompt_idx, bending_idx, seed_offset) 
+                          tuples to generate (for resume). If None, generate all.
+    
     Returns results organized by prompt text.
     """
     results = {}
-    video_metadata = []  # Track metadata for each video
+    
+    # Start with existing metadata if provided (resume mode)
+    if existing_metadata:
+        video_metadata = existing_metadata.get('videos', []).copy()
+        logger.info(f"Resume mode: Starting with {len(video_metadata)} existing videos")
+    else:
+        video_metadata = []  # Track metadata for each video
     
     # Set up global state for signal handler
     _video_metadata_state['batch_dirs'] = batch_dirs
@@ -88,6 +132,13 @@ def generate_videos_with_bending(
     
     total_videos = len(prompt_variations) * len(bending_configs) * videos_per_var
     current_video = video_number_offset  # Start from offset for secondary GPU
+    
+    # Build skip set for resume mode
+    skip_combinations = set()
+    if todo_combinations is not None:
+        # Resume mode: only generate combinations in todo list
+        todo_set = set(todo_combinations)
+        logger.info(f"Resume mode: Will generate {len(todo_set)} videos (skipping {total_videos - len(todo_set)})")
     
     logger.info("="*70)
     logger.info("STARTING VIDEO GENERATION WITH BENDING VARIATIONS")
@@ -129,6 +180,13 @@ def generate_videos_with_bending(
             
             for bending_idx, bending_config in enumerate(bending_configs):
                 current_video += 1
+                
+                # Check if we should skip this combination (resume mode)
+                if todo_combinations is not None:
+                    combination = (prompt_idx, bending_idx, seed_offset)
+                    if combination not in todo_set:
+                        # Skip this video - already completed
+                        continue
                 
                 # Determine if this is baseline or a variation
                 is_baseline = bending_config is None
@@ -257,6 +315,10 @@ def generate_videos_with_bending(
                     'error': result.error_message if not result.success else None
                 }
                 video_metadata.append(video_meta)
+                
+                # Save metadata incrementally after each video for real-time progress monitoring
+                batch_name = config.batch_name if hasattr(config, 'batch_name') else ""
+                save_video_metadata(batch_dirs, video_metadata, batch_name)
             
             # Log summary after completing all bending variations for this seed
             logger.info(f"  │")
@@ -271,6 +333,9 @@ def generate_videos_with_bending(
     # Save comprehensive metadata
     batch_name = config.batch_name if hasattr(config, 'batch_name') else ""
     save_video_metadata(batch_dirs, video_metadata, batch_name)
+    
+    # Merge dual GPU metadata if applicable
+    _merge_dual_gpu_metadata()
     
     logger.info("\n" + "="*70)
     logger.info("VIDEO GENERATION COMPLETE")
