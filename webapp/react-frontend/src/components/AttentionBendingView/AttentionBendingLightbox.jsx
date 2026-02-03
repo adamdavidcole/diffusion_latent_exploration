@@ -175,6 +175,32 @@ const AttentionBendingLightbox = ({
         }
     }, [isOpen, compareToBaseline]);
 
+    // Auto-play videos when navigating to a new video
+    useEffect(() => {
+        if (isOpen && video && mainVideoRef.current) {
+            // Wait a bit for video to load
+            const timer = setTimeout(() => {
+                if (mainVideoRef.current) {
+                    mainVideoRef.current.play().catch(console.error);
+                }
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [isOpen, video?.video_id]);
+
+    // Auto-play baseline video when it changes or compare mode toggles
+    useEffect(() => {
+        if (isOpen && compareToBaseline && baselineVideo && baselineVideoRef.current) {
+            // Wait a bit for video to load
+            const timer = setTimeout(() => {
+                if (baselineVideoRef.current) {
+                    baselineVideoRef.current.play().catch(console.error);
+                }
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [isOpen, compareToBaseline, baselineVideo?.video_id]);
+
     // Extract attention data from cached data when lightbox opens
     useEffect(() => {
         if (!isOpen || !video || !cachedAttentionData) {

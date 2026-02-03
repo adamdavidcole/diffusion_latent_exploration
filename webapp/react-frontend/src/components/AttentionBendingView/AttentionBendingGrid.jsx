@@ -118,9 +118,23 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
       combos.add(`p${promptIdx}_s${seed}`);
     });
 
+    // Sort numerically by prompt index, then by seed
+    const sortedCombos = Array.from(combos).sort((a, b) => {
+      const parseCombo = (combo) => {
+        const match = combo.match(/p(\d+)_s(\d+)/);
+        return match ? { p: parseInt(match[1]), s: parseInt(match[2]) } : { p: 0, s: 0 };
+      };
+      const aVals = parseCombo(a);
+      const bVals = parseCombo(b);
+      
+      // Sort by prompt index first, then by seed
+      if (aVals.p !== bVals.p) return aVals.p - bVals.p;
+      return aVals.s - bVals.s;
+    });
+
     return { 
       filteredVideos: filtered, 
-      promptSeedCombos: Array.from(combos).sort()
+      promptSeedCombos: sortedCombos
     };
   }, [bendingVideos, activeFilters]);
 
