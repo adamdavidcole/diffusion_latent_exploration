@@ -14,16 +14,18 @@ const TabNavigation = ({ experimentPath }) => {
   const isTrajectoryAnalysisTab = location.pathname.endsWith('/trajectory-analysis');
   const isLatentVideosTab = location.pathname.endsWith('/latent-videos');
   const isAttentionBendingTab = location.pathname.endsWith('/attention-bending');
+  const isVideosTab = location.pathname.endsWith('/videos');
 
   let activeTab = 'videos';
   if (isAnalysisTab) activeTab = 'analysis';
   if (isTrajectoryAnalysisTab) activeTab = 'trajectory-analysis';
   if (isLatentVideosTab) activeTab = 'latent-videos';
   if (isAttentionBendingTab) activeTab = 'attention-bending';
+  if (isVideosTab) activeTab = 'videos';
 
   const handleTabChange = (tab) => {
     if (tab === 'videos') {
-      navigate(`/experiment/${experimentPath}`);
+      navigate(`/experiment/${experimentPath}/videos`);
     } else if (tab === 'analysis') {
       navigate(`/experiment/${experimentPath}/analysis`);
     } else if (tab === 'trajectory-analysis') {
@@ -54,17 +56,16 @@ const TabNavigation = ({ experimentPath }) => {
           </button>
         )}
 
-        {/* Hide Videos tab if attention bending is enabled */}
-        {!hasAttentionBending && (
-          <button
-            className={`tab-button ${activeTab === 'videos' ? 'active' : ''}`}
-            role="tab"
-            aria-selected={activeTab === 'videos'}
-            onClick={() => handleTabChange('videos')}
-          >
-            📹 Videos
-          </button>
-        )}
+        {/* Videos tab - always shown */}
+        <button
+          className={`tab-button ${activeTab === 'videos' ? 'active' : ''}`}
+          role="tab"
+          aria-selected={activeTab === 'videos'}
+          onClick={() => handleTabChange('videos')}
+          title="View all videos in standard grid"
+        >
+          📹 Videos
+        </button>
 
         {/* Only show VLM Analysis tab if available */}
         {currentExperiment?.has_vlm_analysis && (

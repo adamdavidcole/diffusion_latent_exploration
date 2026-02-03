@@ -351,7 +351,15 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
     };
 
     if (!video) {
-      return <div className="video-cell empty"></div>;
+      return (
+        <div 
+          className="video-cell empty"
+          style={{
+            width: `${videoSize}px`,
+            height: `${videoHeight}px`
+          }}
+        ></div>
+      );
     }
 
     return (

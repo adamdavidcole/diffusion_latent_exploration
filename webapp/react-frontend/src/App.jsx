@@ -29,6 +29,7 @@ const ExperimentRoute = () => {
   const isTrajectoryAnalysisRoute = experimentPath && experimentPath.endsWith('/trajectory-analysis');
   const isLatentVideosRoute = experimentPath && experimentPath.endsWith('/latent-videos');
   const isAttentionBendingRoute = experimentPath && experimentPath.endsWith('/attention-bending');
+  const isVideosRoute = experimentPath && experimentPath.endsWith('/videos');
 
   const cleanExperimentPath = isAnalysisRoute
     ? experimentPath.replace('/analysis', '')
@@ -38,7 +39,9 @@ const ExperimentRoute = () => {
         ? experimentPath.replace('/latent-videos', '')
         : isAttentionBendingRoute
           ? experimentPath.replace('/attention-bending', '')
-          : experimentPath;
+          : isVideosRoute
+            ? experimentPath.replace('/videos', '')
+            : experimentPath;
 
   // Load specific experiment when experimentPath changes
   useEffect(() => {
@@ -101,12 +104,12 @@ const ExperimentRoute = () => {
     if (state.currentExperiment?.attention_bending_settings?.enabled &&
         cleanExperimentPath &&
         !isAnalysisRoute && !isTrajectoryAnalysisRoute &&
-        !isLatentVideosRoute && !isAttentionBendingRoute) {
+        !isLatentVideosRoute && !isAttentionBendingRoute && !isVideosRoute) {
       navigate(`/experiment/${cleanExperimentPath}/attention-bending`, { replace: true });
     }
-  }, [state.currentExperiment, cleanExperimentPath, isAnalysisRoute, isTrajectoryAnalysisRoute, isLatentVideosRoute, isAttentionBendingRoute, navigate]);
+  }, [state.currentExperiment, cleanExperimentPath, isAnalysisRoute, isTrajectoryAnalysisRoute, isLatentVideosRoute, isAttentionBendingRoute, isVideosRoute, navigate]);
 
-  return <AppContent experimentPath={cleanExperimentPath} isAnalysisRoute={isAnalysisRoute} isTrajectoryAnalysisRoute={isTrajectoryAnalysisRoute} isLatentVideosRoute={isLatentVideosRoute} isAttentionBendingRoute={isAttentionBendingRoute} />;
+  return <AppContent experimentPath={cleanExperimentPath} isAnalysisRoute={isAnalysisRoute} isTrajectoryAnalysisRoute={isTrajectoryAnalysisRoute} isLatentVideosRoute={isLatentVideosRoute} isAttentionBendingRoute={isAttentionBendingRoute} isVideosRoute={isVideosRoute} />;
 };
 
 // Helper function to find experiment in tree by path
@@ -270,7 +273,7 @@ const HomeRoute = () => {
 };
 
 // Main App Content Component
-const AppContent = ({ experimentPath, isAnalysisRoute, isTrajectoryAnalysisRoute, isLatentVideosRoute, isAttentionBendingRoute }) => {
+const AppContent = ({ experimentPath, isAnalysisRoute, isTrajectoryAnalysisRoute, isLatentVideosRoute, isAttentionBendingRoute, isVideosRoute }) => {
   const { state, actions } = useApp();
   const { clearCache } = useVideoCache();
 
@@ -370,6 +373,8 @@ const AppContent = ({ experimentPath, isAnalysisRoute, isTrajectoryAnalysisRoute
                 <LatentVideosView experimentPath={experimentPath} />
               ) : isAttentionBendingRoute ? (
                 <AttentionBendingView experimentPath={experimentPath} />
+              ) : isVideosRoute ? (
+                <VideoGrid />
               ) : state.currentExperiment?.attention_bending_settings?.enabled ? (
                 // Show loading while redirecting to attention bending
                 <div className="loading">
@@ -393,7 +398,7 @@ const AppContent = ({ experimentPath, isAnalysisRoute, isTrajectoryAnalysisRoute
         <div className="main-controls">
           {!isAnalysisRoute && !isTrajectoryAnalysisRoute && !isLatentVideosRoute && !isAttentionBendingRoute && <AttentionControls />}
           {isAnalysisRoute && <AnalysisControls />}
-          {!isAnalysisRoute && !isTrajectoryAnalysisRoute && !isLatentVideosRoute && !isAttentionBendingRoute && <SyncControls />}
+          {(isVideosRoute || (!isAnalysisRoute && !isTrajectoryAnalysisRoute && !isLatentVideosRoute && !isAttentionBendingRoute)) && <SyncControls />}
         </div>
       </div>
 
