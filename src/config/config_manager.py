@@ -452,6 +452,12 @@ class ConfigManager:
                 'apply_to_output': config.attention_bending_settings.apply_to_output,
                 'apply_before_softmax': config.attention_bending_settings.apply_before_softmax
             },
+            'attention_bending_variations': {
+                'enabled': config.attention_bending_variations_settings.enabled,
+                'generate_baseline': config.attention_bending_variations_settings.generate_baseline,
+                'renormalize': config.attention_bending_variations_settings.renormalize,
+                'operations': config.attention_bending_variations_settings.operations
+            },
             'videos_per_variation': config.videos_per_variation,
             'output_dir': config.output_dir,
             'batch_name': config.batch_name,

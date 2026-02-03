@@ -168,21 +168,31 @@ class AttentionBendingVariationGenerator:
         Special handling for flip operations: if no values specified, default to [True]
         since defining a flip operation implies you want to apply it.
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         # Special case: flip operations default to [True] if no values specified
         if spec.operation == "flip" and spec.values is None and spec.range is None:
+            logger.debug(f"  Flip operation with no values/range, returning [True]")
             return [True]
         
         if spec.values is not None:
+            logger.debug(f"  Using explicit values: {spec.values} (type: {type(spec.values)}, elem types: {[type(v) for v in spec.values] if isinstance(spec.values, list) else 'N/A'})")
             return spec.values
         
         if spec.range is not None:
             min_val, max_val = spec.range
-            return np.linspace(min_val, max_val, spec.steps).tolist()
+            logger.debug(f"  Generating linspace from range ({min_val}, {max_val}) with {spec.steps} steps")
+            logger.debug(f"    min_val type: {type(min_val)}, max_val type: {type(max_val)}, steps type: {type(spec.steps)}")
+            result = np.linspace(min_val, max_val, spec.steps).tolist()
+            logger.debug(f"    Result: {result[:3]}... (length: {len(result)}, types: {[type(v) for v in result[:3]]})")
+            return result
         
         # Fallback to defaults
         if spec.operation in self.default_ranges:
             defaults = self.default_ranges[spec.operation]
             min_val, max_val = defaults["range"]
+            logger.debug(f"  Using default range ({min_val}, {max_val}) with {spec.steps} steps")
             return np.linspace(min_val, max_val, spec.steps).tolist()
         
         raise ValueError(

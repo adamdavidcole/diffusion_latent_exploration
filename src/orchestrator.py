@@ -190,7 +190,7 @@ class VideoGenerationOrchestrator:
                 values=op_config.get("values"),
                 apply_to_timesteps=op_config.get("apply_to_timesteps", None),
                 apply_to_layers=op_config.get("apply_to_layers", None),
-                target_token=op_config.get("target_token", ""),
+                target_token=op_config.get("target_token", None),
                 strength=op_config.get("strength", 1.0),
                 padding_mode=op_config.get("padding_mode", "border"),
                 renormalize=op_config.get("renormalize", global_renormalize),  # Override or use global
@@ -227,34 +227,48 @@ class VideoGenerationOrchestrator:
         for op_config in settings.operations:
             # Convert dict config to OperationSpec
             # Use operation-specific renormalize if present, otherwise use global default
-            spec = OperationSpec(
-                operation=op_config.get("operation"),
-                parameter_name=op_config.get("parameter_name"),
-                range=tuple(op_config["range"]) if "range" in op_config else None,
-                steps=op_config.get("steps", 5),
-                values=op_config.get("values"),
-                apply_to_timesteps=op_config.get("apply_to_timesteps", None),
-                apply_to_layers=op_config.get("apply_to_layers", None),
-                target_token=op_config.get("target_token", None),  # Default to None -> "ALL"
-                strength=op_config.get("strength", 1.0),
-                padding_mode=op_config.get("padding_mode", "border"),
-                renormalize=op_config.get("renormalize", global_renormalize),  # Override or use global
-                extra_params=op_config.get("extra_params", {})
-            )
-            
-            # Generate variations for this operation
-            variations = generator.generate_variations(spec)
-            all_variations.extend(variations)
-            
-            # Calculate dimensions
-            param_count = len(generator._generate_parameter_values(spec))
-            timestep_count = len(generator._generate_timestep_specs(spec))
-            layer_count = len(generator._generate_layer_specs(spec))
-            
-            self.logger.info(
-                f"  Operation '{spec.operation}': {len(variations)} variations "
-                f"({param_count} params × {timestep_count} timesteps × {layer_count} layers)"
-            )
+            try:
+                self.logger.debug(f"Processing operation: {op_config.get('operation')} / {op_config.get('parameter_name')}")
+                self.logger.debug(f"  range: {op_config.get('range')}, steps: {op_config.get('steps')}")
+                self.logger.debug(f"  target_token: {op_config.get('target_token')} (type: {type(op_config.get('target_token'))})")
+                
+                spec = OperationSpec(
+                    operation=op_config.get("operation"),
+                    parameter_name=op_config.get("parameter_name"),
+                    range=tuple(op_config["range"]) if "range" in op_config else None,
+                    steps=op_config.get("steps", 5),
+                    values=op_config.get("values"),
+                    apply_to_timesteps=op_config.get("apply_to_timesteps", None),
+                    apply_to_layers=op_config.get("apply_to_layers", None),
+                    target_token=op_config.get("target_token", None),  # Default to None -> "ALL"
+                    strength=op_config.get("strength", 1.0),
+                    padding_mode=op_config.get("padding_mode", "border"),
+                    renormalize=op_config.get("renormalize", global_renormalize),  # Override or use global
+                    extra_params=op_config.get("extra_params", {})
+                )
+                
+                self.logger.debug(f"  Created OperationSpec: range={spec.range}, steps={spec.steps}")
+                
+                # Generate variations for this operation
+                variations = generator.generate_variations(spec)
+                all_variations.extend(variations)
+                
+                # Calculate dimensions
+                param_count = len(generator._generate_parameter_values(spec))
+                timestep_count = len(generator._generate_timestep_specs(spec))
+                layer_count = len(generator._generate_layer_specs(spec))
+                
+                self.logger.info(
+                    f"  Operation '{spec.operation}': {len(variations)} variations "
+                    f"({param_count} params × {timestep_count} timesteps × {layer_count} layers)"
+                )
+            except Exception as e:
+                self.logger.error(f"❌ Error processing operation '{op_config.get('operation')}' / '{op_config.get('parameter_name')}'")
+                self.logger.error(f"   Config: {op_config}")
+                self.logger.error(f"   Error: {e}")
+                import traceback
+                self.logger.error(traceback.format_exc())
+                raise
         
         self.logger.info(f"Total bending variations: {len(all_variations)}")
         
@@ -678,19 +692,33 @@ class VideoGenerationOrchestrator:
         latent_storage = None
         attention_storage = None
         
-        if self.config.latent_storage_settings.enabled:
+        if self.config.latent_analysis_settings.store_latents:
             if self.batch_dirs["latents"]:
                 latent_storage = LatentStorage(
-                    storage_dir=str(self.batch_dirs["latents"]),
-                    config=self.config.latent_storage_settings
+                    storage_dir=self.batch_dirs["latents"],
+                    storage_format=self.config.latent_analysis_settings.latent_storage_format,
+                    compress=self.config.latent_analysis_settings.compress_latents,
+                    storage_interval=self.config.latent_analysis_settings.storage_interval,
+                    storage_dtype=self.config.latent_analysis_settings.storage_dtype
                 )
                 self.logger.info(f"Latent storage: {self.batch_dirs['latents']}")
         
-        if self.config.attention_analysis_settings.enabled:
+        if self.config.attention_analysis_settings.store_attention:
             if self.batch_dirs["attention_maps"]:
                 attention_storage = AttentionStorage(
-                    storage_dir=str(self.batch_dirs["attention_maps"]),
-                    config=self.config.attention_analysis_settings
+                    storage_dir=self.batch_dirs["attention_maps"],
+                    tokenizer_name=self.config.attention_analysis_settings.tokenizer_name,
+                    storage_format=self.config.attention_analysis_settings.storage_format,
+                    compress=self.config.attention_analysis_settings.compress_attention,
+                    storage_interval=self.config.attention_analysis_settings.storage_interval,
+                    storage_dtype=self.config.attention_analysis_settings.storage_dtype,
+                    store_per_head=self.config.attention_analysis_settings.store_per_head,
+                    store_per_block=self.config.attention_analysis_settings.store_per_block,
+                    store_individual_tokens=self.config.attention_analysis_settings.store_individual_tokens,
+                    attention_threshold=self.config.attention_analysis_settings.attention_threshold,
+                    spatial_downsample_factor=self.config.attention_analysis_settings.spatial_downsample_factor,
+                    store_aggregated_attention=self.config.attention_analysis_settings.store_aggregated_attention,
+                    aggregated_storage_format=self.config.attention_analysis_settings.aggregated_storage_format
                 )
                 self.logger.info(f"Attention storage: {self.batch_dirs['attention_maps']}")
         
@@ -705,7 +733,8 @@ class VideoGenerationOrchestrator:
             prompt_variations=prompt_variations,
             bending_configs=bending_configs_to_apply,
             videos_per_var=self.config.videos_per_variation,
-            use_weighted=self.config.prompt_settings.use_weighted_prompts,
+            use_weighted=(hasattr(self.config, 'prompt_settings') and 
+                         self.config.prompt_settings.enable_prompt_weighting),
             config=self.config,
             latent_storage=latent_storage,
             attention_storage=attention_storage,
