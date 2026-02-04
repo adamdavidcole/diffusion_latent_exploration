@@ -210,10 +210,11 @@
   display: flex;
   align-items: center;
   gap: 15px;
-  padding: 12px 0;
+  margin-left: 15px;
+  /* padding: 12px 0;
   margin-bottom: 15px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid var(--bg-tertiary);
+  padding-bottom: 15px; */
+  /* border-bottom: 1px solid var(--bg-tertiary); */
 }
 
 .size-control label {
@@ -403,7 +404,80 @@
 .operation-group .filter-checkbox {
   padding-left: 12px;
 }
-/* Layout Control */
+
+/* Unified Controls Row */
+.controls-row {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--bg-tertiary);
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.control-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.control-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.control-button {
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.control-button:hover {
+  background: var(--bg-primary);
+  border-color: var(--accent);
+}
+
+.control-button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+  font-weight: 600;
+}
+
+.control-group.size-control {
+  min-width: 180px;
+  max-width: 280px;
+}
+
+.control-group.size-control label {
+  min-width: 110px;
+}
+
+.size-slider {
+  width: 150px;
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
+  border: none;
+  vertical-align: middle;
+}
+}
+
+/* Legacy Layout Control (deprecated) */
 .layout-control {
   display: flex;
   align-items: center;
@@ -454,4 +528,28 @@
   border-color: var(--accent);
   color: white;
   font-weight: 600;
+}
+
+/* Reverse Order Control */
+.layout-control label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.layout-control input[type="checkbox"] {
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+}
+
+.control-hint {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  margin-left: 26px;
+  font-style: italic;
 }

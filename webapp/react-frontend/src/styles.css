@@ -1436,7 +1436,7 @@ p#base-prompt:hover {
 .size-row {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 1.5rem;
 }
 
 /* Control buttons - smaller, softer, more transparent */

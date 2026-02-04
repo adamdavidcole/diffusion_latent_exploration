@@ -3,7 +3,7 @@ import { getThumbnailUrl, getVideoUrl, api } from '../../services/api';
 import AttentionBendingLightbox from './AttentionBendingLightbox';
 import './AttentionBendingGrid.css';
 
-const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, videoSize = 180, pinBaseline = true, gridLayout = 'by-transform', experimentPath }) => {
+const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, videoSize = 180, pinBaseline = true, gridLayout = 'by-transform', reverseOrder = false, experimentPath }) => {
   // Lightbox state
   const [lightboxVideo, setLightboxVideo] = useState(null);
   const [lightboxPosition, setLightboxPosition] = useState(null);
@@ -561,6 +561,11 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
         });
       });
     });
+    
+    // Apply reverse order if enabled
+    if (reverseOrder) {
+      allOperations.reverse();
+    }
 
     return (
       <div className="attention-bending-grid transposed">
@@ -719,7 +724,7 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
         </div>
 
         {/* Bending Sections by Operation Type */}
-        {Object.entries(groupedVideos).map(([opType, operations]) => (
+        {(reverseOrder ? Object.entries(groupedVideos).reverse() : Object.entries(groupedVideos)).map(([opType, operations]) => (
           <div key={opType} className="operation-section">
             <div className="operation-type-header">
               <span className="sticky-label">{opType}</span>

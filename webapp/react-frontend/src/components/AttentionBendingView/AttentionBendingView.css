@@ -51,8 +51,13 @@
 }
 
 @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
 /* Error state */
@@ -98,11 +103,11 @@
     display: flex;
     align-items: center;
     gap: 15px;
-    padding: 15px 20px;
+    /* padding: 15px 20px; */
     background: var(--bg-secondary);
-    border: 1px solid var(--bg-tertiary);
-    border-radius: 8px;
-    margin-bottom: 20px;
+    /* border: 1px solid var(--bg-tertiary); */
+    /* border-radius: 8px; */
+    /* margin-bottom: 20px; */
 }
 
 .size-control label {

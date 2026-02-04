@@ -9,7 +9,9 @@ const AttentionBendingFilters = ({
   pinBaseline, 
   onPinBaselineChange, 
   gridLayout = 'by-transform', 
-  onGridLayoutChange = () => {} 
+  onGridLayoutChange = () => {},
+  reverseOrder = false,
+  onReverseOrderChange = () => {}
 }) => {
   // Collapsible state - collapsed by default
   const [isExpanded, setIsExpanded] = useState(false);
@@ -297,38 +299,62 @@ const AttentionBendingFilters = ({
             </div>
           </div>
 
-          {/* Video Size Control */}
-          <div className="size-control">
-            <label htmlFor="video-size-slider">Video Size: {videoSize}px</label>
-            <input
-              id="video-size-slider"
-              type="range"
-              min="100"
-              max="400"
-              value={videoSize}
-              onChange={(e) => onVideoSizeChange(Number(e.target.value))}
-              className="size-slider"
-            />
-          </div>
+          {/* Unified Controls Row */}
+          <div className="controls-row">
+            {/* Grid Layout Control */}
+            <div className="control-group">
+              <label>Grid Layout:</label>
+              <div className="control-buttons">
+                <button
+                  className={`control-button ${gridLayout === 'by-transform' ? 'active' : ''}`}
+                  onClick={() => onGridLayoutChange('by-transform')}
+                  title="Rows = Transforms, Columns = Prompts×Seeds"
+                >
+                  By Transform
+                </button>
+                <button
+                  className={`control-button ${gridLayout === 'by-prompt' ? 'active' : ''}`}
+                  onClick={() => onGridLayoutChange('by-prompt')}
+                  title="Rows = Prompts×Seeds, Columns = Transforms"
+                >
+                  By Prompt
+                </button>
+              </div>
+            </div>
 
-          {/* Grid Layout Control */}
-          <div className="layout-control">
-            <label>Grid Layout:</label>
-            <div className="layout-options">
-              <button
-                className={`layout-option ${gridLayout === 'by-transform' ? 'active' : ''}`}
-                onClick={() => onGridLayoutChange('by-transform')}
-                title="Rows = Transforms, Columns = Prompts×Seeds"
-              >
-                📊 By Transform
-              </button>
-              <button
-                className={`layout-option ${gridLayout === 'by-prompt' ? 'active' : ''}`}
-                onClick={() => onGridLayoutChange('by-prompt')}
-                title="Rows = Prompts×Seeds, Columns = Transforms"
-              >
-                📝 By Prompt
-              </button>
+            {/* Sort Order Control */}
+            <div className="control-group">
+              <label>Sort transforms:</label>
+              <div className="control-buttons">
+                <button
+                  className={`control-button ${!reverseOrder ? 'active' : ''}`}
+                  onClick={() => onReverseOrderChange(false)}
+                  title="Show first operation first"
+                >
+                  Ascending
+                </button>
+                <button
+                  className={`control-button ${reverseOrder ? 'active' : ''}`}
+                  onClick={() => onReverseOrderChange(true)}
+                  title="Show last operation first"
+                >
+                  Descending
+                </button>
+              </div>
+            </div>
+
+            {/* Video Size Control */}
+            <div className="control-group size-control">
+              <label htmlFor="video-size-slider">Video Size: {videoSize}px</label>
+              <input
+                id="video-size-slider"
+                type="range"
+                min="100"
+                max="400"
+                value={videoSize}
+                onChange={(e) => onVideoSizeChange(Number(e.target.value))}
+                className="size-slider"
+              />
             </div>
           </div>
 

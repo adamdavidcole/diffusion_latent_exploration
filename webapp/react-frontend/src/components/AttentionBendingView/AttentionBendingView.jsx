@@ -15,6 +15,7 @@ const AttentionBendingView = ({ experimentPath }) => {
     const [videoSize, setVideoSize] = useState(180); // Default 180px width
     const [pinBaseline, setPinBaseline] = useState(true); // Pin baseline by default
     const [gridLayout, setGridLayout] = useState('by-transform'); // 'by-transform' or 'by-prompt'
+    const [reverseOrder, setReverseOrder] = useState(false); // Reverse operation order
 
     useEffect(() => {
         const loadBendingData = async () => {
@@ -84,6 +85,8 @@ const AttentionBendingView = ({ experimentPath }) => {
                 onPinBaselineChange={setPinBaseline}
                 gridLayout={gridLayout}
                 onGridLayoutChange={setGridLayout}
+                reverseOrder={reverseOrder}
+                onReverseOrderChange={setReverseOrder}
             />
 
             {/* Phase 4: Grid View */}
@@ -95,6 +98,7 @@ const AttentionBendingView = ({ experimentPath }) => {
                     videoSize={videoSize}
                     pinBaseline={pinBaseline}
                     gridLayout={gridLayout}
+                    reverseOrder={reverseOrder}
                     experimentPath={experimentPath}
                 />
             )}
