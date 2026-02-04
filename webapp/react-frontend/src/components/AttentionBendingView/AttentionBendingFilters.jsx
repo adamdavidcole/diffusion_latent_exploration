@@ -1,7 +1,16 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import './AttentionBendingFilters.css';
 
-const AttentionBendingFilters = ({ filterOptions, onFiltersChange, videoSize, onVideoSizeChange, pinBaseline, onPinBaselineChange }) => {
+const AttentionBendingFilters = ({ 
+  filterOptions, 
+  onFiltersChange, 
+  videoSize, 
+  onVideoSizeChange, 
+  pinBaseline, 
+  onPinBaselineChange, 
+  gridLayout = 'by-transform', 
+  onGridLayoutChange = () => {} 
+}) => {
   // Collapsible state - collapsed by default
   const [isExpanded, setIsExpanded] = useState(false);
   
@@ -302,7 +311,28 @@ const AttentionBendingFilters = ({ filterOptions, onFiltersChange, videoSize, on
             />
           </div>
 
-      <div className="filters-grid">
+          {/* Grid Layout Control */}
+          <div className="layout-control">
+            <label>Grid Layout:</label>
+            <div className="layout-options">
+              <button
+                className={`layout-option ${gridLayout === 'by-transform' ? 'active' : ''}`}
+                onClick={() => onGridLayoutChange('by-transform')}
+                title="Rows = Transforms, Columns = Prompts×Seeds"
+              >
+                📊 By Transform
+              </button>
+              <button
+                className={`layout-option ${gridLayout === 'by-prompt' ? 'active' : ''}`}
+                onClick={() => onGridLayoutChange('by-prompt')}
+                title="Rows = Prompts×Seeds, Columns = Transforms"
+              >
+                📝 By Prompt
+              </button>
+            </div>
+          </div>
+
+          <div className="filters-grid">
         {/* Operations Filter */}
         <div className="filter-section">
           <div className="filter-section-header">

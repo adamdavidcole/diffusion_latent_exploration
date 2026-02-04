@@ -14,6 +14,7 @@ const AttentionBendingView = ({ experimentPath }) => {
     const [activeFilters, setActiveFilters] = useState(null);
     const [videoSize, setVideoSize] = useState(180); // Default 180px width
     const [pinBaseline, setPinBaseline] = useState(true); // Pin baseline by default
+    const [gridLayout, setGridLayout] = useState('by-transform'); // 'by-transform' or 'by-prompt'
 
     useEffect(() => {
         const loadBendingData = async () => {
@@ -81,6 +82,8 @@ const AttentionBendingView = ({ experimentPath }) => {
                 onVideoSizeChange={setVideoSize}
                 pinBaseline={pinBaseline}
                 onPinBaselineChange={setPinBaseline}
+                gridLayout={gridLayout}
+                onGridLayoutChange={setGridLayout}
             />
 
             {/* Phase 4: Grid View */}
@@ -91,6 +94,7 @@ const AttentionBendingView = ({ experimentPath }) => {
                     activeFilters={activeFilters}
                     videoSize={videoSize}
                     pinBaseline={pinBaseline}
+                    gridLayout={gridLayout}
                     experimentPath={experimentPath}
                 />
             )}

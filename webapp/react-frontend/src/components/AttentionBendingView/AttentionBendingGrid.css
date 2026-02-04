@@ -315,3 +315,56 @@
   transform: scale(1.08);
   box-shadow: 0 6px 16px rgba(74, 144, 226, 0.4);
 } */
+/* Transposed view styles */
+.attention-bending-grid.transposed .column-header-cell {
+  flex-direction: column;
+  justify-content: center;
+  padding: 8px 4px;
+}
+
+.attention-bending-grid.transposed .column-header-cell .combo-label.operation-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.attention-bending-grid.transposed .op-type {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.attention-bending-grid.transposed .op-name {
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.2;
+  max-width: 100%;
+  word-wrap: break-word;
+}
+
+.attention-bending-grid.transposed .grid-row-header {
+  min-width: 150px;
+}
+
+.attention-bending-grid.transposed .grid-row-header .combo-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Sticky baseline column in transposed view */
+.attention-bending-grid.transposed .baseline-column {
+  position: sticky;
+  left: 150px; /* Width of row header */
+  z-index: 9; /* Below row header (10) but above regular columns */
+  background: var(--bg-primary);
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1); /* Right shadow for depth */
+}
+
+.attention-bending-grid.transposed .column-header-cell.baseline-column {
+  background: var(--bg-secondary);
+  border-right: 2px solid var(--accent);
+}

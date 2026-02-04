@@ -403,3 +403,55 @@
 .operation-group .filter-checkbox {
   padding-left: 12px;
 }
+/* Layout Control */
+.layout-control {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 12px 0;
+  margin-bottom: 15px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid var(--bg-tertiary);
+}
+
+.layout-control label {
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 500;
+  min-width: 120px;
+}
+
+.layout-options {
+  display: flex;
+  gap: 10px;
+  flex: 1;
+}
+
+.layout-option {
+  flex: 1;
+  padding: 8px 16px;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s;
+  text-align: center;
+  white-space: nowrap;
+  max-width: 180px;
+}
+
+.layout-option:hover {
+  background: var(--bg-primary);
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.layout-option.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+  font-weight: 600;
+}

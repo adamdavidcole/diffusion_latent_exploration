@@ -3,7 +3,7 @@ import { getThumbnailUrl, getVideoUrl, api } from '../../services/api';
 import AttentionBendingLightbox from './AttentionBendingLightbox';
 import './AttentionBendingGrid.css';
 
-const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, videoSize = 180, pinBaseline = true, experimentPath }) => {
+const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, videoSize = 180, pinBaseline = true, gridLayout = 'by-transform', experimentPath }) => {
   // Lightbox state
   const [lightboxVideo, setLightboxVideo] = useState(null);
   const [lightboxPosition, setLightboxPosition] = useState(null);
@@ -547,6 +547,119 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
       </div>
     );
   }
+
+  // TRANSPOSED VIEW: By Prompt (Rows = Prompt×Seed, Columns = Transforms)
+  if (gridLayout === 'by-prompt') {
+    // Build flat list of all operations for column headers
+    const allOperations = [];
+    Object.entries(groupedVideos).forEach(([opType, operations]) => {
+      Object.entries(operations).forEach(([paramKey, opData]) => {
+        allOperations.push({
+          opType,
+          paramKey,
+          ...opData
+        });
+      });
+    });
+
+    return (
+      <div className="attention-bending-grid transposed">
+        {!showingAll && (
+          <div className="cutoff-warning">
+            ⚠️ Showing {MAX_COLUMNS} of {promptSeedCombos.length} prompt×seed combinations. Adjust filters to narrow results.
+          </div>
+        )}
+
+        <div className="grid-container">
+          {/* Header Row with Operation Labels */}
+          <div className="header-row">
+            <div className="grid-row-header corner-header"></div>
+            <div className="video-row">
+              {/* Baseline column */}
+              <div 
+                className="column-header-cell baseline-column"
+                style={{
+                  width: `${videoSize}px`,
+                  minWidth: `${videoSize}px`,
+                  maxWidth: `${videoSize}px`
+                }}
+              >
+                <span className="combo-label">📌 Baseline</span>
+              </div>
+              {/* Operation columns */}
+              {allOperations.map((op, idx) => (
+                <div 
+                  key={`${op.opType}_${op.paramKey}`}
+                  className="column-header-cell"
+                  style={{
+                    width: `${videoSize}px`,
+                    minWidth: `${videoSize}px`,
+                    maxWidth: `${videoSize}px`
+                  }}
+                  title={`${op.displayName}\nToken: ${op.metadata.tokenDisplay}\nTimestep: ${op.metadata.timestepDisplay}\nLayers: ${op.metadata.layerDisplay}`}
+                >
+                  <span className="combo-label operation-label">
+                    <div className="op-type">{op.opType}</div>
+                    <div className="op-name">{op.displayName}</div>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Rows: One per prompt×seed combo */}
+          {displayedCombos.map((combo, comboIndex) => {
+            const [promptPart, seedPart] = combo.split('_');
+            const promptIdx = parseInt(promptPart.substring(1));
+            const seed = parseInt(seedPart.substring(1));
+            
+            // Find prompt text
+            const promptText = baselineVideos.find(v => 
+              (v.prompt_variation?.index || 0) === promptIdx
+            )?.prompt_variation?.text || `Prompt ${promptIdx}`;
+
+            return (
+              <div key={combo} className="operation-row">
+                <div 
+                  className="grid-row-header"
+                  title={`Prompt: ${promptText}\nSeed: ${seed}`}
+                >
+                  <div className="combo-label">{combo.replace('_', ' ')}</div>
+                </div>
+                <div className="video-row">
+                  {/* Baseline video */}
+                  <div className="video-column baseline-column">
+                    {renderVideoCell(getBaselineVideo(combo), 'baseline', 0, comboIndex)}
+                  </div>
+                  {/* Operation videos */}
+                  {allOperations.map((op, opIndex) => (
+                    <div key={`${op.opType}_${op.paramKey}`} className="video-column">
+                      {renderVideoCell(op.videos[combo], op.opType, opIndex, comboIndex)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Lightbox */}
+        <AttentionBendingLightbox
+          video={lightboxVideo}
+          baselineVideo={getBaselineForLightbox()}
+          isOpen={!!lightboxVideo}
+          onClose={handleCloseLightbox}
+          onNavigate={handleLightboxNavigation}
+          experimentPath={experimentPath}
+          cachedAttentionData={cachedAttentionData}
+          attentionDataLoading={attentionDataLoading}
+          attentionDataError={attentionDataError}
+        />
+      </div>
+    );
+  }
+
+  // DEFAULT VIEW: By Transform (Rows = Transforms, Columns = Prompt×Seed)
 
   return (
     <div className="attention-bending-grid">
