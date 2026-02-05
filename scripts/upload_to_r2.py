@@ -134,14 +134,19 @@ def format_size(size_bytes):
 
 
 def upload_batch(batch_name, remote_name, bucket_name, outputs_dir, 
-                 dry_run=False, include_all=False, verbose=False):
+                 dry_run=False, include_all=False, verbose=False, copy_only=False):
     """
-    Upload a single batch to R2 using rclone sync.
+    Upload a single batch to R2 using rclone sync or copy.
     
-    Uses 'rclone sync' which:
+    Uses 'rclone sync' (default) which:
     - Uploads new/modified files
     - OVERWRITES existing files with same name
     - Deletes files in R2 that don't exist locally (maintains exact copy)
+    
+    Uses 'rclone copy' (--copy-only flag) which:
+    - Uploads new files only
+    - OVERWRITES existing files with same name
+    - DOES NOT delete remote files (safer for incremental updates)
     
     Args:
         batch_name: Experiment batch name
@@ -151,6 +156,7 @@ def upload_batch(batch_name, remote_name, bucket_name, outputs_dir,
         dry_run: If True, show what would be uploaded without actually uploading
         include_all: If True, upload all files. If False, only videos/images
         verbose: If True, show detailed rclone output
+        copy_only: If True, use 'copy' instead of 'sync' (safer for adding new files)
     
     Returns:
         True if successful, False otherwise
@@ -171,11 +177,17 @@ def upload_batch(batch_name, remote_name, bucket_name, outputs_dir,
     print(f"  📦 Files to upload: {file_count} ({format_size(total_size)})")
     
     # Build rclone command
-    # Using 'sync' instead of 'copy' to overwrite existing files
     source = str(batch_path)
     destination = f'{remote_name}:{bucket_name}/{batch_name}'
     
-    cmd = ['rclone', 'sync', source, destination]
+    # Use 'copy' for incremental updates (safer), 'sync' for full mirror
+    rclone_cmd = 'copy' if copy_only else 'sync'
+    cmd = ['rclone', rclone_cmd, source, destination]
+    
+    if copy_only:
+        print(f"  📋 Using 'copy' mode - will add/update files without deleting remote files")
+    else:
+        print(f"  🔄 Using 'sync' mode - will mirror local to remote (may delete remote files)")
     
     # Add filters for file types and directories
     if not include_all:
@@ -246,7 +258,7 @@ def upload_batch(batch_name, remote_name, bucket_name, outputs_dir,
 
 
 def upload_batches(batch_names, remote_name='r2', bucket_name='attention-bender',
-                   outputs_dir='outputs', dry_run=False, include_all=False, verbose=False):
+                   outputs_dir='outputs', dry_run=False, include_all=False, verbose=False, copy_only=False):
     """Upload multiple batches to R2"""
     
     print("\n" + "="*70)
@@ -319,7 +331,8 @@ def upload_batches(batch_names, remote_name='r2', bucket_name='attention-bender'
             outputs_dir=outputs_path,
             dry_run=dry_run,
             include_all=include_all,
-            verbose=verbose
+            verbose=verbose,
+            copy_only=copy_only
         )
         
         if success:
@@ -418,6 +431,12 @@ Setup:
     )
     
     parser.add_argument(
+        '--copy-only',
+        action='store_true',
+        help='Use rclone copy instead of sync (adds/updates files without deleting remote files - recommended for incremental updates)'
+    )
+    
+    parser.add_argument(
         '--include-all',
         action='store_true',
         help='Upload all files (default: only videos/, attention_videos/, latents_videos/, and metadata)'
@@ -438,7 +457,8 @@ Setup:
         outputs_dir=args.outputs,
         dry_run=args.dry_run,
         include_all=args.include_all,
-        verbose=args.verbose
+        verbose=args.verbose,
+        copy_only=args.copy_only
     )
     
     sys.exit(0 if success else 1)

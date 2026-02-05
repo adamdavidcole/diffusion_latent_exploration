@@ -1,0 +1,271 @@
+# Comprehensive Multi-Operation Sweep Configuration
+# Balanced coverage of all bending operations across multiple dimensions
+
+# Model settings
+model_settings:
+  seed: 101
+  sampler: "unipc"
+  cfg_scale: 6.5
+  steps: 20
+  model_id: "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
+  device: "cuda:0"
+
+# Memory settings
+memory_settings:
+  enable_memory_optimization: true
+  clear_cache_between_videos: true
+  reload_model_for_large_models: false
+  use_gradient_checkpointing: true
+  enable_memory_efficient_attention: true
+
+# Video settings
+video_settings:
+  duration: null
+  fps: 16
+  frames: 37
+  height: 480
+  width: 848
+
+# Batch settings
+videos_per_variation: 3  # 2 seeds
+output_dir: "outputs"
+batch_name: "creative_sweep"
+use_timestamp: true
+
+# Expected video count:
+# 248 variations + 1 baseline = 249 configs
+# 249 × 5 prompts × 2 seeds = 2,490 videos
+# Time estimate: ~21 hours single GPU, ~10.5 hours dual GPU @ 30s/video
+
+# Global attention bending settings
+attention_bending_settings:
+  enabled: true
+  apply_to_output: true  # PHASE 2: Actually affect generation
+  apply_before_softmax: false
+  configs: []  # Variations will override this
+
+# Attention Bending Variations
+attention_bending_variations:
+  enabled: true
+  generate_baseline: true
+  renormalize: false  # Global default
+  
+  operations:
+    # ================================================================
+    # Operation 1: Scale (5 steps × 2 times × 2 layers × 2 tokens = 40)
+    # ================================================================
+    - operation: scale
+      parameter_name: scale_factor
+      range: [-1.0, 3.0]
+      steps: 6  # [0.25, 0.625, 1.0, 1.375, 1.75, 2.125, 2.5, 3.0]
+      target_token:
+        - "ALL"
+        # - "rose, horse, ship, actor, kiss"
+      strength: 1.0
+      padding_mode: "border"
+      # apply_to_timesteps:
+      #   - "ALL"
+      #   - "0-2"   # Early steps
+      #   - "7-9"  # Late steps
+      # apply_to_layers:
+      #   - "ALL"
+      #   - "0-5"  # Early layers
+      #   - "13-18"  # Middle layers
+      #   - "24-29" # Late layers
+
+
+    # ================================================================
+    # Operation 2: Rotate (5 steps × 2 times × 2 layers × 2 tokens = 40)
+    # ================================================================
+    - operation: rotate
+      parameter_name: angle
+      range: [-180, 180]
+      steps: 6  # [-90, -54, -18, 18, 54, 90]
+      # target_token:
+      #   - "ALL"
+        # - "rose, horse, ship, actor, kiss"
+      strength: 1.0
+      padding_mode: "border"
+      # apply_to_timesteps:
+      #   - "ALL"
+      #   - "0-2"   # Early steps
+      #   - "7-9"  # Late steps
+      # apply_to_layers:
+      #   - "ALL"
+      #   - "0-5"  # Early layers
+      #   - "13-18"  # Middle layers
+      #   - "24-29" # Late layers
+
+    # ================================================================
+    # Operation 3: Translate X (4 steps × 2 times × 2 layers × 2 tokens = 32)
+    # Avoiding 0 to prevent noop
+    # ================================================================
+    - operation: translate
+      parameter_name: translate_x
+      range: [-0.5, 0.5]
+      steps: 6  # [ -0.5, -0.3, -0.1, 0.1, 0.3, 0.5]
+      # target_token:
+      #   - "ALL"
+      #   - "rose, horse, ship, actor, kiss"
+      strength: 1.0
+      padding_mode: "border"
+      # apply_to_timesteps:
+      #   - "ALL"
+      #   - "0-2"   # Early steps
+      #   - "7-9"  # Late steps
+      # apply_to_layers:
+      #   - "ALL"
+      #   - "0-5"  # Early layers
+      #   - "13-18"  # Middle layers
+      #   - "24-29" # Late layers
+
+
+    # ================================================================
+    # Operation 4: Translate Y (4 steps × 2 times × 2 layers × 2 tokens = 32)
+    # ================================================================
+    - operation: translate
+      parameter_name: translate_y
+      range: [-0.5, 0.5]
+      steps: 6  # [ -0.5, -0.3, -0.1, 0.1, 0.3, 0.5]
+      # target_token:
+      #   - "ALL"
+      #   - "rose, horse, ship, actor, kiss"
+      strength: 1.0
+      padding_mode: "border"
+      # apply_to_timesteps:
+      #   - "ALL"
+      #   - "0-2"   # Early steps
+      #   - "7-9"  # Late steps
+      # apply_to_layers:
+      #   - "ALL"
+      #   - "0-5"  # Early layers
+      #   - "13-18"  # Middle layers
+      #   - "24-29" # Late layers
+
+    # ================================================================
+    # Operation 5: Flip Horizontal (1 value × 2 times × 2 layers × 2 tokens = 8)
+    # ================================================================
+    - operation: flip
+      parameter_name: flip_horizontal
+      target_token:
+        - "ALL"
+        # - "rose, horse, ship, actor, kiss"
+      strength: 1.0
+      # apply_to_timesteps:
+      #   - "0-5"
+      #   - "5-10"
+      # apply_to_layers:
+      #   - "ALL"
+      #   - [14, 15]
+
+    # ================================================================
+    # Operation 6: Flip Vertical (1 value × 2 times × 2 layers × 2 tokens = 8)
+    # ================================================================
+    - operation: flip
+      parameter_name: flip_vertical
+      target_token:
+        - "ALL"
+      #   - "rose, horse, ship, actor, kiss"
+      strength: 1.0
+      # apply_to_timesteps:
+      #   - "0-5"
+      #   - "5-10"
+      # apply_to_layers:
+      #   - "ALL"
+      #   - [14, 15]
+
+    # ================================================================
+    # Operation 7: Blur (3 steps × 2 times × 2 layers × 2 tokens = 24)
+    # ================================================================
+    - operation: blur
+      parameter_name: sigma
+      range: [-1.0, 4.0]
+      steps: 8
+      # target_token:
+      #   - "ALL"
+      #   - "rose, horse, ship, actor, kiss"
+      strength: 1.0
+      padding_mode: "border"
+      # apply_to_timesteps:
+      #   - "ALL"
+      #   - "0-2"   # Early steps
+      #   - "7-9"  # Late steps
+      # apply_to_layers:
+      #   - "ALL"
+      #   - "0-5"  # Early layers
+      #   - "13-18"  # Middle layers
+      #   - "24-29" # Late layers
+
+    # ================================================================
+    # Operation 8: Sharpen (3 steps × 2 times × 2 layers × 2 tokens = 24)
+    # ================================================================
+    - operation: sharpen
+      parameter_name: sharpen_amount
+      range: [-1.0, 4.0]
+      steps: 8
+      target_token:
+        - "ALL"
+        # - "rose, horse, ship, actor, kiss"
+      strength: 1.0
+      padding_mode: "border"
+      # apply_to_timesteps:
+      #   - "ALL"
+      #   - "0-2"   # Early steps
+      #   - "7-9"  # Late steps
+      # apply_to_layers:
+      #   - "ALL"
+      #   - "0-5"  # Early layers
+      #   - "13-18"  # Middle layers
+      #   - "24-29" # Late layers
+
+    # ================================================================
+    # Operation 9: Amplify (5 steps × 2 times × 2 layers × 2 tokens = 40)
+    # REQUIRES renormalize: true
+    # ================================================================
+    - operation: amplify
+      parameter_name: amplify_factor
+      range: [-0.05, 2.0]
+      steps: 6
+      renormalize: false
+      apply_before_softmax: false
+      # target_token:
+      #   - "ALL"
+      #   - "rose, horse, ship, actor, kiss"
+      strength: 1.0
+      padding_mode: "border"
+      # apply_to_timesteps:
+      #   - "ALL"
+      #   - "0-2"   # Early steps
+      #   - "7-9"  # Late steps
+      # apply_to_layers:
+      #   - "ALL"
+      #   - "0-5"  # Early layers
+      #   - "13-18"  # Middle layers
+      #   - "24-29" # Late layers
+
+# Total variations: 40+40+32+32+8+8+24+24+40 = 248 variations + 1 baseline
+
+# Attention storage settings
+attention_analysis_settings:
+  store_attention: true
+  store_individual_tokens: true  # Store attention for tracked tokens
+  store_aggregated_attention: false
+  store_per_block: false
+  store_per_head: false
+  storage_format: numpy
+  storage_dtype: float16
+  compress_attention: true
+  spatial_downsample_factor: 1
+  storage_interval: 1
+  tokenizer_name: google/umt5-xxl
+  auto_generate_videos: false
+  auto_generate_per_video: false
+  visualization_params:
+    colormap: hot
+    figsize: [12, 8]
+    overlay_alpha: 0.6
+    static_duration: 3.0
+
+# Disable latent storage
+latent_analysis_settings:
+  store_latents: false

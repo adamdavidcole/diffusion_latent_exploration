@@ -588,6 +588,9 @@ def decode_experiment_with_progress(experiment_dir: Path,
                         result.thumbnail_path = str(thumbnail_path) if result.thumbnail_generated else None
                         results[step_name] = result
                         
+                        if not TQDM_AVAILABLE:
+                            logging.debug(f"⏭️  Skipped existing: {token_desc}/{step_name}")
+                        
                         if TQDM_AVAILABLE:
                             step_pbar.update(1)
                         continue
@@ -794,9 +797,9 @@ def main():
     )
     
     parser.add_argument(
-        "--no-overwrite",
+        "--force",
         action="store_true",
-        help="Skip existing videos instead of overwriting them (default: overwrite existing videos)"
+        help="Force regeneration of existing videos (default: skip existing)"
     )
     
     parser.add_argument(
@@ -903,7 +906,7 @@ def main():
             fps=args.fps,
             quality=args.quality,
             scale_factor=args.scale,
-            force=not args.no_overwrite,  # Invert the logic - force by default
+            force=args.force,  # Use force flag directly - skip by default
             thumbnail_frame=args.thumbnail_frame
         )
         

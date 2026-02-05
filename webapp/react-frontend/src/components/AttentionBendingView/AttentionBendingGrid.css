@@ -368,3 +368,21 @@
   background: var(--bg-secondary);
   border-right: 2px solid var(--accent);
 }
+
+/* Operation group separators - Default view (rows) */
+.operation-row.new-operation-group {
+  border-top: 2px solid rgba(128, 128, 128, 0.3);
+  margin-top: 12px;
+}
+
+/* Remove the existing margin-bottom from the previous row to prevent double spacing */
+.operation-row.new-operation-group ~ .operation-row {
+  margin-bottom: 8px;
+}
+
+/* Operation group separators - Transposed view (columns) */
+.attention-bending-grid.transposed .column-header-cell.new-operation-group,
+.attention-bending-grid.transposed .video-column.new-operation-group {
+  border-left: 2px solid rgba(128, 128, 128, 0.3);
+  margin-left: 8px;
+}

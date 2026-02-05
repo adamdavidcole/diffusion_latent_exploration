@@ -567,6 +567,13 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
       allOperations.reverse();
     }
 
+    // Check if we have any duplicate displayNames (indicating specific targeting is in use)
+    const displayNameCounts = {};
+    allOperations.forEach(op => {
+      displayNameCounts[op.displayName] = (displayNameCounts[op.displayName] || 0) + 1;
+    });
+    const hasDuplicates = Object.values(displayNameCounts).some(count => count > 1);
+
     return (
       <div className="attention-bending-grid transposed">
         {!showingAll && (
@@ -592,23 +599,32 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
                 <span className="combo-label">📌 Baseline</span>
               </div>
               {/* Operation columns */}
-              {allOperations.map((op, idx) => (
-                <div 
-                  key={`${op.opType}_${op.paramKey}`}
-                  className="column-header-cell"
-                  style={{
-                    width: `${videoSize}px`,
-                    minWidth: `${videoSize}px`,
-                    maxWidth: `${videoSize}px`
-                  }}
-                  title={`${op.displayName}\nToken: ${op.metadata.tokenDisplay}\nTimestep: ${op.metadata.timestepDisplay}\nLayers: ${op.metadata.layerDisplay}`}
-                >
-                  <span className="combo-label operation-label">
-                    <div className="op-type">{op.opType}</div>
-                    <div className="op-name">{op.displayName}</div>
-                  </span>
-                </div>
-              ))}
+              {allOperations.map((op, idx) => {
+                // Detect if this is the start of a new operation parameter group
+                const prevOp = idx > 0 ? allOperations[idx - 1] : null;
+                const isNewGroup = prevOp && op.displayName !== prevOp.displayName;
+                
+                // Only show border when starting new group AND duplicates exist in dataset
+                const showBorder = isNewGroup && hasDuplicates;
+                
+                return (
+                  <div 
+                    key={`${op.opType}_${op.paramKey}`}
+                    className={`column-header-cell ${showBorder ? 'new-operation-group' : ''}`}
+                    style={{
+                      width: `${videoSize}px`,
+                      minWidth: `${videoSize}px`,
+                      maxWidth: `${videoSize}px`
+                    }}
+                    title={`${op.displayName}\nToken: ${op.metadata.tokenDisplay}\nTimestep: ${op.metadata.timestepDisplay}\nLayers: ${op.metadata.layerDisplay}`}
+                  >
+                    <span className="combo-label operation-label">
+                      <div className="op-type">{op.opType}</div>
+                      <div className="op-name">{op.displayName}</div>
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -637,11 +653,20 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
                     {renderVideoCell(getBaselineVideo(combo), 'baseline', 0, comboIndex)}
                   </div>
                   {/* Operation videos */}
-                  {allOperations.map((op, opIndex) => (
-                    <div key={`${op.opType}_${op.paramKey}`} className="video-column">
-                      {renderVideoCell(op.videos[combo], op.opType, opIndex, comboIndex)}
-                    </div>
-                  ))}
+                  {allOperations.map((op, opIndex) => {
+                    const prevOp = opIndex > 0 ? allOperations[opIndex - 1] : null;
+                    const isNewGroup = prevOp && op.displayName !== prevOp.displayName;
+                    const showBorder = isNewGroup && hasDuplicates;
+                    
+                                        return (
+                      <div 
+                        key={`${op.opType}_${op.paramKey}`} 
+                        className={`video-column ${showBorder ? 'new-operation-group' : ''}`}
+                      >
+                        {renderVideoCell(op.videos[combo], op.opType, opIndex, comboIndex)}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -665,6 +690,19 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
   }
 
   // DEFAULT VIEW: By Transform (Rows = Transforms, Columns = Prompt×Seed)
+
+  // Check if we have any duplicate displayNames in the entire dataset
+  const allDefaultOperations = [];
+  Object.entries(groupedVideos).forEach(([opType, operations]) => {
+    Object.entries(operations).forEach(([paramKey, opData]) => {
+      allDefaultOperations.push(opData);
+    });
+  });
+  const displayNameCounts = {};
+  allDefaultOperations.forEach(op => {
+    displayNameCounts[op.displayName] = (displayNameCounts[op.displayName] || 0) + 1;
+  });
+  const hasDuplicates = Object.values(displayNameCounts).some(count => count > 1);
 
   return (
     <div className="attention-bending-grid">
@@ -729,25 +767,33 @@ const AttentionBendingGrid = ({ baselineVideos, bendingVideos, activeFilters, vi
             <div className="operation-type-header">
               <span className="sticky-label">{opType}</span>
             </div>
-            {Object.entries(operations).map(([paramKey, opData], rowIndex) => (
-              <div key={paramKey} className="operation-row">
-                <div className="grid-row-header">
-                  <div className="operation-name">{opData.displayName}</div>
-                  <div className="operation-metadata">
-                    <div>token: {opData.metadata.tokenDisplay}</div>
-                    <div>timestep: {opData.metadata.timestepDisplay}</div>
-                    <div>layers: {opData.metadata.layerDisplay}</div>
+            {Object.entries(operations).map(([paramKey, opData], rowIndex) => {
+              // Detect if this is the start of a new operation parameter group
+              const allEntries = Object.entries(operations);
+              const prevEntry = rowIndex > 0 ? allEntries[rowIndex - 1] : null;
+              const isNewGroup = prevEntry && opData.displayName !== prevEntry[1].displayName;
+              const showBorder = isNewGroup && hasDuplicates;
+              
+              return (
+                <div key={paramKey} className={`operation-row ${showBorder ? 'new-operation-group' : ''}`}>
+                  <div className="grid-row-header">
+                    <div className="operation-name">{opData.displayName}</div>
+                    <div className="operation-metadata">
+                      <div>token: {opData.metadata.tokenDisplay}</div>
+                      <div>timestep: {opData.metadata.timestepDisplay}</div>
+                      <div>layers: {opData.metadata.layerDisplay}</div>
+                    </div>
+                  </div>
+                  <div className="video-row">
+                    {displayedCombos.map((combo, videoIndex) => (
+                      <div key={combo} className="video-column">
+                        {renderVideoCell(opData.videos[combo], opType, rowIndex, videoIndex)}
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <div className="video-row">
-                  {displayedCombos.map((combo, videoIndex) => (
-                    <div key={combo} className="video-column">
-                      {renderVideoCell(opData.videos[combo], opType, rowIndex, videoIndex)}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ))}
       </div>
