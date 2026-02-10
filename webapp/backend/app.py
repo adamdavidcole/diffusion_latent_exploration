@@ -1211,6 +1211,9 @@ class VideoAnalyzer:
         
         try:
             attention_videos_data = {}
+            tiers_available = set()
+            available_layers = set()
+            available_heads = set()
             
             # Process each prompt directory
             for prompt_dir in sorted(attention_videos_dir.iterdir()):
@@ -1243,10 +1246,40 @@ class VideoAnalyzer:
                         token_name = token_dir.name.replace('token_', '')
                         attention_videos_data[prompt_id][video_id][token_name] = {}
                         
-                        # Process each step file within this token
+                        # Process each step file within this token and parse tier structure
                         step_files = sorted(token_dir.glob('step_*.mp4'))
                         for mp4_file in step_files:
-                            step_name = mp4_file.stem  # Gets "step_000" from "step_000.mp4"
+                            filename = mp4_file.stem  # Gets "step_000" or "step_000_layer_01_head_02"
+                            
+                            # Parse filename to detect tier
+                            # Tier 1: step_XXX
+                            # Tier 2: step_XXX_layer_YY
+                            # Tier 3: step_XXX_layer_YY_head_ZZ
+                            tier = 1
+                            layer_num = None
+                            head_num = None
+                            base_step = filename
+                            
+                            if '_layer_' in filename:
+                                parts = filename.split('_layer_')
+                                base_step = parts[0]  # e.g., "step_000"
+                                remainder = parts[1]  # e.g., "01" or "01_head_02"
+                                
+                                if '_head_' in remainder:
+                                    # Tier 3: per-layer-head
+                                    tier = 3
+                                    layer_part, head_part = remainder.split('_head_')
+                                    layer_num = int(layer_part)
+                                    head_num = int(head_part)
+                                    available_layers.add(layer_num)
+                                    available_heads.add(head_num)
+                                else:
+                                    # Tier 2: per-layer average
+                                    tier = 2
+                                    layer_num = int(remainder)
+                                    available_layers.add(layer_num)
+                            
+                            tiers_available.add(tier)
                             
                             # Create relative path from outputs directory for video serving
                             rel_video_path = mp4_file.relative_to(self.outputs_dir)
@@ -1257,15 +1290,23 @@ class VideoAnalyzer:
                             if jpg_file.exists():
                                 rel_image_path = jpg_file.relative_to(self.outputs_dir)
                             
-                            attention_videos_data[prompt_id][video_id][token_name][step_name] = {
+                            # Store with tier metadata
+                            attention_videos_data[prompt_id][video_id][token_name][filename] = {
                                 'video_path': str(rel_video_path),
-                                'image_path': str(rel_image_path) if rel_image_path else None
+                                'image_path': str(rel_image_path) if rel_image_path else None,
+                                'tier': tier,
+                                'step': base_step,
+                                'layer': layer_num,
+                                'head': head_num
                             }
             
             return {
                 'has_attention_videos': bool(attention_videos_data),
                 'attention_videos': attention_videos_data if attention_videos_data else None,
-                'video_metadata_map': video_metadata_map
+                'video_metadata_map': video_metadata_map,
+                'tiers_available': sorted(list(tiers_available)),
+                'available_layers': sorted(list(available_layers)),
+                'available_heads': sorted(list(available_heads))
             }
             
         except Exception as e:

@@ -356,7 +356,8 @@ def decode_attention_step_to_video(attention_file: Path,
                                  fps: int = 15,
                                  quality: float = 8.0,
                                  scale_factor: float = 1.0,
-                                 video_scale: str = "full") -> AttentionDecodeResult:
+                                 video_scale: str = "full",
+                                 video_progress_callback: Optional[callable] = None) -> AttentionDecodeResult:
     """
     Decode a single attention step file to video(s).
     
@@ -375,6 +376,7 @@ def decode_attention_step_to_video(attention_file: Path,
         quality: Video quality (0-10)
         scale_factor: Resolution scaling (deprecated, use video_scale)
         video_scale: Video resolution scale ('full', 'half', 'quarter')
+        video_progress_callback: Optional callback(current, total) for video-level progress
         
     Returns:
         AttentionDecodeResult with success status and metadata
@@ -408,20 +410,20 @@ def decode_attention_step_to_video(attention_file: Path,
         
         logging.debug(f"Decoding {step_name}: shape={attention_data.shape}, blocks={num_blocks}, heads={num_heads}")
         
-        # Apply video scaling to metadata dimensions (round to multiple of 16 for codec compatibility)
-        # NOTE: We scale the TARGET video dimensions, not the latent dimensions
-        # The attention map is at latent resolution and the visualizer will upscale appropriately
+        # Calculate output dimensions based on video_scale parameter
+        # Metadata always reflects the actual stored data dimensions (full resolution)
         scale_map = {'full': 1.0, 'half': 0.5, 'quarter': 0.25}
         resolution_scale = scale_map.get(video_scale, 1.0)
+        output_width = None
+        output_height = None
         if resolution_scale != 1.0 and metadata:
-            metadata = metadata.copy()
-            # Scale target video dimensions (not latent dimensions - those stay at original resolution)
+            # Scale output video dimensions (metadata stays at full resolution)
             scaled_width = int(metadata.get('video_width', 848) * resolution_scale)
             scaled_height = int(metadata.get('video_height', 480) * resolution_scale)
             # Round to nearest multiple of 16 for ffmpeg compatibility
-            metadata['video_width'] = ((scaled_width + 15) // 16) * 16
-            metadata['video_height'] = ((scaled_height + 15) // 16) * 16
-            logging.debug(f"Scaled video dimensions: {scaled_width}×{scaled_height} → {metadata['video_width']}×{metadata['video_height']} (rounded to 16)")
+            output_width = ((scaled_width + 15) // 16) * 16
+            output_height = ((scaled_height + 15) // 16) * 16
+            logging.debug(f"Output dimensions: {scaled_width}×{scaled_height} → {output_width}×{output_height} (rounded to 16)")
         
         # Setup common visualization components
         token_dir = attention_file.parent
@@ -478,9 +480,13 @@ def decode_attention_step_to_video(attention_file: Path,
             overlay_config=overlay_config,
             output_filename=output_filename,
             source_video_path=str(latent_video_path) if latent_video_path else None,
-            metadata=metadata
+            metadata=metadata,
+            output_width=output_width,
+            output_height=output_height
         )
         output_paths.append(output_video_path)
+        if video_progress_callback:
+            video_progress_callback(1, 1 + (num_blocks if num_blocks > 1 else 0) + (num_blocks * num_heads if num_blocks > 1 and num_heads > 1 else 0))
         
         # TIER 2: Per-layer averages (if multiple blocks)
         if num_blocks > 1:
@@ -503,9 +509,13 @@ def decode_attention_step_to_video(attention_file: Path,
                     overlay_config=overlay_config,
                     output_filename=output_filename,
                     source_video_path=str(latent_video_path) if latent_video_path else None,
-                    metadata=metadata
+                    metadata=metadata,
+                    output_width=output_width,
+                    output_height=output_height
                 )
                 output_paths.append(output_video_path)
+                if video_progress_callback:
+                    video_progress_callback(len(output_paths), 1 + num_blocks + (num_blocks * num_heads if num_heads > 1 else 0))
         
         # TIER 3: Per-layer-head (if multiple blocks AND multiple heads)
         if num_blocks > 1 and num_heads > 1:
@@ -529,9 +539,13 @@ def decode_attention_step_to_video(attention_file: Path,
                         overlay_config=overlay_config,
                         output_filename=output_filename,
                         source_video_path=str(latent_video_path) if latent_video_path else None,
-                        metadata=metadata
+                        metadata=metadata,
+                        output_width=output_width,
+                        output_height=output_height
                     )
                     output_paths.append(output_video_path)
+                    if video_progress_callback:
+                        video_progress_callback(len(output_paths), 1 + num_blocks + (num_blocks * num_heads))
         
         result.success = True
         result.output_paths = output_paths
@@ -624,9 +638,11 @@ def decode_experiment_with_progress(experiment_dir: Path,
     if TQDM_AVAILABLE:
         token_pbar = tqdm(token_dirs, desc="Tokens", unit="token")
         step_pbar = tqdm(total=total_steps, desc="Steps", unit="step", leave=False)
+        video_pbar = None  # Created dynamically per step
     else:
         token_pbar = token_dirs
         step_pbar = None
+        video_pbar = None
     
     try:
         for token_idx, (token_dir, prompt_id, video_id, token_name) in enumerate(token_pbar):
@@ -680,6 +696,20 @@ def decode_experiment_with_progress(experiment_dir: Path,
                         experiment_dir, prompt_id, video_id, step_name
                     )
                     
+                    # Create video-level progress bar for this step
+                    if TQDM_AVAILABLE:
+                        # Estimate video count: 1 + layers + (layers * heads)
+                        # We'll update this dynamically as we decode
+                        video_pbar = tqdm(total=0, desc=f"  Videos", unit="video", leave=False)
+                        
+                        def update_video_progress(current, total):
+                            if video_pbar.total != total:
+                                video_pbar.reset(total=total)
+                            video_pbar.n = current
+                            video_pbar.refresh()
+                    else:
+                        update_video_progress = None
+                    
                     # Decode attention step (may generate multiple videos)
                     result = decode_attention_step_to_video(
                         attention_file=step_file,
@@ -690,24 +720,39 @@ def decode_experiment_with_progress(experiment_dir: Path,
                         fps=fps,
                         quality=quality,
                         scale_factor=scale_factor,
-                        video_scale=video_scale
+                        video_scale=video_scale,
+                        video_progress_callback=update_video_progress if TQDM_AVAILABLE else None
                     )
                     
-                    # Generate thumbnail for primary video if successful
-                    thumbnail_success = False
-                    if result.success and primary_output_path.exists():
-                        thumbnail_success = generate_thumbnail_for_video(primary_output_path, thumbnail_path, thumbnail_frame)
+                    # Close video progress bar
+                    if TQDM_AVAILABLE and video_pbar:
+                        video_pbar.close()
+                        video_pbar = None
                     
-                    # Store thumbnail results
+                    # Generate thumbnails for all output videos
+                    thumbnail_success = False
+                    thumbnails_generated = 0
+                    if result.success and result.output_paths:
+                        for video_path_str in result.output_paths:
+                            video_path = Path(video_path_str)
+                            if video_path.exists():
+                                thumb_path = video_path.with_suffix('.jpg')
+                                if generate_thumbnail_for_video(video_path, thumb_path, thumbnail_frame):
+                                    thumbnails_generated += 1
+                        
+                        # Mark as successful if at least one thumbnail was generated
+                        thumbnail_success = thumbnails_generated > 0
+                    
+                    # Store thumbnail results (primary thumbnail path for backwards compatibility)
                     result.thumbnail_generated = thumbnail_success
-                    result.thumbnail_path = str(thumbnail_path) if thumbnail_success else None
+                    result.thumbnail_path = str(thumbnail_path) if thumbnail_success and thumbnail_path.exists() else None
                     
                     results[step_name] = result
                     
                     # Log progress
                     if result.success:
                         overlay_status = "🎭" if result.has_overlay else "🎨"
-                        thumbnail_status = "📸" if thumbnail_success else "⚠️"
+                        thumbnail_status = f"📸×{thumbnails_generated}" if thumbnails_generated > 0 else "⚠️"
                         video_count = f"[{result.videos_generated}v]" if result.videos_generated > 1 else ""
                         if not TQDM_AVAILABLE:
                             print(f"✅ {token_desc}/{step_name} {video_count} in {result.decode_time:.2f}s {overlay_status}{thumbnail_status}")

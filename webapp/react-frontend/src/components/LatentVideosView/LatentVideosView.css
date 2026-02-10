@@ -94,7 +94,7 @@
   color: white;
 }
 
-.toggle-btn + .toggle-btn {
+.toggle-btn+.toggle-btn {
   border-left: 1px solid #ddd;
 }
 
@@ -151,6 +151,61 @@
 /* Grid rows */
 .grid-rows {
   margin: 0;
+}
+
+.grid-section {
+  position: relative;
+}
+
+/* Section headers (prompt and token) */
+.section-header {
+  display: flex;
+  position: sticky;
+  z-index: 4;
+  width: 100%;
+  border-bottom: 1px solid var(--border);
+  font-weight: 500;
+  font-size: 13px;
+  background: var(--bg-tertiary);
+  margin-bottom: 0;
+}
+
+.section-header.prompt-header {
+  top: 51px;
+  /* Below column headers */
+  background: rgba(74, 144, 226, 0.1);
+  color: var(--text-primary);
+  padding: 6px 0;
+  border-left: 3px solid rgba(74, 144, 226, 0.5);
+}
+
+.section-header.token-header {
+  top: 78px;
+  /* Below prompt header */
+  background: rgba(80, 200, 120, 0.08);
+  color: var(--text-primary);
+  padding: 5px 0;
+  border-left: 2px solid rgba(80, 200, 120, 0.4);
+}
+
+.section-header-label {
+  min-width: 120px;
+  max-width: 100%;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  background: inherit;
+  border-right: 1px solid var(--border);
+}
+
+.section-header-spacer {
+  flex: 1;
+  min-width: 0;
+  background: inherit;
 }
 
 .grid-row {
@@ -242,8 +297,13 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* Error state */
@@ -285,34 +345,34 @@
   .latent-videos-header-fixed {
     padding: 16px;
   }
-  
+
   .latent-videos-controls {
     flex-direction: column;
     gap: 12px;
   }
-  
+
   .control-group {
     flex-direction: column;
     align-items: stretch;
     text-align: center;
   }
-  
+
   .control-group label {
     min-width: auto;
   }
-  
+
   .row-label-header,
   .row-label {
     min-width: 80px;
     max-width: 80px;
     font-size: 12px;
   }
-  
+
   .column-header {
     min-width: 80px;
     font-size: 12px;
   }
-  
+
   .grid-cell {
     min-width: 80px;
   }

@@ -430,12 +430,16 @@ class ExperimentLatentDecoder:
         
         video_dirs = []
         
-        # Search pattern: latents/prompt_XXX/vid_YYY/
-        for prompt_dir in latents_dir.glob("prompt_*"):
+        # Search pattern supports both old and new formats:
+        # Old: latents/prompt_XXX/vid_YYY/
+        # New: latents/p000_b000_s000/vid_YYY/
+        for prompt_dir in latents_dir.iterdir():
             if prompt_dir.is_dir():
-                for vid_dir in prompt_dir.glob("vid_*"):
-                    if vid_dir.is_dir():
-                        video_dirs.append(vid_dir)
+                # Check if it matches either format: prompt_* or p###_b###_s###
+                if prompt_dir.name.startswith('prompt_') or prompt_dir.name.startswith('p'):
+                    for vid_dir in prompt_dir.glob("vid_*"):
+                        if vid_dir.is_dir():
+                            video_dirs.append(vid_dir)
         
         logging.info(f"Found {len(video_dirs)} video latent directories")
         return sorted(video_dirs)

@@ -57,7 +57,7 @@ class VideoConfig:
 @dataclass
 class OverlayConfig:
     """Configuration for attention overlay on videos."""
-    alpha: float = 0.5  # Blend strength (0=only source, 1=only attention)
+    alpha: float = 0.75  # Blend strength (0=only source, 1=only attention)
     colormap: ColorMap = ColorMap.JET
     normalize_per_frame: bool = False  # Whether to normalize attention per frame
     threshold: Optional[float] = None  # Optional threshold for attention values
@@ -523,6 +523,15 @@ class AttentionVisualizer:
                 attention_colored = cv2.applyColorMap(attention_normalized[frame_idx], cv_colormap)
                 attention_colored = cv2.cvtColor(attention_colored, cv2.COLOR_BGR2RGB)
                 
+                # Post-process resize if needed (for video_scale parameter)
+                # This is a no-op at full resolution, but enables scaling output
+                if metadata and (attention_colored.shape[0] != target_height or attention_colored.shape[1] != target_width):
+                    attention_colored = cv2.resize(
+                        attention_colored,
+                        (target_width, target_height),
+                        interpolation=cv2.INTER_LINEAR
+                    )
+                
                 # Overlay on source video if available
                 if source_frames and frame_idx < len(source_frames):
                     source_frame = source_frames[frame_idx]
@@ -554,7 +563,9 @@ class AttentionVisualizer:
                                            overlay_config: OverlayConfig = OverlayConfig(),
                                            output_filename: Optional[str] = None,
                                            source_video_path: Optional[str] = None,
-                                           metadata: Optional[Dict[str, Any]] = None) -> str:
+                                           metadata: Optional[Dict[str, Any]] = None,
+                                           output_width: Optional[int] = None,
+                                           output_height: Optional[int] = None) -> str:
         """
         Generate attention video from pre-loaded attention data.
         
@@ -570,7 +581,9 @@ class AttentionVisualizer:
             overlay_config: Overlay settings
             output_filename: Output filename
             source_video_path: Optional source video for overlay
-            metadata: Optional metadata dict with video dimensions
+            metadata: Optional metadata dict with video dimensions (reflects stored data, not output)
+            output_width: Optional output video width (overrides metadata for scaling)
+            output_height: Optional output video height (overrides metadata for scaling)
             
         Returns:
             Path to generated video file
@@ -707,7 +720,8 @@ class AttentionVisualizer:
         actual_frames, actual_height, actual_width = attention_np.shape
         # self.logger.info(f"Final attention tensor: {actual_frames}×{actual_height}×{actual_width}")
         
-        # Use metadata target dimensions if available, otherwise use defaults
+        # Use metadata dimensions for all processing (reflects actual stored data)
+        # output_width/output_height will only be used at the very end for final resize
         if metadata:
             target_frames = metadata.get('video_frames', actual_frames * 4)
             target_height = metadata.get('video_height', actual_height * 16)
@@ -814,6 +828,16 @@ class AttentionVisualizer:
                 # Apply colormap to attention
                 attention_colored = cv2.applyColorMap(attention_normalized[frame_idx], cv_colormap)
                 attention_colored = cv2.cvtColor(attention_colored, cv2.COLOR_BGR2RGB)
+                
+                # Post-process resize ONLY if explicit output dimensions provided (for scaling)
+                # This is the final step before writing to video
+                if output_width is not None and output_height is not None:
+                    if attention_colored.shape[0] != output_height or attention_colored.shape[1] != output_width:
+                        attention_colored = cv2.resize(
+                            attention_colored,
+                            (output_width, output_height),
+                            interpolation=cv2.INTER_LINEAR
+                        )
                 
                 # Overlay on source video if available
                 if source_frames and frame_idx < len(source_frames):
