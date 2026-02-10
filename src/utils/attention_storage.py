@@ -1045,10 +1045,9 @@ class AttentionStorage:
             aggregation_method=aggregation_method,
             attention_shape=tuple(attention.shape),
             spatial_resolution=(attention.shape[-2], attention.shape[-1]),
-            num_blocks=len(self.current_attention_maps),
-            # For per_step_full: shape is [blocks, heads, spatial, tokens] 
-            # For aggregated: shape is [batch, spatial, tokens] with heads=1
-            num_heads=attention.shape[1] if aggregation_method == "per_step_full" else 1,
+            num_blocks=attention.shape[0],  # Actual number of blocks in stored tensor
+            # Number of heads in stored tensor (shape is [blocks, heads, spatial, tokens])
+            num_heads=attention.shape[1] if attention.ndim >= 2 else 1,
             threshold_applied=self.attention_threshold,
             block_idx=block_idx,
             head_idx=head_idx,

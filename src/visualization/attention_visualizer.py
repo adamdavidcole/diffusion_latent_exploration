@@ -581,6 +581,8 @@ class AttentionVisualizer:
         else:
             attention_np = spatial_attention
         
+        self.logger.debug(f"Received attention tensor: shape={attention_np.shape}, ndim={attention_np.ndim}")
+        
         # Get target dimensions from metadata if available
         if metadata:
             target_frames = metadata.get('video_frames', 25)
@@ -612,7 +614,7 @@ class AttentionVisualizer:
                 expected_latent_size = latent_frames * latent_height * latent_width
                 if spatial_size == expected_latent_size:
                     attention_np = attention_np.reshape(latent_frames, latent_height, latent_width)
-                    # self.logger.info(f"Reshaped 1D attention {spatial_size} -> {latent_frames}×{latent_height}×{latent_width} (metadata match)")
+                    self.logger.debug(f"Reshaped 1D attention {spatial_size} -> {latent_frames}×{latent_height}×{latent_width} (metadata match)")
                 else:
                     self.logger.warning(f"Metadata size mismatch: tensor={spatial_size}, expected={expected_latent_size}")
                     # Fall back to factorization

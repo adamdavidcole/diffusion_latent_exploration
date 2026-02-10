@@ -337,35 +337,44 @@ def get_corresponding_latent_video(experiment_dir: Path, prompt_id: str, video_i
 class AttentionDecodeResult:
     """Result of decoding a single attention step."""
     def __init__(self):
-        self.success = False
-        self.error_message = ""
-        self.decode_time = 0.0
-        self.thumbnail_generated = False
-        self.thumbnail_path = None
-        self.output_path = None
-        self.has_overlay = False
+        self.success: bool = False
+        self.error_message: str = ""
+        self.decode_time: float = 0.0
+        self.thumbnail_generated: bool = False
+        self.thumbnail_path: Optional[str] = None
+        self.output_path: Optional[str] = None
+        self.has_overlay: bool = False
+        self.videos_generated: int = 0  # Count of videos generated (1, 30, or 360)
+        self.output_paths: List[str] = []  # List of all generated video paths
 
 
 def decode_attention_step_to_video(attention_file: Path, 
-                                 output_path: Path,
+                                 output_dir: Path,
                                  latent_video_path: Optional[Path] = None,
                                  overlay_alpha: float = 0.6,
                                  colormap: str = "jet",
                                  fps: int = 15,
                                  quality: float = 8.0,
-                                 scale_factor: float = 1.0) -> AttentionDecodeResult:
+                                 scale_factor: float = 1.0,
+                                 video_scale: str = "full") -> AttentionDecodeResult:
     """
-    Decode a single attention step file to video.
+    Decode a single attention step file to video(s).
+    
+    Intelligently handles multi-dimensional attention tensors:
+    - Shape (1, 1, spatial, tokens): Generates 1 video (full average)
+    - Shape (N, 1, spatial, tokens): Generates N+1 videos (average + per-layer)
+    - Shape (N, M, spatial, tokens): Generates N*M+N+1 videos (average + per-layer + per-layer-head)
     
     Args:
         attention_file: Path to attention .npy.gz file
-        output_path: Where to save the video
+        output_dir: Directory where videos will be saved
         latent_video_path: Optional path to latent video for overlay
         overlay_alpha: Overlay transparency (0-1)
         colormap: Color scheme for attention visualization
         fps: Video frame rate
         quality: Video quality (0-10)
-        scale_factor: Resolution scaling
+        scale_factor: Resolution scaling (deprecated, use video_scale)
+        video_scale: Video resolution scale ('full', 'half', 'quarter')
         
     Returns:
         AttentionDecodeResult with success status and metadata
@@ -381,7 +390,6 @@ def decode_attention_step_to_video(attention_file: Path,
         logging.debug(f"Loaded attention data shape: {attention_data.shape}")
         
         # Load corresponding metadata
-        # Extract step name from filename (e.g., step_000.npy.gz -> step_000)
         step_name = attention_file.name.replace('.npy.gz', '')
         metadata_file = attention_file.parent / f"{step_name}_metadata.json"
         metadata = None
@@ -389,82 +397,149 @@ def decode_attention_step_to_video(attention_file: Path,
             import json
             with open(metadata_file, 'r') as f:
                 metadata = json.load(f)
-            logging.debug(f"Loaded metadata: video_width={metadata.get('video_width')}, video_height={metadata.get('video_height')}, video_frames={metadata.get('video_frames')}")
+            logging.debug(f"Loaded metadata: num_blocks={metadata.get('num_blocks')}, num_heads={metadata.get('num_heads')}, shape={metadata.get('attention_shape')}")
         else:
             logging.warning(f"No metadata file found at {metadata_file}")
         
-        # Create video config
-        video_config = VideoConfig(fps=fps, quality=int(quality))
-        logging.debug(f"Created video config: fps={fps}, quality={quality}")
+        # Determine decoding strategy based on tensor dimensions
+        # Expected shape: [blocks, heads, spatial, tokens]
+        num_blocks = attention_data.shape[0] if attention_data.ndim >= 1 else 1
+        num_heads = attention_data.shape[1] if attention_data.ndim >= 2 else 1
         
-        # Create overlay config
-        colormap_enum = ColorMap.JET  # Default
-        try:
-            colormap_enum = ColorMap(colormap.lower())
-        except ValueError:
-            logging.warning(f"Unknown colormap '{colormap}', using 'jet'")
+        logging.debug(f"Decoding {step_name}: shape={attention_data.shape}, blocks={num_blocks}, heads={num_heads}")
         
-        overlay_config = OverlayConfig(
-            alpha=overlay_alpha,
-            colormap=colormap_enum
-        )
-        logging.debug(f"Created overlay config: alpha={overlay_alpha}, colormap={colormap}")
+        # Apply video scaling to metadata dimensions (round to multiple of 16 for codec compatibility)
+        # NOTE: We scale the TARGET video dimensions, not the latent dimensions
+        # The attention map is at latent resolution and the visualizer will upscale appropriately
+        scale_map = {'full': 1.0, 'half': 0.5, 'quarter': 0.25}
+        resolution_scale = scale_map.get(video_scale, 1.0)
+        if resolution_scale != 1.0 and metadata:
+            metadata = metadata.copy()
+            # Scale target video dimensions (not latent dimensions - those stay at original resolution)
+            scaled_width = int(metadata.get('video_width', 848) * resolution_scale)
+            scaled_height = int(metadata.get('video_height', 480) * resolution_scale)
+            # Round to nearest multiple of 16 for ffmpeg compatibility
+            metadata['video_width'] = ((scaled_width + 15) // 16) * 16
+            metadata['video_height'] = ((scaled_height + 15) // 16) * 16
+            logging.debug(f"Scaled video dimensions: {scaled_width}×{scaled_height} → {metadata['video_width']}×{metadata['video_height']} (rounded to 16)")
         
-        # Create a temporary AttentionAnalyzer and AttentionVisualizer
-        # We need to extract the video_id and token from the file path for compatibility
+        # Setup common visualization components
         token_dir = attention_file.parent
         token_name = token_dir.name.replace('token_', '')
         video_dir = token_dir.parent
         prompt_dir = video_dir.parent
-        logging.debug(f"Parsed paths: token={token_name}, video_dir={video_dir.name}, prompt_dir={prompt_dir.name}")
-        
-        # Construct video_id in format expected by AttentionVisualizer
         video_id = f"{prompt_dir.name}_{video_dir.name}"
-        logging.debug(f"Constructed video_id: {video_id}")
         
-        # Set up temporary analyzer (we won't actually use it for loading since we already loaded the data)
-        logging.debug(f"Creating AttentionAnalyzer with path: {prompt_dir.parent}")
         temp_analyzer = AttentionAnalyzer(prompt_dir.parent)
-        
-        # Set up visualizer with output directory
         visualizer = AttentionVisualizer(
             analyzer=temp_analyzer,
-            output_dir=output_path.parent,
+            output_dir=output_dir,
             fps=fps,
             overlay_alpha=overlay_alpha
         )
         
-        # Get step number from filename
-        step_name = attention_file.stem.replace('.npy', '')
         try:
             step_num = int(step_name.replace('step_', ''))
         except ValueError:
             step_num = 0
         
-        # Create a mock spatial attention tensor from the loaded data
-        import torch
-        if isinstance(attention_data, np.ndarray):
-            spatial_attention = torch.from_numpy(attention_data).float()
-        else:
-            spatial_attention = attention_data
+        video_config = VideoConfig(fps=fps, quality=int(quality))
+        colormap_enum = ColorMap.JET
+        try:
+            colormap_enum = ColorMap(colormap.lower())
+        except ValueError:
+            pass
+        overlay_config = OverlayConfig(alpha=overlay_alpha, colormap=colormap_enum)
         
-        # Generate video using existing attention visualizer logic
-        # We'll need to create a custom method since the existing one expects to load from analyzer
+        import torch
+        attention_tensor = torch.from_numpy(attention_data).float() if isinstance(attention_data, np.ndarray) else attention_data
+        
+        # Multi-tier decoding logic
+        # Original shape: [blocks, heads, spatial, tokens] e.g., [30, 12, 6440, 1]
+        # We need to squeeze the tokens dimension before passing to visualizer
+        # so it receives [spatial] which it will reshape to [frames, height, width]
+        output_paths = []
+        
+        # TIER 1: Full average (always generate for backwards compatibility)
+        logging.debug(f"Generating Tier 1: Full average across all blocks and heads")
+        # Average across blocks (dim 0) and heads (dim 1), result: [spatial, tokens]
+        averaged_attention = attention_tensor.mean(dim=0).mean(dim=0) if attention_tensor.ndim >= 2 else attention_tensor
+        # Squeeze tokens dimension: [spatial, tokens] -> [spatial]
+        averaged_attention = averaged_attention.squeeze(-1)
+        logging.debug(f"  Averaged attention shape: {averaged_attention.shape}")
+        
+        output_filename = f"{step_name}.mp4"
         output_video_path = visualizer._generate_attention_video_from_data(
-            spatial_attention=spatial_attention,
+            spatial_attention=averaged_attention,
             video_id=video_id,
             token_word=token_name,
             step=step_num,
             video_config=video_config,
             overlay_config=overlay_config,
-            output_filename=output_path.name,
+            output_filename=output_filename,
             source_video_path=str(latent_video_path) if latent_video_path else None,
             metadata=metadata
         )
+        output_paths.append(output_video_path)
+        
+        # TIER 2: Per-layer averages (if multiple blocks)
+        if num_blocks > 1:
+            logging.debug(f"Generating Tier 2: {num_blocks} per-layer averages")
+            for block_idx in range(num_blocks):
+                # Take this layer, average across heads (dim 0), result: [spatial, tokens]
+                block_attention = attention_tensor[block_idx].mean(dim=0) if num_heads > 1 else attention_tensor[block_idx]
+                # Squeeze tokens dimension: [spatial, tokens] -> [spatial]
+                block_attention = block_attention.squeeze(-1)
+                if block_idx == 0:  # Log first layer only to avoid spam
+                    logging.debug(f"  Layer {block_idx} attention shape: {block_attention.shape}")
+                
+                output_filename = f"{step_name}_layer_{block_idx:02d}.mp4"
+                output_video_path = visualizer._generate_attention_video_from_data(
+                    spatial_attention=block_attention,
+                    video_id=video_id,
+                    token_word=token_name,
+                    step=step_num,
+                    video_config=video_config,
+                    overlay_config=overlay_config,
+                    output_filename=output_filename,
+                    source_video_path=str(latent_video_path) if latent_video_path else None,
+                    metadata=metadata
+                )
+                output_paths.append(output_video_path)
+        
+        # TIER 3: Per-layer-head (if multiple blocks AND multiple heads)
+        if num_blocks > 1 and num_heads > 1:
+            logging.debug(f"Generating Tier 3: {num_blocks * num_heads} per-layer-head videos")
+            for block_idx in range(num_blocks):
+                for head_idx in range(num_heads):
+                    # Take specific layer and head, result: [spatial, tokens]
+                    head_attention = attention_tensor[block_idx, head_idx]
+                    # Squeeze tokens dimension: [spatial, tokens] -> [spatial]
+                    head_attention = head_attention.squeeze(-1)
+                    if block_idx == 0 and head_idx == 0:  # Log first head only
+                        logging.debug(f"  Layer {block_idx} head {head_idx} attention shape: {head_attention.shape}")
+                    
+                    output_filename = f"{step_name}_layer_{block_idx:02d}_head_{head_idx:02d}.mp4"
+                    output_video_path = visualizer._generate_attention_video_from_data(
+                        spatial_attention=head_attention,
+                        video_id=video_id,
+                        token_word=token_name,
+                        step=step_num,
+                        video_config=video_config,
+                        overlay_config=overlay_config,
+                        output_filename=output_filename,
+                        source_video_path=str(latent_video_path) if latent_video_path else None,
+                        metadata=metadata
+                    )
+                    output_paths.append(output_video_path)
         
         result.success = True
-        result.output_path = output_video_path
+        result.output_paths = output_paths
+        result.videos_generated = len(output_paths)
+        result.output_path = output_paths[0]  # Primary output for backwards compatibility
         result.has_overlay = latent_video_path is not None
+        
+        logging.info(f"Generated {len(output_paths)} videos for {step_name}")
         
     except Exception as e:
         result.success = False
@@ -487,7 +562,8 @@ def decode_experiment_with_progress(experiment_dir: Path,
                                   quality: float = 8.0,
                                   scale_factor: float = 1.0,
                                   force: bool = False,
-                                  thumbnail_frame: float = 0.5) -> Dict:
+                                  thumbnail_frame: float = 0.5,
+                                  video_scale: str = "full") -> Dict:
     """
     Decode attention maps with progress tracking.
     
@@ -576,14 +652,14 @@ def decode_experiment_with_progress(experiment_dir: Path,
                 
                 for step_file in step_files:
                     step_name = step_file.name.replace('.npy.gz', '')  # e.g., "step_000"
-                    output_path = token_output_dir / f"{step_name}.mp4"
+                    primary_output_path = token_output_dir / f"{step_name}.mp4"
                     thumbnail_path = token_output_dir / f"{step_name}.jpg"
                     
                     # Skip if already exists and not forcing
-                    if not force and output_path.exists():
+                    if not force and primary_output_path.exists():
                         result = AttentionDecodeResult()
                         result.success = True
-                        result.output_path = str(output_path)
+                        result.output_path = str(primary_output_path)
                         result.thumbnail_generated = thumbnail_path.exists()
                         result.thumbnail_path = str(thumbnail_path) if result.thumbnail_generated else None
                         results[step_name] = result
@@ -604,22 +680,23 @@ def decode_experiment_with_progress(experiment_dir: Path,
                         experiment_dir, prompt_id, video_id, step_name
                     )
                     
-                    # Decode attention step
+                    # Decode attention step (may generate multiple videos)
                     result = decode_attention_step_to_video(
                         attention_file=step_file,
-                        output_path=output_path,
+                        output_dir=token_output_dir,
                         latent_video_path=latent_video_path,
                         overlay_alpha=overlay_alpha,
                         colormap=colormap,
                         fps=fps,
                         quality=quality,
-                        scale_factor=scale_factor
+                        scale_factor=scale_factor,
+                        video_scale=video_scale
                     )
                     
-                    # Generate thumbnail if video was successful
+                    # Generate thumbnail for primary video if successful
                     thumbnail_success = False
-                    if result.success and output_path.exists():
-                        thumbnail_success = generate_thumbnail_for_video(output_path, thumbnail_path, thumbnail_frame)
+                    if result.success and primary_output_path.exists():
+                        thumbnail_success = generate_thumbnail_for_video(primary_output_path, thumbnail_path, thumbnail_frame)
                     
                     # Store thumbnail results
                     result.thumbnail_generated = thumbnail_success
@@ -631,8 +708,9 @@ def decode_experiment_with_progress(experiment_dir: Path,
                     if result.success:
                         overlay_status = "🎭" if result.has_overlay else "🎨"
                         thumbnail_status = "📸" if thumbnail_success else "⚠️"
+                        video_count = f"[{result.videos_generated}v]" if result.videos_generated > 1 else ""
                         if not TQDM_AVAILABLE:
-                            print(f"✅ {token_desc}/{step_name} in {result.decode_time:.2f}s {overlay_status}{thumbnail_status}")
+                            print(f"✅ {token_desc}/{step_name} {video_count} in {result.decode_time:.2f}s {overlay_status}{thumbnail_status}")
                     else:
                         if not TQDM_AVAILABLE:
                             print(f"❌ Failed {token_desc}/{step_name}: {result.error_message}")
@@ -793,7 +871,15 @@ def main():
         "--scale",
         type=float,
         default=1.0,
-        help="Resolution scale factor (0.5 = half size, 1.0 = full size) [default: 1.0]"
+        help="DEPRECATED: Use --video-scale instead. Resolution scale factor (0.5 = half size, 1.0 = full size) [default: 1.0]"
+    )
+    
+    parser.add_argument(
+        "--video-scale",
+        type=str,
+        choices=['full', 'half', 'quarter'],
+        default='full',
+        help="Output video resolution: 'full' (default), 'half' (50%%), or 'quarter' (25%%) [default: full]"
     )
     
     parser.add_argument(
@@ -907,7 +993,8 @@ def main():
             quality=args.quality,
             scale_factor=args.scale,
             force=args.force,  # Use force flag directly - skip by default
-            thumbnail_frame=args.thumbnail_frame
+            thumbnail_frame=args.thumbnail_frame,
+            video_scale=args.video_scale
         )
         
         total_time = time.time() - start_time
