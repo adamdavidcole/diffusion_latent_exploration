@@ -884,8 +884,8 @@ const LatentVideosView = ({ experimentPath }) => {
                   </div>
                 )}
 
-                {/* Attention view mode - only show if attention token selected and tiers available */}
-                {selectedAttentionToken && availableOptions.tiersAvailable.length > 0 && (
+                {/* Attention view mode - only show if attention token selected and higher tiers available */}
+                {selectedAttentionToken && (availableOptions.tiersAvailable.includes(2) || availableOptions.tiersAvailable.includes(3)) && (
                   <div className="control-group">
                     <label>Attention View:</label>
                     <div className="toggle-group">
