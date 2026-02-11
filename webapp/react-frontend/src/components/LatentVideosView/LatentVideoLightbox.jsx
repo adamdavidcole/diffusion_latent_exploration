@@ -10,8 +10,8 @@ const LatentVideoLightbox = ({
   gridData,
   currentLatentVideos,
   currentExperiment,
-  selectedAttentionToken,
-  setSelectedAttentionToken,
+  selectedAttentionTokens,
+  setSelectedAttentionTokens,
   availableTokens,
   viewMode
 }) => {
@@ -26,13 +26,8 @@ const LatentVideoLightbox = ({
     
     if (!step) return null;
 
-    // Get video path based on view mode and selected attention token
+    // Get video path from step (already resolved by main component)
     let videoPath = step.videoPath;
-    
-    // If we have attention videos and a token is selected, use attention video
-    if (selectedAttentionToken && step.attentionVideos && step.attentionVideos[selectedAttentionToken]) {
-      videoPath = step.attentionVideos[selectedAttentionToken];
-    }
 
     return {
       step,
@@ -141,8 +136,12 @@ const LatentVideoLightbox = ({
     }
   };
 
-  const handleAttentionTokenChange = (newToken) => {
-    setSelectedAttentionToken(newToken || null);
+  const handleAttentionTokenToggle = (token) => {
+    if (selectedAttentionTokens.includes(token)) {
+      setSelectedAttentionTokens(selectedAttentionTokens.filter(t => t !== token));
+    } else {
+      setSelectedAttentionTokens([...selectedAttentionTokens, token]);
+    }
   };
 
   if (!isOpen || !cellData) {
@@ -202,18 +201,15 @@ const LatentVideoLightbox = ({
 
           {/* Attention token selector */}
           {availableTokens && availableTokens.length > 0 && (
-            <div className="metadata-row">
-              <span className="metadata-label">Attention Token:</span>
-              <select 
-                value={selectedAttentionToken || ''} 
-                onChange={(e) => handleAttentionTokenChange(e.target.value)}
-                className="attention-token-select"
-              >
-                <option value="">Latent Video</option>
-                {availableTokens.map(token => (
-                  <option key={token} value={token}>{token}</option>
-                ))}
-              </select>
+            <div className="metadata-row metadata-tokens">
+              <span className="metadata-label">Tokens Selected:</span>
+              <div className="lightbox-tokens-list">
+                {selectedAttentionTokens.length === 0 ? (
+                  <span className="metadata-value">None (Latent Videos)</span>
+                ) : (
+                  <span className="metadata-value">{selectedAttentionTokens.join(', ')}</span>
+                )}
+              </div>
             </div>
           )}
 

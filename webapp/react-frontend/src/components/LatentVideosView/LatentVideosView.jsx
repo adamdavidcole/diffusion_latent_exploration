@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
 import LatentVideoCell from './LatentVideoCell';
@@ -15,7 +15,9 @@ const LatentVideosView = ({ experimentPath }) => {
   const [selectedPrompt, setSelectedPrompt] = useState('prompt_000');
   const [selectedSeed, setSelectedSeed] = useState('vid_001');
   const [cellSize, setCellSize] = useState(120); // Local cell size state
-  const [selectedAttentionToken, setSelectedAttentionToken] = useState(null); // null = 'None' (latent videos)
+  const [selectedAttentionTokens, setSelectedAttentionTokens] = useState([]); // Array of selected tokens
+  const [tokensExpanded, setTokensExpanded] = useState(false); // Token selector expansion state
+  const tokensDropdownRef = useRef(null); // Ref for click-outside detection
   const [tooltip, setTooltip] = useState({ show: false, text: '', x: 0, y: 0 });
   const [lightbox, setLightbox] = useState({ isOpen: false, position: null });
   const [controlsExpanded, setControlsExpanded] = useState(true); // Collapsible controls
@@ -24,6 +26,20 @@ const LatentVideosView = ({ experimentPath }) => {
   const [attentionViewMode, setAttentionViewMode] = useState('default'); // 'default', 'by-layer', 'by-head'
   const [selectedLayer, setSelectedLayer] = useState('averaged'); // 'averaged' or layer number
   const [selectedHead, setSelectedHead] = useState('averaged'); // 'averaged' or head number
+
+  // Click outside handler for tokens dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (tokensExpanded && tokensDropdownRef.current && !tokensDropdownRef.current.contains(event.target)) {
+        setTokensExpanded(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [tokensExpanded]);
 
   // Load latent videos data when component mounts or experiment changes
   useEffect(() => {
@@ -67,13 +83,13 @@ const LatentVideosView = ({ experimentPath }) => {
             if (firstSeed) {
               const tokens = Object.keys(latentVideosData.attention_videos[firstPrompt][firstSeed]);
               if (tokens.length > 0) {
-                setSelectedAttentionToken(tokens[0]);
+                setSelectedAttentionTokens([tokens[0]]);
               }
             }
           }
         } else {
           // Reset attention token selection when loading new data with latent videos
-          setSelectedAttentionToken(null);
+          setSelectedAttentionTokens([]);
         }
       } catch (error) {
         console.error('Error loading latent videos:', error);
@@ -102,10 +118,14 @@ const LatentVideosView = ({ experimentPath }) => {
       parts.push(`Prompt: ${promptText}`);
     }
 
-    // Attention token
-    if (selectedAttentionToken) {
-      const tokenDisplay = selectedAttentionToken.length > 10 ? `${selectedAttentionToken.substring(0, 10)}...` : selectedAttentionToken;
-      parts.push(`Token: ${tokenDisplay}`);
+    // Attention tokens
+    if (selectedAttentionTokens.length > 0) {
+      if (selectedAttentionTokens.length === 1) {
+        const tokenDisplay = selectedAttentionTokens[0].length > 10 ? `${selectedAttentionTokens[0].substring(0, 10)}...` : selectedAttentionTokens[0];
+        parts.push(`Token: ${tokenDisplay}`);
+      } else {
+        parts.push(`Tokens: ${selectedAttentionTokens.length} selected`);
+      }
 
       // Attention view
       if (attentionViewMode === 'by-layer') {
@@ -114,7 +134,7 @@ const LatentVideosView = ({ experimentPath }) => {
         parts.push('View: By Head');
       }
     } else {
-      parts.push('Token: None');
+      parts.push('Tokens: None');
     }
 
     return parts.join(' | ');
@@ -338,13 +358,13 @@ const LatentVideosView = ({ experimentPath }) => {
     }
 
     // Helper function to get video/image paths with attention video fallback
-    const getVideoData = (promptId, seedId, stepId, layerOverride = null, headOverride = null) => {
+    const getVideoData = (promptId, seedId, stepId, tokenId = null, layerOverride = null, headOverride = null) => {
       let videoPath = null;
       let imagePath = null;
 
-      // Try attention videos first if a token is selected
-      if (selectedAttentionToken && attentionVideos) {
-        const tokenData = attentionVideos[promptId]?.[seedId]?.[selectedAttentionToken];
+      // Try attention videos first if a token is provided
+      if (tokenId && attentionVideos) {
+        const tokenData = attentionVideos[promptId]?.[seedId]?.[tokenId];
         if (tokenData) {
           // Determine which video to use based on layer/head overrides (for expanded rows)
           // or attention view mode and filters (for single row views)
@@ -393,8 +413,9 @@ const LatentVideosView = ({ experimentPath }) => {
     };
 
     // Check if we need to expand rows for by-layer or by-head modes
-    const needsLayerExpansion = selectedAttentionToken && attentionViewMode === 'by-layer' && selectedLayer === 'averaged';
-    const needsHeadExpansion = selectedAttentionToken && attentionViewMode === 'by-head' && (selectedLayer === 'averaged' || selectedHead === 'averaged');
+    const hasSelectedTokens = selectedAttentionTokens.length > 0;
+    const needsLayerExpansion = hasSelectedTokens && attentionViewMode === 'by-layer' && selectedLayer === 'averaged';
+    const needsHeadExpansion = hasSelectedTokens && attentionViewMode === 'by-head' && (selectedLayer === 'averaged' || selectedHead === 'averaged');
 
     // Get available layers and heads for expansion
     const availableLayers = currentLatentVideos?.available_layers || [];
@@ -416,14 +437,12 @@ const LatentVideosView = ({ experimentPath }) => {
         for (const seedId of (viewMode === 'across-prompts' ? [selectedSeed] : allSeeds)) {
           if (totalRows >= MAX_ROWS) break;
 
-          // Get token for this combination - filter to selectedAttentionToken if set
+          // Get token for this combination - use selected tokens
           const tokenData = attentionVideos?.[promptId]?.[seedId];
           if (!tokenData) continue;
 
-          // If a specific token is selected, only show that token; otherwise show all
-          const tokens = selectedAttentionToken
-            ? (tokenData[selectedAttentionToken] ? [selectedAttentionToken] : [])
-            : Object.keys(tokenData);
+          // Use selected tokens (already filtered by user)
+          const tokens = selectedAttentionTokens.filter(token => tokenData[token]);
 
           for (const token of tokens) {
             if (totalRows >= MAX_ROWS) break;
@@ -444,7 +463,7 @@ const LatentVideosView = ({ experimentPath }) => {
                       : `Head ${head}`,
                   fullLabel: `Layer ${layer} Head ${head}`,
                   steps: allSteps.map(stepId => {
-                    const { videoPath, imagePath } = getVideoData(promptId, seedId, stepId, layer, head);
+                    const { videoPath, imagePath } = getVideoData(promptId, seedId, stepId, token, layer, head);
                     return {
                       stepId,
                       stepNumber: parseInt(stepId.replace('step_', '')),
@@ -497,14 +516,12 @@ const LatentVideosView = ({ experimentPath }) => {
         for (const seedId of (viewMode === 'across-prompts' ? [selectedSeed] : allSeeds)) {
           if (totalRows >= MAX_ROWS) break;
 
-          // Get token for this combination - filter to selectedAttentionToken if set
+          // Get token for this combination - use selected tokens
           const tokenData = attentionVideos?.[promptId]?.[seedId];
           if (!tokenData) continue;
 
-          // If a specific token is selected, only show that token; otherwise show all
-          const tokens = selectedAttentionToken
-            ? (tokenData[selectedAttentionToken] ? [selectedAttentionToken] : [])
-            : Object.keys(tokenData);
+          // Use selected tokens (already filtered by user)
+          const tokens = selectedAttentionTokens.filter(token => tokenData[token]);
 
           for (const token of tokens) {
             if (totalRows >= MAX_ROWS) break;
@@ -518,7 +535,7 @@ const LatentVideosView = ({ experimentPath }) => {
                 label: `Layer ${layer}`,
                 fullLabel: `Layer ${layer}`,
                 steps: allSteps.map(stepId => {
-                  const { videoPath, imagePath } = getVideoData(promptId, seedId, stepId, layer, null);
+                  const { videoPath, imagePath } = getVideoData(promptId, seedId, stepId, token, layer, null);
                   return {
                     stepId,
                     stepNumber: parseInt(stepId.replace('step_', '')),
@@ -554,8 +571,88 @@ const LatentVideosView = ({ experimentPath }) => {
         selectedItem: `Showing ${totalRows} layers (max 300)`,
         rows: sections.flatMap(s => s.rows) // Flat list for lightbox
       };
+    } else if (hasSelectedTokens) {
+      // Show sections for each selected token
+      const sections = [];
+
+      for (const token of selectedAttentionTokens) {
+        if (viewMode === 'across-prompts') {
+          // Each row is a different prompt, all using the same seed
+          const rows = allPrompts.map(promptId => {
+            const dataSource = hasLatentVideos ? currentLatentVideos.latent_videos : currentLatentVideos.attention_videos;
+            const seedsForPrompt = Object.keys(dataSource[promptId] || {});
+            const seedForMetadata = seedsForPrompt[0] || selectedSeed;
+
+            const videoMetadata = videoMetadataMap[seedForMetadata];
+            const promptText = videoMetadata?.prompt_variation || getPromptDisplayText(promptId).display;
+
+            return {
+              id: `${promptId}_${token}`,
+              label: promptText,
+              fullLabel: promptText,
+              steps: allSteps.map(stepId => {
+                const { videoPath, imagePath } = getVideoData(promptId, selectedSeed, stepId, token);
+                return {
+                  stepId,
+                  stepNumber: parseInt(stepId.replace('step_', '')),
+                  videoPath,
+                  imagePath,
+                };
+              })
+            };
+          });
+
+          const selectedSeedLabel = getVideoIdLabel(selectedSeed, videoMetadataMap);
+          sections.push({
+            promptId: 'all',
+            promptLabel: selectedSeedLabel,
+            tokenId: token,
+            tokenLabel: token,
+            rows
+          });
+        } else {
+          // Each row is a different seed, all using the same prompt
+          const rows = allSeeds.map(seedId => {
+            const readableLabel = getVideoIdLabel(seedId, videoMetadataMap);
+            return {
+              id: `${seedId}_${token}`,
+              label: readableLabel,
+              fullLabel: readableLabel,
+              steps: allSteps.map(stepId => {
+                const { videoPath, imagePath } = getVideoData(selectedPrompt, seedId, stepId, token);
+                return {
+                  stepId,
+                  stepNumber: parseInt(stepId.replace('step_', '')),
+                  videoPath,
+                  imagePath,
+                };
+              })
+            };
+          });
+
+          const firstSeed = allSeeds[0];
+          const videoMetadata = videoMetadataMap[firstSeed];
+          const selectedPromptDisplay = videoMetadata?.prompt_variation || getPromptDisplayText(selectedPrompt).display;
+
+          sections.push({
+            promptId: selectedPrompt,
+            promptLabel: selectedPromptDisplay,
+            tokenId: token,
+            tokenLabel: token,
+            rows
+          });
+        }
+      }
+
+      return {
+        sections,
+        columnHeaders: allSteps.map(stepId => `Step ${stepId.replace('step_', '')}`),
+        rowType: 'hierarchical',
+        selectedItem: viewMode === 'across-prompts' ? getVideoIdLabel(selectedSeed, videoMetadataMap) : (videoMetadataMap[allSeeds[0]]?.prompt_variation || getPromptDisplayText(selectedPrompt).display),
+        rows: sections.flatMap(s => s.rows)
+      };
     } else if (viewMode === 'across-prompts') {
-      // Each row is a different prompt, all using the same seed
+      // Latent videos only - each row is a different prompt
       const rows = allPrompts.map(promptId => {
         // Get the first seed under this prompt for metadata lookup
         const dataSource = hasLatentVideos ? currentLatentVideos.latent_videos : currentLatentVideos.attention_videos;
@@ -571,7 +668,7 @@ const LatentVideosView = ({ experimentPath }) => {
           label: promptText,
           fullLabel: promptText,
           steps: allSteps.map(stepId => {
-            const { videoPath, imagePath } = getVideoData(promptId, selectedSeed, stepId);
+            const { videoPath, imagePath } = getVideoData(promptId, selectedSeed, stepId, null);
             return {
               stepId,
               stepNumber: parseInt(stepId.replace('step_', '')),
@@ -592,7 +689,7 @@ const LatentVideosView = ({ experimentPath }) => {
         selectedItem: selectedSeedLabel
       };
     } else {
-      // Each row is a different seed, all using the same prompt
+      // Latent videos only - each row is a different seed
       const rows = allSeeds.map(seedId => {
         const readableLabel = getVideoIdLabel(seedId, videoMetadataMap);
         return {
@@ -600,7 +697,7 @@ const LatentVideosView = ({ experimentPath }) => {
           label: readableLabel,
           fullLabel: readableLabel, // Already formatted
           steps: allSteps.map(stepId => {
-            const { videoPath, imagePath } = getVideoData(selectedPrompt, seedId, stepId);
+            const { videoPath, imagePath } = getVideoData(selectedPrompt, seedId, stepId, null);
             return {
               stepId,
               stepNumber: parseInt(stepId.replace('step_', '')),
@@ -623,7 +720,7 @@ const LatentVideosView = ({ experimentPath }) => {
         selectedItem: selectedPromptDisplay
       };
     }
-  }, [currentLatentVideos, viewMode, selectedPrompt, selectedSeed, selectedAttentionToken, attentionViewMode, selectedLayer, selectedHead]);
+  }, [currentLatentVideos, viewMode, selectedPrompt, selectedSeed, selectedAttentionTokens, attentionViewMode, selectedLayer, selectedHead]);
 
   // Get available options for dropdowns
   const availableOptions = useMemo(() => {
@@ -846,46 +943,57 @@ const LatentVideosView = ({ experimentPath }) => {
                   )}
                 </div>
 
-                {/* Attention token dropdown */}
+                {/* Attention token multi-select dropdown */}
                 {availableOptions.tokens.length > 0 && (
-                  <div className="control-group">
-                    <label htmlFor="attention-select">
-                      Attention:
+                  <div className="control-group attention-tokens-group">
+                    <label>
+                      Attention Tokens:
                       {!currentLatentVideos?.has_latent_videos && (
                         <span style={{ color: '#ffc107', marginLeft: '4px' }}>*</span>
                       )}
                     </label>
-                    <select
-                      id="attention-select"
-                      value={selectedAttentionToken || ''}
-                      onChange={(e) => setSelectedAttentionToken(e.target.value || null)}
-                      style={!currentLatentVideos?.has_latent_videos ? {
-                        borderColor: '#ffc107',
-                        borderWidth: '2px'
-                      } : {}}
-                    >
-                      {currentLatentVideos?.has_latent_videos && (
-                        <option value="">None (Latent Videos)</option>
+                    <div className="tokens-dropdown-container" ref={tokensDropdownRef}>
+                      <button
+                        className="tokens-dropdown-toggle"
+                        onClick={() => setTokensExpanded(!tokensExpanded)}
+                        type="button"
+                      >
+                        <span className="tokens-summary">
+                          {selectedAttentionTokens.length === 0
+                            ? 'None selected'
+                            : selectedAttentionTokens.join(', ')}
+                        </span>
+                        <span className="dropdown-icon">{tokensExpanded ? '▲' : '▼'}</span>
+                      </button>
+                      {tokensExpanded && (
+                        <div className="tokens-multiselect">
+                          {availableOptions.tokens.map(token => {
+                            const isChecked = selectedAttentionTokens.includes(token);
+                            return (
+                              <label key={token} className="token-checkbox" title={token}>
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedAttentionTokens([...selectedAttentionTokens, token]);
+                                    } else {
+                                      setSelectedAttentionTokens(selectedAttentionTokens.filter(t => t !== token));
+                                    }
+                                  }}
+                                />
+                                <span className="token-label">{token.length > 15 ? `${token.substring(0, 15)}...` : token}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
                       )}
-                      {!currentLatentVideos?.has_latent_videos && (
-                        <option value="" disabled>Select a token...</option>
-                      )}
-                      {availableOptions.tokens.map(token => {
-                        // Token is already the clean text (without token_ prefix)
-                        // Truncate long token names for display
-                        const displayText = token.length > 20 ? `${token.substring(0, 20)}...` : token;
-                        return (
-                          <option key={token} value={token} title={token}>
-                            {displayText}
-                          </option>
-                        );
-                      })}
-                    </select>
+                    </div>
                   </div>
                 )}
 
-                {/* Attention view mode - only show if attention token selected and higher tiers available */}
-                {selectedAttentionToken && (availableOptions.tiersAvailable.includes(2) || availableOptions.tiersAvailable.includes(3)) && (
+                {/* Attention view mode - only show if attention tokens selected and higher tiers available */}
+                {selectedAttentionTokens.length > 0 && (availableOptions.tiersAvailable.includes(2) || availableOptions.tiersAvailable.includes(3)) && (
                   <div className="control-group">
                     <label>Attention View:</label>
                     <div className="toggle-group">
@@ -924,7 +1032,7 @@ const LatentVideosView = ({ experimentPath }) => {
                   <input
                     id="cell-size-slider"
                     type="range"
-                    min="80"
+                    min="5"
                     max="300"
                     value={cellSize}
                     onChange={(e) => setCellSize(parseInt(e.target.value))}
@@ -934,7 +1042,7 @@ const LatentVideosView = ({ experimentPath }) => {
               </div>
 
               {/* Layer/Head filter row - separate row below main controls */}
-              {selectedAttentionToken && (attentionViewMode === 'by-layer' || attentionViewMode === 'by-head') && (
+              {selectedAttentionTokens.length > 0 && (attentionViewMode === 'by-layer' || attentionViewMode === 'by-head') && (
                 <div className="latent-videos-controls layer-head-filters">
                   {/* Layer selection - show if by-layer or by-head mode and layers available */}
                   {availableOptions.layers.length > 0 && (
@@ -1103,8 +1211,8 @@ const LatentVideosView = ({ experimentPath }) => {
         gridData={gridData}
         currentLatentVideos={currentLatentVideos}
         currentExperiment={currentExperiment}
-        selectedAttentionToken={selectedAttentionToken}
-        setSelectedAttentionToken={setSelectedAttentionToken}
+        selectedAttentionTokens={selectedAttentionTokens}
+        setSelectedAttentionTokens={setSelectedAttentionTokens}
         availableTokens={availableOptions.tokens}
         viewMode={viewMode}
       />
