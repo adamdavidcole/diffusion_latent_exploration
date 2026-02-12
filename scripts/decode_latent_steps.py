@@ -44,7 +44,7 @@ except ImportError:
 # Add src to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.visualization.latent_visualizer import ExperimentLatentDecoder, create_decode_summary_report
+from src.visualization.latent_visualizer import ExperimentLatentDecoder, create_decode_summary_report, LatentDecodeResult
 
 
 def setup_logging(verbose: bool = False):
@@ -123,7 +123,7 @@ def generate_thumbnail_for_video(video_path: Path, thumbnail_path: Path = None) 
 
 def decode_experiment_with_progress(decoder, output_dir=None, prompt_filter=None, 
                                    video_filter=None, step_filter=None, fps=None,
-                                   quality=3.0, scale_factor=1.0):
+                                   quality=3.0, scale_factor=1.0, force=False):
     """
     Decode experiment with progress tracking.
     
@@ -133,6 +133,7 @@ def decode_experiment_with_progress(decoder, output_dir=None, prompt_filter=None
         prompt_filter: Filter for prompt directories
         video_filter: Filter for video directories  
         step_filter: Filter for step files
+        force: Force regeneration of existing videos
         fps: Video FPS (None = use config default)
         quality: Video quality (0-10, lower = smaller file)
         scale_factor: Resolution scale factor (0.5 = half size)
@@ -221,6 +222,22 @@ def decode_experiment_with_progress(decoder, output_dir=None, prompt_filter=None
                     step_name = step_file.stem.replace('.npy', '')  # e.g., "step_000"
                     output_path = video_output_dir / f"{step_name}.mp4"
                     thumbnail_path = video_output_dir / f"{step_name}.jpg"
+                    
+                    # Skip if already exists and not forcing
+                    if not force and output_path.exists():
+                        result = LatentDecodeResult()
+                        result.success = True
+                        result.output_path = str(output_path)
+                        result.thumbnail_generated = thumbnail_path.exists()
+                        result.thumbnail_path = str(thumbnail_path) if result.thumbnail_generated else None
+                        results[step_name] = result
+                        
+                        if not TQDM_AVAILABLE:
+                            logging.debug(f"⏭️  Skipped existing: {video_dir.parent.name}/{video_dir.name}/{step_name}")
+                        
+                        if TQDM_AVAILABLE:
+                            step_pbar.update(1)
+                        continue
                     
                     # Update step progress description
                     if TQDM_AVAILABLE:
@@ -373,6 +390,12 @@ def main():
         help="Show what would be decoded without actually doing it"
     )
     
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force regeneration of existing videos (default: skip existing)"
+    )
+    
     args = parser.parse_args()
     
     # Setup logging
@@ -489,7 +512,8 @@ def main():
             step_filter=args.step_filter,
             fps=args.fps,
             quality=quality,
-            scale_factor=scale
+            scale_factor=scale,
+            force=args.force
         )
         
         total_time = time.time() - start_time

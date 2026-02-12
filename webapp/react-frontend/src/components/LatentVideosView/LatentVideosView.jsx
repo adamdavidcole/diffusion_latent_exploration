@@ -293,6 +293,10 @@ const LatentVideosView = ({ experimentPath }) => {
         }
       } else if (videoId.includes('_b000_')) {
         // Baseline - bending is null or not present
+        // Prefer showing the actual prompt if available
+        if (metadata && metadata.prompt_variation) {
+          return metadata.prompt_variation + seedLabel;
+        }
         return 'Baseline (No Bending)' + seedLabel;
       } else {
         // Fallback: parse the ID
@@ -328,7 +332,12 @@ const LatentVideosView = ({ experimentPath }) => {
     if (hasLatentVideos) {
       // Use latent videos structure
       allPrompts = Object.keys(dataSource).sort();
-      allSeeds = allPrompts.length > 0 ? Object.keys(dataSource[allPrompts[0]]).sort() : [];
+      // Collect all unique seeds across all prompts
+      const seedsSet = new Set();
+      allPrompts.forEach(prompt => {
+        Object.keys(dataSource[prompt]).forEach(seed => seedsSet.add(seed));
+      });
+      allSeeds = Array.from(seedsSet).sort();
 
       if (allPrompts.length > 0 && allSeeds.length > 0) {
         const firstVideo = dataSource[allPrompts[0]][allSeeds[0]];
@@ -339,7 +348,12 @@ const LatentVideosView = ({ experimentPath }) => {
     } else {
       // Use attention videos structure (first token)
       allPrompts = Object.keys(dataSource).sort();
-      allSeeds = allPrompts.length > 0 ? Object.keys(dataSource[allPrompts[0]]).sort() : [];
+      // Collect all unique seeds across all prompts
+      const seedsSet = new Set();
+      allPrompts.forEach(prompt => {
+        Object.keys(dataSource[prompt]).forEach(seed => seedsSet.add(seed));
+      });
+      allSeeds = Array.from(seedsSet).sort();
 
       if (allPrompts.length > 0 && allSeeds.length > 0) {
         // Get first token's data to determine steps
@@ -424,7 +438,7 @@ const LatentVideosView = ({ experimentPath }) => {
     if (needsHeadExpansion && availableLayers.length > 0 && availableHeads.length > 0) {
       // By-head mode with expansion: show filtered layer×head combinations in hierarchical sections
       const sections = [];
-      const MAX_ROWS = 300;
+      const MAX_ROWS = 500;
       let totalRows = 0;
 
       // Determine which layers and heads to iterate over based on filters
@@ -476,7 +490,12 @@ const LatentVideosView = ({ experimentPath }) => {
               }
             }
 
-            if (rows.length > 0) {
+            // Filter out rows with no videos
+            const filteredRows = rows.filter(row => 
+              row.steps.some(step => step.videoPath)
+            );
+
+            if (filteredRows.length > 0) {
               // Get prompt text from video metadata (supports new format with bending_metadata)
               const videoMetadata = videoMetadataMap[seedId];
               const promptText = videoMetadata?.prompt_variation || getPromptDisplayText(promptId).display;
@@ -486,7 +505,7 @@ const LatentVideosView = ({ experimentPath }) => {
                 promptLabel: promptText,
                 tokenId: token,
                 tokenLabel: `Token ${token}`,
-                rows
+                rows: filteredRows
               });
             }
           }
@@ -498,16 +517,16 @@ const LatentVideosView = ({ experimentPath }) => {
         columnHeaders: allSteps.map(stepId => `Step ${stepId.replace('step_', '')}`),
         rowType: 'hierarchical',
         selectedItem: selectedLayer !== 'averaged' && selectedHead === 'averaged'
-          ? `Showing ${totalRows} heads for Layer ${selectedLayer} (max 300)`
+          ? `Showing ${totalRows} heads for Layer ${selectedLayer} (max 500)`
           : selectedLayer === 'averaged' && selectedHead !== 'averaged'
-            ? `Showing ${totalRows} layers for Head ${selectedHead} (max 300)`
-            : `Showing ${totalRows} layer×head combinations (max 300)`,
+            ? `Showing ${totalRows} layers for Head ${selectedHead} (max 500)`
+            : `Showing ${totalRows} layer×head combinations (max 500)`,
         rows: sections.flatMap(s => s.rows) // Flat list for lightbox
       };
     } else if (needsLayerExpansion && availableLayers.length > 0) {
       // By-layer mode with expansion: show all layers in hierarchical sections
       const sections = [];
-      const MAX_ROWS = 300;
+      const MAX_ROWS = 500;
       let totalRows = 0;
 
       for (const promptId of (viewMode === 'across-prompts' ? allPrompts : [selectedPrompt])) {
@@ -547,7 +566,12 @@ const LatentVideosView = ({ experimentPath }) => {
               totalRows++;
             }
 
-            if (rows.length > 0) {
+            // Filter out rows with no videos
+            const filteredRows = rows.filter(row => 
+              row.steps.some(step => step.videoPath)
+            );
+
+            if (filteredRows.length > 0) {
               // Get prompt text from video metadata (supports new format with bending_metadata)
               const videoMetadata = videoMetadataMap[seedId];
               const promptText = videoMetadata?.prompt_variation || getPromptDisplayText(promptId).display;
@@ -557,7 +581,7 @@ const LatentVideosView = ({ experimentPath }) => {
                 promptLabel: promptText,
                 tokenId: token,
                 tokenLabel: `Token ${token}`,
-                rows
+                rows: filteredRows
               });
             }
           }
@@ -568,7 +592,7 @@ const LatentVideosView = ({ experimentPath }) => {
         sections,
         columnHeaders: allSteps.map(stepId => `Step ${stepId.replace('step_', '')}`),
         rowType: 'hierarchical',
-        selectedItem: `Showing ${totalRows} layers (max 300)`,
+        selectedItem: `Showing ${totalRows} layers (max 500)`,
         rows: sections.flatMap(s => s.rows) // Flat list for lightbox
       };
     } else if (hasSelectedTokens) {
@@ -581,7 +605,16 @@ const LatentVideosView = ({ experimentPath }) => {
           const rows = allPrompts.map(promptId => {
             const dataSource = hasLatentVideos ? currentLatentVideos.latent_videos : currentLatentVideos.attention_videos;
             const seedsForPrompt = Object.keys(dataSource[promptId] || {});
-            const seedForMetadata = seedsForPrompt[0] || selectedSeed;
+            
+            // Find the corresponding seed for this prompt based on the selected seed's pattern
+            // Extract the seed number from selectedSeed (e.g., "p000_b000_s001" -> "s001")
+            const selectedSeedMatch = selectedSeed.match(/_s(\d+)$/);
+            const selectedSeedNum = selectedSeedMatch ? selectedSeedMatch[1] : '000';
+            
+            // Find a seed in this prompt that has the same seed number
+            const correspondingSeed = seedsForPrompt.find(seed => seed.endsWith(`_s${selectedSeedNum}`)) || seedsForPrompt[0] || selectedSeed;
+            
+            const seedForMetadata = seedsForPrompt[0] || correspondingSeed;
 
             const videoMetadata = videoMetadataMap[seedForMetadata];
             const promptText = videoMetadata?.prompt_variation || getPromptDisplayText(promptId).display;
@@ -591,7 +624,7 @@ const LatentVideosView = ({ experimentPath }) => {
               label: promptText,
               fullLabel: promptText,
               steps: allSteps.map(stepId => {
-                const { videoPath, imagePath } = getVideoData(promptId, selectedSeed, stepId, token);
+                const { videoPath, imagePath } = getVideoData(promptId, correspondingSeed, stepId, token);
                 return {
                   stepId,
                   stepNumber: parseInt(stepId.replace('step_', '')),
@@ -602,14 +635,21 @@ const LatentVideosView = ({ experimentPath }) => {
             };
           });
 
-          const selectedSeedLabel = getVideoIdLabel(selectedSeed, videoMetadataMap);
-          sections.push({
-            promptId: 'all',
-            promptLabel: selectedSeedLabel,
-            tokenId: token,
-            tokenLabel: token,
-            rows
-          });
+          // Filter out rows with no videos (where all steps have null videoPath)
+          const filteredRows = rows.filter(row => 
+            row.steps.some(step => step.videoPath)
+          );
+
+          if (filteredRows.length > 0) {
+            const selectedSeedLabel = getVideoIdLabel(selectedSeed, videoMetadataMap);
+            sections.push({
+              promptId: 'all',
+              promptLabel: selectedSeedLabel,
+              tokenId: token,
+              tokenLabel: token,
+              rows: filteredRows
+            });
+          }
         } else {
           // Each row is a different seed, all using the same prompt
           const rows = allSeeds.map(seedId => {
@@ -630,17 +670,24 @@ const LatentVideosView = ({ experimentPath }) => {
             };
           });
 
-          const firstSeed = allSeeds[0];
-          const videoMetadata = videoMetadataMap[firstSeed];
-          const selectedPromptDisplay = videoMetadata?.prompt_variation || getPromptDisplayText(selectedPrompt).display;
+          // Filter out rows with no videos (where all steps have null videoPath)
+          const filteredRows = rows.filter(row => 
+            row.steps.some(step => step.videoPath)
+          );
 
-          sections.push({
-            promptId: selectedPrompt,
-            promptLabel: selectedPromptDisplay,
-            tokenId: token,
-            tokenLabel: token,
-            rows
-          });
+          if (filteredRows.length > 0) {
+            const firstSeed = allSeeds[0];
+            const videoMetadata = videoMetadataMap[firstSeed];
+            const selectedPromptDisplay = videoMetadata?.prompt_variation || getPromptDisplayText(selectedPrompt).display;
+
+            sections.push({
+              promptId: selectedPrompt,
+              promptLabel: selectedPromptDisplay,
+              tokenId: token,
+              tokenLabel: token,
+              rows: filteredRows
+            });
+          }
         }
       }
 
@@ -654,10 +701,20 @@ const LatentVideosView = ({ experimentPath }) => {
     } else if (viewMode === 'across-prompts') {
       // Latent videos only - each row is a different prompt
       const rows = allPrompts.map(promptId => {
-        // Get the first seed under this prompt for metadata lookup
+        // Get the seeds available for this specific prompt
         const dataSource = hasLatentVideos ? currentLatentVideos.latent_videos : currentLatentVideos.attention_videos;
         const seedsForPrompt = Object.keys(dataSource[promptId] || {});
-        const seedForMetadata = seedsForPrompt[0] || selectedSeed;
+        
+        // Find the corresponding seed for this prompt based on the selected seed's pattern
+        // Extract the seed number from selectedSeed (e.g., "p000_b000_s001" -> "s001")
+        const selectedSeedMatch = selectedSeed.match(/_s(\d+)$/);
+        const selectedSeedNum = selectedSeedMatch ? selectedSeedMatch[1] : '000';
+        
+        // Find a seed in this prompt that has the same seed number
+        const correspondingSeed = seedsForPrompt.find(seed => seed.endsWith(`_s${selectedSeedNum}`)) || seedsForPrompt[0] || selectedSeed;
+        
+        // Use the first seed for metadata lookup
+        const seedForMetadata = seedsForPrompt[0] || correspondingSeed;
 
         // Get prompt text from video metadata
         const videoMetadata = videoMetadataMap[seedForMetadata];
@@ -668,7 +725,7 @@ const LatentVideosView = ({ experimentPath }) => {
           label: promptText,
           fullLabel: promptText,
           steps: allSteps.map(stepId => {
-            const { videoPath, imagePath } = getVideoData(promptId, selectedSeed, stepId, null);
+            const { videoPath, imagePath } = getVideoData(promptId, correspondingSeed, stepId, null);
             return {
               stepId,
               stepNumber: parseInt(stepId.replace('step_', '')),
@@ -679,11 +736,16 @@ const LatentVideosView = ({ experimentPath }) => {
         };
       });
 
+      // Filter out rows with no videos (where all steps have null videoPath)
+      const filteredRows = rows.filter(row => 
+        row.steps.some(step => step.videoPath)
+      );
+
       // Get readable label for selected seed
       const selectedSeedLabel = getVideoIdLabel(selectedSeed, videoMetadataMap);
 
       return {
-        rows,
+        rows: filteredRows,
         columnHeaders: allSteps.map(stepId => `Step ${stepId.replace('step_', '')}`),
         rowType: 'prompt',
         selectedItem: selectedSeedLabel
@@ -708,13 +770,18 @@ const LatentVideosView = ({ experimentPath }) => {
         };
       });
 
+      // Filter out rows with no videos (where all steps have null videoPath)
+      const filteredRows = rows.filter(row => 
+        row.steps.some(step => step.videoPath)
+      );
+
       // Get prompt text from video metadata of first seed
       const firstSeed = allSeeds[0];
       const videoMetadata = videoMetadataMap[firstSeed];
       const selectedPromptDisplay = videoMetadata?.prompt_variation || getPromptDisplayText(selectedPrompt).display;
 
       return {
-        rows,
+        rows: filteredRows,
         columnHeaders: allSteps.map(stepId => `Step ${stepId.replace('step_', '')}`),
         rowType: 'seed',
         selectedItem: selectedPromptDisplay
@@ -915,11 +982,17 @@ const LatentVideosView = ({ experimentPath }) => {
                         value={selectedSeed}
                         onChange={(e) => setSelectedSeed(e.target.value)}
                       >
-                        {availableOptions.seeds.map(seedId => (
-                          <option key={seedId} value={seedId}>
-                            {seedId.replace('vid_', 'Seed ')}
-                          </option>
-                        ))}
+                        {availableOptions.seeds.map(seedId => {
+                          // Extract seed number from seedId (e.g., "p000_b000_s001" -> "001")
+                          const seedMatch = seedId.match(/_s(\d+)$/) || seedId.match(/vid_(\d+)/);
+                          const seedNum = seedMatch ? seedMatch[1] : seedId;
+                          const displayText = `Seed ${seedNum}`;
+                          return (
+                            <option key={seedId} value={seedId} title={seedId}>
+                              {displayText}
+                            </option>
+                          );
+                        })}
                       </select>
                     </>
                   ) : (
@@ -931,10 +1004,16 @@ const LatentVideosView = ({ experimentPath }) => {
                         onChange={(e) => setSelectedPrompt(e.target.value)}
                       >
                         {availableOptions.prompts.map(promptId => {
-                          const { display, full } = getPromptDisplayText(promptId);
+                          // Get prompt text from metadata if available
+                          const metadataMap = currentLatentVideos?.video_metadata_map || {};
+                          const dataSource = currentLatentVideos?.latent_videos || currentLatentVideos?.attention_videos || {};
+                          const firstSeed = Object.keys(dataSource[promptId] || {})[0];
+                          const seedMetadata = firstSeed ? metadataMap[firstSeed] : null;
+                          const promptText = seedMetadata?.prompt_variation || getPromptDisplayText(promptId).display;
+                          const fullPrompt = seedMetadata?.prompt_variation || getPromptDisplayText(promptId).full;
                           return (
-                            <option key={promptId} value={promptId} title={full}>
-                              {display}
+                            <option key={promptId} value={promptId} title={fullPrompt}>
+                              {promptText}
                             </option>
                           );
                         })}
