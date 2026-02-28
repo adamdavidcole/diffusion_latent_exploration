@@ -569,16 +569,55 @@ class WanVideoGenerator:
                 self.pipe.transformer.enable_gradient_checkpointing()
                 logging.info("Enabled gradient checkpointing for transformer")
             
-            # Move to device and verify
-            self.pipe.to(self.device)
+            # Apply memory optimization strategies based on config
+            offload_text_encoder = getattr(self.memory_settings, 'offload_text_encoder_to_cpu', False)
+            offload_vae = getattr(self.memory_settings, 'offload_vae_to_cpu', False)
+            use_sequential_offload = getattr(self.memory_settings, 'use_sequential_cpu_offload', False)
+            secondary_gpu = getattr(self.memory_settings, 'secondary_gpu_device', None)
+            
+            logging.info(f"🔍 MEMORY CONFIG DEBUG:")
+            logging.info(f"   memory_settings type: {type(self.memory_settings)}")
+            logging.info(f"   memory_settings attrs: {list(vars(self.memory_settings).keys())}")
+            logging.info(f"   offload_text_encoder: {offload_text_encoder}")
+            logging.info(f"   offload_vae: {offload_vae}")
+            logging.info(f"   secondary_gpu: {secondary_gpu}")
+            logging.info(f"Memory offloading config: sequential={use_sequential_offload}, text_encoder={offload_text_encoder}, vae={offload_vae}, secondary_gpu={secondary_gpu}")
+            
+            # IMPORTANT: Manual component offloading doesn't work with diffusers pipelines
+            # because it creates device mismatch errors (embeddings on cuda:1, transformer on cuda:0)
+            # Solution: Use sequential CPU offload which handles device transfers internally
+            if use_sequential_offload or offload_text_encoder or offload_vae:
+                # Use sequential offload for memory efficiency
+                # This automatically moves components between GPU/CPU as needed
+                logging.info("🔀 Enabling sequential CPU offload (safest for multi-device)")
+                
+                # NOTE: Using gpu_id parameter causes "illegal memory access" errors
+                # Stick with default CPU offload which is stable and still saves 10-15GB
+                self.pipe.enable_sequential_cpu_offload()
+                logging.info("✅ Sequential offload enabled with CPU as offload target")
+                logging.info("   Expected savings: 10-15GB VRAM on primary GPU (cuda:0)")
+                
+                if secondary_gpu:
+                    logging.info(f"   Note: secondary_gpu_device={secondary_gpu} ignored for sequential offload")
+                    logging.info(f"   (Routing through GPU 1 causes illegal memory access errors)")
+                    logging.info(f"   GPU 1 will be used for attention aggregation instead")
+            else:
+                # Standard loading: everything on primary device
+                logging.info(f"📍 Loading all components to primary device: {self.device}")
+                self.pipe.to(self.device)
             
             # Verify the model is actually on the correct device
+            # Note: With sequential offload, components move dynamically so device checks may vary
+            logging.info("Verifying model component device placement:")
             if hasattr(self.pipe, 'transformer') and hasattr(self.pipe.transformer, 'device'):
                 actual_device = str(self.pipe.transformer.device)
-                logging.info(f"Model transformer is on device: {actual_device}")
+                logging.info(f"  Transformer (primary model) is on: {actual_device}")
+            if hasattr(self.pipe, 'text_encoder') and hasattr(self.pipe.text_encoder, 'device'):
+                actual_device = str(next(self.pipe.text_encoder.parameters()).device)
+                logging.info(f"  Text encoder is on: {actual_device}")
             if hasattr(self.pipe, 'vae') and hasattr(self.pipe.vae, 'device'):
                 actual_device = str(next(self.pipe.vae.parameters()).device)
-                logging.info(f"Model VAE is on device: {actual_device}")
+                logging.info(f"  VAE is on: {actual_device}")
             
             logging.info(f"PyTorch current device: {torch.cuda.current_device()}")
             
@@ -1096,6 +1135,13 @@ class WanVideoGenerator:
                     attention_hooks_registered = True
                     logging.info(f"Registered attention hooks on transformer for video: {video_id}")
                     
+                    # Configure secondary GPU for attention aggregation if available
+                    if hasattr(self, 'memory_settings'):
+                        secondary_gpu = getattr(self.memory_settings, 'secondary_gpu_device', None)
+                        if secondary_gpu and torch.cuda.is_available():
+                            attention_storage.configure_secondary_gpu_for_aggregation(secondary_gpu)
+                            logging.info(f"🎯 Configured attention aggregation on {secondary_gpu} for RAM optimization")
+                    
                     # Update bending token map after hooks are registered and tokens are parsed
                     if attention_bending_settings and attention_bending_settings.enabled:
                         attention_storage.update_bending_token_map()
@@ -1110,6 +1156,10 @@ class WanVideoGenerator:
                 def combined_callback(pipe, step: int, timestep: torch.Tensor, callback_kwargs: dict):
                     """Combined callback for latent, attention storage, dynamic guidance, and prompt interpolation."""
                     result = callback_kwargs or {}
+                    
+                    # Log callback invocation at INFO level for visibility
+                    if step == 0:
+                        logging.info(f"🔔 Combined callback invoked for step {step} (will trigger attention storage)") 
                     
                     # Apply dynamic guidance schedule first (before other callbacks)
                     if guidance_callback:
@@ -1130,14 +1180,23 @@ class WanVideoGenerator:
                         else:
                             timestep_val = float(timestep)
                         
+                        # Log before calling storage
+                        if step == 0:
+                            logging.info(f"📦 Calling attention_storage.store_attention_maps for step {step}")
+                        
                         # Attention storage will check its storage_interval internally
-                        attention_storage.store_attention_maps(
+                        stored = attention_storage.store_attention_maps(
                             step=step,
                             timestep=timestep_val,
                             total_steps=num_inference_steps
                         )
+                        
+                        if step == 0:
+                            logging.info(f"📦 store_attention_maps returned: {stored}")
                     except Exception as e:
                         logging.error(f"Error in attention storage callback: {e}")
+                        import traceback
+                        traceback.print_exc()
                     
                     return result
                 

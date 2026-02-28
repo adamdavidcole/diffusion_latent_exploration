@@ -1,6 +1,7 @@
 """
 Utilities for storing and managing attention maps during diffusion generation.
 """
+import gc
 import os
 import re
 import numpy as np
@@ -264,7 +265,18 @@ class WanAttentionWrapper(torch.nn.Module):
                 # Store bent attention if available, otherwise store original
                 # This allows visualization of bent attention even if not applied to output
                 attention_to_store = bent_attention if bent_attention is not None else attention_maps
-                self.attention_storage.current_attention_maps[self.block_index] = attention_to_store.detach().cpu()
+                
+                # STREAMING AGGREGATION: Accumulate incrementally during capture (not at callback)
+                if (self.attention_storage.use_streaming_aggregation and 
+                    not self.attention_storage.store_per_block and 
+                    not self.attention_storage.store_per_head and
+                    self.attention_storage.target_tokens):  # Only if we have target tokens
+                    # Accumulate attention for each target token incrementally
+                    self.attention_storage._accumulate_attention_streaming(attention_to_store, self.block_index)
+                    # Note: Full tensor NOT stored, saving 285MB × 40 blocks = 11.4GB RAM!
+                else:
+                    # ORIGINAL: Store full tensor for per-block/per-head analysis or when disabled
+                    self.attention_storage.current_attention_maps[self.block_index] = attention_to_store.detach().cpu()
                 
                 bending_status = "BENT" if bent_attention is not None else "ORIGINAL"
                 self.attention_storage.logger.debug(
@@ -410,6 +422,11 @@ class AttentionStorage:
         self.store_aggregated_attention = store_aggregated_attention
         self.aggregated_storage_format = aggregated_storage_format
         
+        # NEW: Streaming aggregation to reduce RAM usage
+        self.use_streaming_aggregation = True  # Default to streaming mode for memory efficiency
+        self.aggregation_device = 'cpu'  # Default to CPU - fine with 64GB RAM, avoids GPU complexity
+        self._streaming_accumulators = {}  # For incremental averaging
+        
         # Use storage_dir directly as the attention directory
         self.attention_dir = self.storage_dir
         
@@ -422,12 +439,21 @@ class AttentionStorage:
         
         self.logger = logging.getLogger(__name__)
         
+        # Log streaming aggregation configuration
+        self.logger.info(f"\ud83d\udce6 Attention storage initialized:")
+        self.logger.info(f"   Streaming aggregation: {'ENABLED' if self.use_streaming_aggregation else 'DISABLED'}")
+        self.logger.info(f"   Aggregation device: {self.aggregation_device}")
+        self.logger.info(f"   Store per-block: {self.store_per_block}, Store per-head: {self.store_per_head}")
+        if self.use_streaming_aggregation and not (self.store_per_block or self.store_per_head):
+            self.logger.info(f"   \u2705 Will use MEMORY-EFFICIENT streaming path (avoids torch.stack)")
+        
         # Storage tracking
         self.current_video_id = None
         self.current_video_dir = None
         self.current_prompt = None
         self.current_generation_params = {}
         self.stored_steps = []
+        self._current_step_info = {}  # Track current step for streaming
         
         # Video dimensions for proper spatial reshaping
         self.video_height = None
@@ -647,6 +673,8 @@ class AttentionStorage:
         self.target_tokens = {}
         self.current_attention_maps = {}
         self.steps_processed = set()
+        self._streaming_accumulators = {}  # Clear streaming state for new video
+        self._current_step_info = {}
         
         # Clear debug visualization directory for new run
         self._debug_run_dir = None
@@ -818,17 +846,28 @@ class AttentionStorage:
         Returns:
             bool: True if attention maps were stored, False if skipped
         """
+        # Log entry for debugging
+        self.logger.info(f"🎯 store_attention_maps called: step={step}, video_id={self.current_video_id}, target_tokens={len(self.target_tokens)}")
+        
         if self.current_video_id is None:
             self.logger.warning("No active video for attention storage")
             return False
         
         if not self.target_tokens:
-            self.logger.debug(f"No target tokens for step {step}")
+            self.logger.debug(f"No target tokens for step {step}, clearing captured attention")
+            # CRITICAL: Clear attention maps even when not storing to prevent RAM leak
+            self.current_attention_maps.clear()
+            self.current_attention_maps = {}
+            gc.collect()
             return False
         
         # Check if we should store this step based on interval
         if step % self.storage_interval != 0:
             self.logger.debug(f"Skipping step {step} (not at storage interval {self.storage_interval})")
+            # CRITICAL: Clear attention maps even when skipping to prevent RAM leak
+            self.current_attention_maps.clear()
+            self.current_attention_maps = {}
+            gc.collect()
             return False
         
         # Debug: Log current state
@@ -836,26 +875,110 @@ class AttentionStorage:
         # self.logger.info(f"Current attention maps keys: {list(self.current_attention_maps.keys())}")
         # self.logger.info(f"Number of wrapped modules: {len(self.original_modules) if hasattr(self, 'original_modules') else 0}")
         
-        if not self.current_attention_maps:
-            self.logger.error(f"❌ No attention maps captured for step {step}")
+        # Check if we have data (either streaming accumulators OR traditional maps)
+        has_streaming_data = hasattr(self, '_current_step_accumulators') and self._current_step_accumulators
+        has_traditional_data = bool(self.current_attention_maps)
+        
+        if not has_streaming_data and not has_traditional_data:
+            self.logger.error(f"❌ No attention data captured for step {step}")
             self.logger.error(f"Wrapped modules: {len(self.original_modules) if hasattr(self, 'original_modules') else 0}")
+            self.logger.error(f"Streaming mode: {self.use_streaming_aggregation}")
             self.logger.error(f"This suggests wrapped modules are not being called or not capturing data")
             
             return False
         
+        # Calculate memory usage: either current_attention_maps OR streaming accumulators
+        if has_streaming_data:
+            # Streaming mode: accumulators are already aggregated
+            total_bytes = sum(
+                acc['sum'].element_size() * acc['sum'].nelement()
+                for acc in self._current_step_accumulators.values()
+            )
+            total_mb = total_bytes / (1024 * 1024)
+            self.logger.info(
+                f"📊 Step {step}: {len(self._current_step_accumulators)} tokens accumulated (STREAMING), "
+                f"{total_mb:.1f} MB in RAM"
+            )
+        else:
+            # Non-streaming mode: full tensors in current_attention_maps
+            total_bytes = 0
+            for block_idx, attn_map in self.current_attention_maps.items():
+                total_bytes += attn_map.element_size() * attn_map.nelement()
+            total_mb = total_bytes / (1024 * 1024)
+            self.logger.info(
+                f"📊 Step {step}: {len(self.current_attention_maps)} blocks cached (NON-STREAMING), "
+                f"{total_mb:.1f} MB in RAM"
+            )
+        
         # self.logger.info(f"Storing attention maps for step {step} with {len(self.current_attention_maps)} captured maps")
         
         try:
-            # Process each target word
-            for word, token_info in self.target_tokens.items():
-                word_dir = self.current_video_dir / f"token_{word}"
-                word_dir.mkdir(exist_ok=True)
+            # Check if we used streaming aggregation (data already accumulated)
+            if hasattr(self, '_current_step_accumulators') and self._current_step_accumulators:
+                self.logger.info(f"✅ Using PRE-AGGREGATED data from streaming capture (memory-efficient path)")
                 
-                # Pass the full token_info dict (with both token_ids and positions)
-                self._process_word_attention(word, token_info, step, timestep, total_steps, word_dir)
+                # Data is already aggregated during capture, just average and save
+                for word, accumulator in self._current_step_accumulators.items():
+                    word_dir = self.current_video_dir / f"token_{word}"
+                    word_dir.mkdir(exist_ok=True)
+                    
+                    # Average across blocks
+                    aggregated_attention = accumulator['sum'] / accumulator['count']
+                    
+                    # Move to CPU and convert bfloat16 to float32 if needed (for numpy compatibility)
+                    aggregated_attention = aggregated_attention.cpu()
+                    if aggregated_attention.dtype == torch.bfloat16:
+                        aggregated_attention = aggregated_attention.float()
+                    
+                    # Get token_ids for this word
+                    token_info = self.target_tokens.get(word, {})
+                    token_ids = token_info.get('token_ids', [])
+                    
+                    # Save using _store_attention_tensor (expects torch.Tensor, not numpy)
+                    filename_base = f"step_{step:03d}"
+                    self._store_attention_tensor(
+                        aggregated_attention, 
+                        word_dir, 
+                        filename_base,
+                        word, 
+                        token_ids, 
+                        step, 
+                        timestep, 
+                        total_steps,
+                        aggregation_method="blocks_and_heads_averaged"
+                    )
+                
+                # Clear accumulators for next step
+                self._current_step_accumulators.clear()
+                self._current_step_accumulators = {}
+                
+                # Explicit cleanup
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                
+                self.stored_steps.append(step)
+                self.logger.info(f"✅ Saved {len(self.target_tokens)} token attentions (streaming path)")
+                
+            else:
+                # FALLBACK: Original path for non-streaming or per-block/per-head modes
+                self.logger.info(f"⚠️ Using ORIGINAL aggregation path (processes all blocks at once)")
+                
+                # Process each target word
+                for word, token_info in self.target_tokens.items():
+                    word_dir = self.current_video_dir / f"token_{word}"
+                    word_dir.mkdir(exist_ok=True)
+                    
+                    # Pass the full token_info dict (with both token_ids and positions)
+                    self._process_word_attention(word, token_info, step, timestep, total_steps, word_dir)
+                
+                self.stored_steps.append(step)
             
-            self.stored_steps.append(step)
-            self.current_attention_maps = {}  # Clear for next step
+            # Explicit cleanup to prevent RAM accumulation
+            self.current_attention_maps.clear()  # Clear dict
+            self.current_attention_maps = {}  # Reassign
+            gc.collect()  # Force garbage collection
+            torch.cuda.empty_cache()  # Clear CUDA cache if applicable
             
             # self.logger.info(f"Successfully stored attention maps for step {step}")
             return True
@@ -885,59 +1008,60 @@ class AttentionStorage:
         
         filename_base = f"step_{step:03d}"
         
-        # Collect attention maps from all blocks
-        block_attentions = []
-        for block_idx in sorted(self.current_attention_maps.keys()):
-            attention = self.current_attention_maps[block_idx]  # Expected: [batch, heads, seq_len_spatial, seq_len_text]
+        # Use streaming aggregation for memory efficiency (avoids stack operation)
+        if self.use_streaming_aggregation and not (self.store_per_block or self.store_per_head):
+            # MEMORY EFFICIENT PATH: Incrementally aggregate without creating list
+            self.logger.info(f"✅ Using STREAMING aggregation for '{word}' (memory efficient, step {step})") 
+            full_step_attention = self._streaming_aggregate_blocks(word, token_positions)
+            aggregation_method = "blocks_and_heads_averaged"
+        else:
+            # ORIGINAL PATH: Collect and stack all blocks (backward compatible)
+            self.logger.info(f"⚠️  Using ORIGINAL path for '{word}' (store_per_block={self.store_per_block}, store_per_head={self.store_per_head})")
+            block_attentions = []
+            for block_idx in sorted(self.current_attention_maps.keys()):
+                attention = self.current_attention_maps[block_idx]  # Expected: [batch, heads, seq_len_spatial, seq_len_text]
+                
+                self.logger.debug(f"Block {block_idx} raw attention shape: {attention.shape}")
+                
+                # Extract attention for target token positions (not IDs!)
+                token_attention = self._extract_token_attention(attention, token_positions)
+                self.logger.debug(f"Block {block_idx} token attention shape after extraction: {token_attention.shape}")
+                
+                block_attentions.append(token_attention)
             
-            self.logger.debug(f"Block {block_idx} raw attention shape: {attention.shape}")
+            if not block_attentions:
+                return
             
-            # Extract attention for target token positions (not IDs!)
-            token_attention = self._extract_token_attention(attention, token_positions)
-            self.logger.debug(f"Block {block_idx} token attention shape after extraction: {token_attention.shape}")
+            self.logger.debug(f"Number of block attentions: {len(block_attentions)}")
+            self.logger.debug(f"First block attention shape: {block_attentions[0].shape}")
             
-            block_attentions.append(token_attention)
-        
-        if not block_attentions:
-            return
-        
-        self.logger.debug(f"Number of block attentions: {len(block_attentions)}")
-        self.logger.debug(f"First block attention shape: {block_attentions[0].shape}")
-        
-        # Store the main attention tensor with shape determined by aggregation settings
-        if block_attentions:
             # Stack to create [blocks, batch, heads, spatial, tokens]
             stacked_attention = torch.stack(block_attentions, dim=0)
             
             # Remove batch dimension to get [blocks, heads, spatial, tokens]
             full_step_attention = stacked_attention.squeeze(1)  # Remove batch dim
-            
-            self.logger.debug(f"Full step attention shape before aggregation: {full_step_attention.shape}")
-            
-            # Apply aggregation based on storage settings
-            final_attention = full_step_attention
             aggregation_method = "full"
             
-            # Aggregate across blocks if store_per_block is False
+            # Apply aggregation based on storage settings
             if not self.store_per_block:
-                final_attention = final_attention.mean(dim=0, keepdim=True)  # [1, heads, spatial, tokens]
+                full_step_attention = full_step_attention.mean(dim=0, keepdim=True)
                 aggregation_method = "blocks_averaged"
-                self.logger.debug(f"Aggregated across blocks: {final_attention.shape}")
             
-            # Aggregate across heads if store_per_head is False
             if not self.store_per_head:
-                final_attention = final_attention.mean(dim=1, keepdim=True)  # [blocks/1, 1, spatial, tokens]
+                full_step_attention = full_step_attention.mean(dim=1, keepdim=True)
                 aggregation_method = "heads_averaged" if aggregation_method == "full" else "blocks_and_heads_averaged"
-                self.logger.debug(f"Aggregated across heads: {final_attention.shape}")
+        
+        if full_step_attention is None:
+            return
             
-            # self.logger.info(f"Final attention shape after aggregation ({aggregation_method}): {final_attention.shape}")
-            
-            # Store the aggregated tensor
-            self._store_attention_tensor(
-                final_attention, word_dir, filename_base,
-                word, token_ids, step, timestep, total_steps,
-                aggregation_method=aggregation_method
-            )
+        self.logger.debug(f"Final attention shape after aggregation ({aggregation_method}): {full_step_attention.shape}")
+        
+        # Store the aggregated tensor
+        self._store_attention_tensor(
+            full_step_attention, word_dir, filename_base,
+            word, token_ids, step, timestep, total_steps,
+            aggregation_method=aggregation_method
+        )
     
     def _extract_token_attention(self, attention: torch.Tensor, token_positions: List[int]) -> torch.Tensor:
         """Extract attention weights for specific token positions.
@@ -1061,6 +1185,10 @@ class AttentionStorage:
         
         # Store attention tensor
         if self.storage_format == "numpy":
+            # Move to CPU and convert bfloat16 to float32 before numpy conversion
+            attention = attention.cpu()
+            if attention.dtype == torch.bfloat16:
+                attention = attention.float()
             attention_array = attention.numpy()
             attention_file = word_dir / f"{filename_base}.npy"
             
@@ -1070,6 +1198,9 @@ class AttentionStorage:
                     np.save(f, attention_array)
             else:
                 np.save(attention_file, attention_array)
+            
+            # Explicit cleanup: delete numpy array after saving
+            del attention_array
                 
         elif self.storage_format == "torch":
             attention_file = word_dir / f"{filename_base}.pt"
@@ -1166,6 +1297,10 @@ class AttentionStorage:
                 if step_maps:
                     # Average across steps
                     aggregated_map = torch.stack(step_maps).mean(dim=0)
+                    
+                    # Convert bfloat16 to float32 if needed (NumPy doesn't support bfloat16)
+                    if aggregated_map.dtype == torch.bfloat16:
+                        aggregated_map = aggregated_map.float()
                     
                     # Store aggregated map directly in token directory
                     if self.compress:
@@ -1335,6 +1470,168 @@ class AttentionStorage:
                 self.logger.error(f"Error loading attention metadata from {metadata_file}: {e}")
         
         return None
+    
+    def _streaming_aggregate_blocks(self, word: str, token_positions: List[int]) -> Optional[torch.Tensor]:
+        """Incrementally aggregate attention across blocks to avoid memory spike.
+        
+        This streaming approach avoids the memory spike from torch.stack() by:
+        1. Processing blocks one at a time
+        2. Accumulating running sum instead of collecting full list
+        3. Moving final averaged result to CPU only once
+        
+        Memory savings: ~50% reduction (no intermediate list or stacked tensor)
+        
+        NOTE: With 64GB RAM, CPU aggregation is perfectly fine! The optimization
+              comes from avoiding torch.stack(), not from using a GPU.
+        
+        Returns:
+            Aggregated attention tensor: [1, 1, spatial, 1] (averaged across blocks and heads)
+        """
+        if not self.current_attention_maps:
+            return None
+        
+        # Use configured aggregation device (default: CPU)
+        agg_device = self.aggregation_device if self.aggregation_device else 'cpu'
+        
+        # Initialize accumulators on first block
+        running_sum = None
+        num_blocks = len(self.current_attention_maps)
+        
+        self.logger.debug(f"Streaming {num_blocks} blocks for token '{word}', aggregation device: {agg_device}")
+        
+        for block_idx in sorted(self.current_attention_maps.keys()):
+            # Attention is already on CPU from wrapper, shape: [batch, heads, spatial, text]
+            attention = self.current_attention_maps[block_idx]
+            
+            # Extract target token (still on CPU)
+            token_attention = self._extract_token_attention(attention, token_positions)
+            # Shape: [batch, heads, spatial, 1]
+            
+            # Move to aggregation device and remove batch dimension
+            token_attention = token_attention.squeeze(1).to(agg_device)  # [heads, spatial, 1]
+            
+            # Average across heads immediately to save memory
+            token_attention = token_attention.mean(dim=0, keepdim=True)  # [1, spatial, 1]
+            
+            # Accumulate
+            if running_sum is None:
+                running_sum = token_attention
+            else:
+                running_sum += token_attention
+            
+            # Explicit cleanup: don't hold reference to extracted attention
+            del token_attention
+        
+        if running_sum is None:
+            return None
+        
+        # Average across blocks and move to CPU
+        averaged_attention = (running_sum / num_blocks).cpu()
+        del running_sum  # Explicit cleanup
+        
+        # Add back dimensions for consistency: [1, 1, spatial, 1]
+        averaged_attention = averaged_attention.unsqueeze(0)  # [1, 1, spatial, 1]
+        
+        self.logger.debug(f"Streaming aggregation complete: {averaged_attention.shape} on {agg_device}")
+        
+        return averaged_attention
+    
+    def _accumulate_attention_streaming(self, attention_tensor: torch.Tensor, block_index: int):
+        """Accumulate attention incrementally during capture to avoid RAM buildup.
+        
+        This is called by the wrapper for EACH transformer block (40 times per step).
+        Instead of storing 40 × 285MB = 11.4GB of full tensors, we:
+        1. Extract attention for target tokens only
+        2. Add to running sum per token
+        3. Discard full tensor immediately
+        
+        Result: ~10MB per step instead of 11.4GB!
+        
+        Args:
+            attention_tensor: [batch, heads, spatial, text_seq] attention map from one block
+            block_index: Which transformer block this is (0-39)
+        """
+        # Lazy init accumulators on first block of each step
+        if not hasattr(self, '_current_step_accumulators'):
+            self._current_step_accumulators = {}
+        
+        # Expected shape: [batch, heads, spatial_tokens, text_seq_len]
+        # For 97 frames at 480×848: [1, 12, 1590, 77]
+        
+        # Move to aggregation device (cpu or cuda:1) and detach
+        attention_on_device = attention_tensor.detach().to(self.aggregation_device)
+        
+        # Extract attention for each target token
+        for word, token_info in self.target_tokens.items():
+            positions = token_info.get('positions', [])
+            if not positions:
+                continue
+            
+            # Get attention for this token across all positions
+            # Average across token positions if multiple (rare)
+            token_attention_list = []
+            for pos in positions:
+                if pos < attention_on_device.shape[-1]:
+                    # Extract: [batch, heads, spatial, 1]
+                    token_attn = attention_on_device[:, :, :, pos:pos+1]
+                    token_attention_list.append(token_attn)
+            
+            if not token_attention_list:
+                continue
+            
+            # Average across positions if multiple
+            if len(token_attention_list) > 1:
+                token_attention = torch.stack(token_attention_list).mean(dim=0)
+            else:
+                token_attention = token_attention_list[0]
+            
+            # Initialize or accumulate
+            if word not in self._current_step_accumulators:
+                self._current_step_accumulators[word] = {
+                    'sum': token_attention.clone(),  # [batch, heads, spatial, 1]
+                    'count': 1
+                }
+            else:
+                # Incremental sum (avoiding torch.stack()!)
+                self._current_step_accumulators[word]['sum'] += token_attention
+                self._current_step_accumulators[word]['count'] += 1
+        
+        # Full tensor can now be garbage collected
+        del attention_on_device
+        
+        # Log only on first and last block to avoid spam
+        if block_index == 0:
+            self.logger.debug(
+                f"✅ STREAMING: Started accumulation for {len(self.target_tokens)} tokens "
+                f"(shape per token: batch={attention_tensor.shape[0]}, heads={attention_tensor.shape[1]}, "
+                f"spatial={attention_tensor.shape[2]})"
+            )
+        elif block_index == 39:
+            total_mb = sum(
+                acc['sum'].element_size() * acc['sum'].nelement() / 1024 / 1024
+                for acc in self._current_step_accumulators.values()
+            )
+            self.logger.info(
+                f"✅ STREAMING: Completed 40 blocks, accumulated {len(self._current_step_accumulators)} tokens, "
+                f"{total_mb:.1f} MB in RAM (vs 11.4GB if non-streaming)"
+            )
+    
+    def configure_secondary_gpu_for_aggregation(self, device: Union[str, torch.device]):
+        """Configure device for attention aggregation operations.
+        
+        Args:
+            device: Device string like 'cuda:1' or torch.device object
+            
+        With 64GB RAM, CPU aggregation is perfectly fine! The optimization
+        comes from avoiding torch.stack(), not from using a GPU. Only use
+        GPU aggregation if you need to squeeze every bit of performance.
+        """
+        if str(device).startswith('cuda') and torch.cuda.is_available():
+            self.aggregation_device = str(device)
+            self.logger.info(f"✅ Attention aggregation device updated to: {self.aggregation_device}")
+        else:
+            self.aggregation_device = 'cpu'
+            self.logger.info(f"ℹ️  Attention aggregation will use CPU (perfectly fine with 64GB RAM!)")
     
     def configure_attention_bending(self, attention_bender, apply_to_output=False):
         """

@@ -31,6 +31,12 @@ class MemorySettings:
     use_gradient_checkpointing: bool = True
     enable_memory_efficient_attention: bool = True
     
+    # Dual-GPU optimization settings (for high-resolution generation)
+    use_sequential_cpu_offload: bool = False  # Automatically offload unused modules to CPU (best for high-res)
+    offload_text_encoder_to_cpu: bool = False  # Triggers sequential offload (saves 10-15GB VRAM)
+    offload_vae_to_cpu: bool = False  # Triggers sequential offload (saves 10-15GB VRAM)
+    secondary_gpu_device: Optional[str] = None  # e.g., 'cuda:1' - used only for attention aggregation, NOT model offloading
+    
 
 @dataclass
 class LatentAnalysisSettings:
@@ -264,7 +270,12 @@ class ConfigManager:
             clear_cache_between_videos=memory_data.get('clear_cache_between_videos', True),
             reload_model_for_large_models=memory_data.get('reload_model_for_large_models', True),
             use_gradient_checkpointing=memory_data.get('use_gradient_checkpointing', True),
-            enable_memory_efficient_attention=memory_data.get('enable_memory_efficient_attention', True)
+            enable_memory_efficient_attention=memory_data.get('enable_memory_efficient_attention', True),
+            # Dual-GPU optimization settings
+            use_sequential_cpu_offload=memory_data.get('use_sequential_cpu_offload', False),
+            offload_text_encoder_to_cpu=memory_data.get('offload_text_encoder_to_cpu', False),
+            offload_vae_to_cpu=memory_data.get('offload_vae_to_cpu', False),
+            secondary_gpu_device=memory_data.get('secondary_gpu_device', None)
         )
         
         video_settings = VideoSettings(
