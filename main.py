@@ -244,10 +244,12 @@ def load_or_create_config(config_path: str, args) -> GenerationConfig:
     if args.decode_latents:
         config.latent_analysis_settings.auto_decode = True
     
-    # Apply attention analysis settings  
+    # Apply attention analysis settings
     if args.store_attention:
         config.attention_analysis_settings.store_attention = True
-    
+        config.attention_analysis_settings.store_aggregated_attention = True
+        config.attention_analysis_settings.auto_generate_per_video = True
+
     if args.decode_attention:
         config.attention_analysis_settings.auto_decode = True
     
