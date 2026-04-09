@@ -249,6 +249,8 @@ def load_or_create_config(config_path: str, args) -> GenerationConfig:
         config.attention_analysis_settings.store_attention = True
         config.attention_analysis_settings.store_aggregated_attention = True
         config.attention_analysis_settings.auto_generate_per_video = True
+        config.attention_analysis_settings.storage_interval = 1
+        config.attention_analysis_settings.storage_dtype = "float16"
 
     if args.decode_attention:
         config.attention_analysis_settings.auto_decode = True
