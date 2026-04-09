@@ -57,10 +57,10 @@ python analyze_latent_trajectories.py --batch-dir outputs/your_batch_20250804_12
 ### 🆕 With Attention Map Storage
 ```bash
 # Generate videos while capturing attention maps for specific tokens
-python main.py --template "a beautiful (flower) in a garden" --store-attention
+python main.py --template "a beautiful (flower) in a garden" --store-attention --decode-attention
 
 # Generate with template variations tracking different tokens per variation
-python main.py --template "a beautiful [(flower) | (tree)] in a park" --store-attention
+python main.py --template "a beautiful [(flower) | (tree)] in a park" --store-attention --decode-attention
 ```
 
 ### Available Configurations
@@ -70,32 +70,8 @@ python main.py --template "a beautiful [(flower) | (tree)] in a park" --store-at
 - `configs/high_quality.yaml` - High-quality generation settings
 - `configs/latent_analysis_example.yaml` - 🆕 Example config with latent storage enabled
 
-## Latent Trajectory Analysis
 
-This project includes advanced tools for studying the latent space geometry of diffusion models during the generation process. This can help understand potential biases and representation patterns in AI-generated content.
 
-### Key Hypothesis
-Dominant representations may occupy more area in the latent space, while "marginal" or "othered" representations might occupy less area. By analyzing trajectories, we can potentially measure the relative scale of certain representations.
-
-### Documentation
-
-- **[Latent Trajectory Analysis](docs/LATENT_TRAJECTORY_ANALYSIS.md)**: Comprehensive guide to latent space analysis and geometry studies
-- **[Attention Map Storage](docs/ATTENTION_MAP_STORAGE.md)**: Complete documentation of attention map capture, storage format, and analysis
-- **[FP16 Latent Storage](docs/FP16_LATENT_STORAGE.md)**: Memory-efficient storage with half precision
-- **[Latent Storage Fix](docs/LATENT_STORAGE_FIX.md)**: Technical details on storage improvements
-
-## Quick Start
-1. **Generate with latent storage**: Add `--store-latents` flag
-2. **Analyze trajectories**: Use `analyze_latent_trajectories.py` script
-3. **Study results**: Examine metrics like trajectory linearity, volume, and dynamics
-
-See [docs/LATENT_TRAJECTORY_ANALYSIS.md](docs/LATENT_TRAJECTORY_ANALYSIS.md) for detailed documentation.
-
-### Analysis Metrics
-- **Trajectory linearity**: How straight the path through latent space is
-- **Volume estimation**: Space occupied by the trajectory
-- **Temporal dynamics**: Velocity and acceleration patterns
-- **Geometric properties**: PCA analysis and dimensionality reduction
 
 ## Configuration
 
@@ -183,48 +159,3 @@ npm run dev
 ```
 
 Then open `http://localhost:5173` in your browser.
-
----
-
-## Memory Optimization Features
-
-The project includes advanced memory management for large models:
-
-- **Intelligent Model Reloading**: Automatically unloads/reloads models based on available memory
-- **GPU Memory Monitoring**: Real-time tracking of GPU memory usage
-- **Gradient Checkpointing**: Reduces memory usage during training/inference
-- **Expandable Memory Segments**: Prevents memory fragmentation issues
-- **Smart Cache Management**: Clears GPU cache at optimal points during generation
-
-### XFormers Support
-
-XFormers is **optional** and **not required** for optimal performance:
-- WAN transformer architecture already performs efficiently
-- Current memory optimization provides sufficient performance
-- XFormers may provide marginal improvements (5-10%) but adds complexity
-- System works perfectly without XFormers - installation is not recommended unless you specifically need the minor performance gains
-
-### Troubleshooting Memory Issues
-
-If you encounter CUDA out-of-memory errors:
-
-1. **Check CUDA version compatibility**:
-   ```bash
-   nvcc --version
-   python -c "import torch; print(torch.version.cuda)"
-   ```
-
-2. **Ensure correct PyTorch version**:
-   ```bash
-   python -c "import torch; print(torch.__version__)"
-   ```
-
-3. **Use memory-optimized configuration**:
-   ```bash
-   python main.py --config configs/wan_14b_optimized.yaml
-   ```
-
-4. **Monitor GPU memory**:
-   ```bash
-   nvidia-smi  # Check available VRAM before running
-   ```

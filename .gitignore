@@ -125,3 +125,5 @@ generation.log
 .claude/
 debug_bent_attention/
 configs/debug_configs/
+
+*/docs_hidden/
