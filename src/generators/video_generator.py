@@ -501,11 +501,10 @@ class WanVideoGenerator:
             # Load VAE with memory optimization
             logging.info("Loading VAE...")
             vae = AutoencoderKLWan.from_pretrained(
-                self.model_id,
-                revision=self.config.model_settings.model_revision,
-                subfolder="vae",
+                self.model_id, 
+                subfolder="vae", 
                 torch_dtype=torch.float32,
-                low_cpu_mem_usage=True
+                low_cpu_mem_usage=True  # Enable low CPU memory usage
             )
             
             # Configure scheduler based on resolution
@@ -524,11 +523,10 @@ class WanVideoGenerator:
             logging.info("Loading pipeline...")
             self.pipe = WanPipeline.from_pretrained(
                 self.model_id,
-                revision=self.config.model_settings.model_revision,
                 vae=vae,
                 torch_dtype=torch.bfloat16,
-                low_cpu_mem_usage=True,
-                use_safetensors=True
+                low_cpu_mem_usage=True,  # Enable low CPU memory usage
+                use_safetensors=True     # Use safetensors for better memory handling
             )
             self.pipe.scheduler = scheduler
 

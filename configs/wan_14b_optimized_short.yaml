@@ -8,8 +8,7 @@ model_settings:
   steps: 20                    # Number of inference steps
   eta: 0.0                     # Scheduler eta parameter
   clip_skip: 1                 # CLIP skip layers
-  model_id: "Wan-AI/Wan2.1-T2V-14B-Diffusers"
-  model_revision: "38ec498cb3208fb688890f8cc7e94ede2cbd7f68"  # pin for reproducibility
+  model_id: "Wan-AI/Wan2.1-T2V-14B-Diffusers"  # 14B model
 
 # Aggressive memory optimization settings for 14B model
 memory_settings:
