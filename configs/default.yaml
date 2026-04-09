@@ -8,7 +8,8 @@ model_settings:
   steps: 20                 # Number of inference steps
   eta: 0.0                   # Scheduler eta parameter
   clip_skip: 1               # CLIP skip layers
-  model_id: "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"  # Hugging Face model ID
+  model_id: "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
+  model_revision: "0fad780a534b6463e45facd96134c9f345acfa5b"  # pin for reproducibility
   device: "auto"             # Device to use: "auto", "cuda:0", "cuda:1", "cpu", etc.
   # Available models: Wan-AI/Wan2.1-T2V-14B-Diffusers, Wan-AI/Wan2.1-T2V-1.3B-Diffusers
 

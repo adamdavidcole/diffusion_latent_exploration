@@ -19,6 +19,7 @@ class ModelSettings:
     eta: float = 0.0
     clip_skip: int = 1
     model_id: str = "Wan-AI/Wan2.1-T2V-14B-Diffusers"
+    model_revision: str = None  # Pin to a specific HuggingFace commit hash for reproducibility
     device: str = "auto"  # Device to use: "auto", "cuda:0", "cuda:1", "cpu", etc.
     
 
@@ -262,6 +263,7 @@ class ConfigManager:
             eta=model_data.get('eta', 0.0),
             clip_skip=model_data.get('clip_skip', 1),
             model_id=model_data.get('model_id', 'Wan-AI/Wan2.1-T2V-14B-Diffusers'),
+            model_revision=model_data.get('model_revision', None),
             device=model_data.get('device', 'auto')
         )
         
