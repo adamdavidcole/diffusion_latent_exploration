@@ -40,6 +40,7 @@ qwen-vl-utils>=0.0.8
 # Misc utilities
 tqdm>=4.66.0
 PyYAML>=6.0
+ftfy>=6.0.0          # text normalization used by diffusers' prompt cleaning
 
 # ---- Web interface (webapp/backend) ----
 Flask>=3.0.0
