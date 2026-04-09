@@ -69,7 +69,7 @@ class AttentionAnalysisSettings:
     spatial_downsample_factor: int = 1  # Factor to downsample spatial dimensions
     
     # NEW: Aggregated attention storage
-    store_aggregated_attention: bool = False
+    store_aggregated_attention: bool = True   # Store step-averaged attention maps (default on)
     aggregated_storage_format: str = "numpy"  # numpy, torch
     
     # NEW: Auto-visualization settings 
@@ -317,7 +317,7 @@ class ConfigManager:
             store_individual_tokens=attention_data.get('store_individual_tokens', False),
             attention_threshold=attention_data.get('attention_threshold'),
             spatial_downsample_factor=attention_data.get('spatial_downsample_factor', 1),
-            store_aggregated_attention=attention_data.get('store_aggregated_attention', False),
+            store_aggregated_attention=attention_data.get('store_aggregated_attention', True),
             aggregated_storage_format=attention_data.get('aggregated_storage_format', 'numpy'),
             auto_generate_videos=attention_data.get('auto_generate_videos', False),
             auto_generate_per_video=attention_data.get('auto_generate_per_video', False),

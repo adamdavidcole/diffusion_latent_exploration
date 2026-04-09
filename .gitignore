@@ -120,3 +120,8 @@ scratch/
 generation.log
 # Local Netlify folder
 .netlify
+
+
+.claude/
+debug_bent_attention/
+configs/debug_configs/
