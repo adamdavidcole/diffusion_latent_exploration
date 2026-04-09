@@ -542,7 +542,8 @@ class VideoAnalyzer:
                             video_settings=video_settings,
                             model_settings=model_settings,
                             cfg_scale=cfg_scale,
-                            video_metadata_map=video_metadata_map
+                            video_metadata_map=video_metadata_map,
+                            attention_bending_settings=attention_bending_settings
                         )
                         if video_info:
                             videos.append(video_info)
@@ -673,7 +674,7 @@ class VideoAnalyzer:
     
     def _extract_video_metadata_new_format(self, video_path, variations_data, 
                                           video_settings=None, model_settings=None, cfg_scale=None,
-                                          video_metadata_map=None):
+                                          video_metadata_map=None, attention_bending_settings=None):
         """
         Extract metadata from NEW filename format.
         
@@ -737,14 +738,19 @@ class VideoAnalyzer:
             # Create video_id for metadata lookup (3-digit format)
             video_id = f"p{prompt_idx:03d}_b{video_number - 1:03d}_s{seed_offset:03d}"
             
-            # Get readable label from bending_metadata if available
-            readable_label = self.format_bending_label(bending_id)
-            if video_metadata_map and video_id in video_metadata_map:
-                bending_meta = video_metadata_map[video_id].get('bending_metadata', {})
-                if bending_meta and 'display_name' in bending_meta:
-                    readable_label = bending_meta['display_name']
-                    # Apply resolved tokens to update the display
-                    readable_label = self.apply_resolved_tokens_to_display(readable_label, bending_meta)
+            # Determine the label to use based on whether attention bending is enabled
+            if attention_bending_settings and attention_bending_settings.get('enabled'):
+                # Attention bending is enabled - use bending labels
+                readable_label = self.format_bending_label(bending_id)
+                if video_metadata_map and video_id in video_metadata_map:
+                    bending_meta = video_metadata_map[video_id].get('bending_metadata', {})
+                    if bending_meta and 'display_name' in bending_meta:
+                        readable_label = bending_meta['display_name']
+                        # Apply resolved tokens to update the display
+                        readable_label = self.apply_resolved_tokens_to_display(readable_label, bending_meta)
+            else:
+                # No attention bending - use actual prompt variation text
+                readable_label = variation_text
             
             metadata = {
                 'video_path': str(video_path.relative_to(self.outputs_dir)),

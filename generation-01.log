@@ -1,17 +1,0 @@
-INFO - Batch setup complete. Output directory: outputs/Kiss_NoWeighting_20251014_165856
-INFO - Processing prompt template: a romantic cinematic kiss between two [| men | male | women | female | non-binary | straight | heterosexual | gay | homosexual | lesbian | trans | queer | white | black | asian | latino | hispanic | indigenous | native american | European | American | South American | African | Middle Eastern | South Asian | East Asian | Pacific Islander | Mixed-race | rich | poor | middle class | christian | muslim | jewish | hindu | buddhist | atheist | disabled | young adult | old | attractive | unattractive | cats] people
-INFO - Generated 44 prompt variations
-INFO - Saving original template to: outputs/Kiss_NoWeighting_20251014_165856/configs/prompt_template.txt
-INFO - Starting video generation: 44 variations × 4 videos = 176 total videos
-INFO - Using weighted prompts for generation
-Loading configuration from: configs/wan_14b_optimized_long.yaml
-Starting batch generation with template: a romantic cinematic kiss between two [| men | male | women | female | non-binary | straight | heterosexual | gay | homosexual | lesbian | trans | queer | white | black | asian | latino | hispanic | indigenous | native american | European | American | South American | African | Middle Eastern | South Asian | East Asian | Pacific Islander | Mixed-race | rich | poor | middle class | christian | muslim | jewish | hindu | buddhist | atheist | disabled | young adult | old | attractive | unattractive | cats] people
-Generating videos: 1/176 (0.6%) - ETA: 0:00:00 - a romantic cinematic kiss between two  peopleINFO - Generating video 1/176: video_001
-INFO - Using seed: 999 (base: 999 + video_num: 0)
-INFO - GPU memory before loading: 47.4GB free of 47.4GB total on cuda:0
-INFO - Loading WAN model: Wan-AI/Wan2.1-T2V-14B-Diffusers
-INFO - Using device: cuda:0
-INFO - Loading VAE...
-INFO - Loading pipeline...
-Loading pipeline components...:   0%|          | 0/5 [00:00<?, ?it/s]Loading pipeline components...:  20%|██        | 1/5 [00:00<00:00,  4.05it/s]
-Loading checkpoint shards:   0%|          | 0/12 [00:00<?, ?it/s][A

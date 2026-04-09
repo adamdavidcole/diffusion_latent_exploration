@@ -118,17 +118,80 @@ See configuration files in `configs/` directory for options including:
 
 ## Requirements
 
-- Python 3.8+
-- PyTorch 2.6.0+ with CUDA 12.4 support
-- NVIDIA GPU with sufficient VRAM
-- WAN model dependencies (see requirements.txt)
+- Python 3.10+ (tested on 3.12.9)
+- NVIDIA GPU with CUDA support (**required**)
+  - WAN 1.3B: ~8 GB VRAM minimum
+  - WAN 14B: 48 GB+ VRAM (A100/A6000 class)
+- Node.js 18+ and npm (for the web interface only)
 
-### Installation
+---
+
+## Installation
+
+### 1. Create a conda environment (recommended)
+
 ```bash
-pip install -r requirements.txt
-# For CUDA 12.4 compatibility:
+conda create -n wan python=3.12
+conda activate wan
+```
+
+### 2. Install PyTorch with CUDA
+
+PyTorch must be installed with the index URL that matches your CUDA driver version. Check your driver with `nvidia-smi`, then pick the right command below:
+
+```bash
+# CUDA 12.9 (current — tested configuration)
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu129
+
+# CUDA 12.6
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+
+# CUDA 12.4
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
 ```
+
+Verify the install:
+
+```bash
+python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
+```
+
+### 3. Install Python dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+> **Optional extras**
+> - UMAP trajectory visualizations: `pip install umap-learn`
+> - Video similarity analysis (SSIM/MSE): `pip install scikit-image`
+
+### 4. (Optional) Set up the web interface
+
+The web interface has a Flask backend and a React/Vite frontend.
+
+**Backend** — already covered by `requirements.txt` (Flask, Flask-CORS, PyYAML).
+
+**Frontend** (requires Node.js 18+):
+```bash
+cd webapp/react-frontend
+npm install
+```
+
+**Run both together** (from the repo root):
+```bash
+# Terminal 1 — Flask backend (port 5000)
+cd webapp/backend
+python app.py
+
+# Terminal 2 — Vite dev server (port 5173)
+cd webapp/react-frontend
+npm run dev
+```
+
+Then open `http://localhost:5173` in your browser.
+
+---
 
 ## Memory Optimization Features
 
@@ -154,13 +217,13 @@ If you encounter CUDA out-of-memory errors:
 
 1. **Check CUDA version compatibility**:
    ```bash
-   nvcc --version  # Should show CUDA 12.4
-   python -c "import torch; print(torch.version.cuda)"  # Should show 12.4
+   nvcc --version
+   python -c "import torch; print(torch.version.cuda)"
    ```
 
 2. **Ensure correct PyTorch version**:
    ```bash
-   python -c "import torch; print(torch.__version__)"  # Should show 2.6.0+cu124
+   python -c "import torch; print(torch.__version__)"
    ```
 
 3. **Use memory-optimized configuration**:

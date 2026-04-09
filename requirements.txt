@@ -1,35 +1,51 @@
-# Core dependencies
+# ============================================================
+# WAN Video Generation & Latent Exploration
+# Python 3.10+ required (tested on 3.12.9)
+# ============================================================
+
+# ------------------------------------------------------------------
+# PyTorch — install SEPARATELY with the correct CUDA index URL.
+# See the README for the exact command. Do NOT install from this file
+# if you need CUDA support.
+# ------------------------------------------------------------------
+# torch>=2.6.0
+# torchvision
+# torchaudio
+
+# HuggingFace model stack
+diffusers>=0.30.0
+transformers>=4.40.0
+accelerate>=0.30.0
+
+# Video / image I/O
+opencv-python>=4.8.0
+Pillow>=10.0.0
+imageio>=2.34.0
+imageio-ffmpeg>=0.5.0
+
+# Numerical & scientific computing
+numpy>=1.26.0
+scipy>=1.13.0
+scikit-learn>=1.4.0
+
+# Plotting & visualization
+matplotlib>=3.8.0
+seaborn>=0.13.0
+
+# VLM (Qwen-VL) utilities
+qwen-vl-utils>=0.0.8
+
+# Misc utilities
+tqdm>=4.66.0
 PyYAML>=6.0
-argparse
-pathlib
-dataclasses; python_version<"3.7"
 
-# WAN Model Dependencies
-torch>=2.0.0
-torchvision>=0.15.0
-diffusers>=0.21.0
-transformers>=4.21.0
-accelerate>=0.20.0
-xformers>=0.0.20  # Optional but recommended for memory efficiency
+# ---- Web interface (webapp/backend) ----
+Flask>=3.0.0
+Flask-CORS>=4.0.0
 
-# Video and image processing
-opencv-python>=4.5.0         # Video I/O and processing
-pillow>=8.3.0                # Image handling
-numpy>=1.21.0                # Numerical operations
-imageio>=2.9.0               # Video I/O alternative
-moviepy>=1.0.3               # Video editing (optional)
+# ---- Optional / lazy-imported ----
+# Uncomment if you use UMAP trajectory visualizations:
+# umap-learn>=0.5.6
 
-# Utility libraries
-tqdm>=4.60.0                 # Progress bars
-
-# Development and testing
-pytest>=6.2.0               # Testing framework
-black>=21.0.0                # Code formatting
-flake8>=3.9.0                # Linting
-
-# Logging and monitoring
-structlog>=21.0.0            # Structured logging
-
-# Web interface
-Flask>=2.0.0                 # Web framework for video viewer
-PyYAML>=6.0                  # Already listed above, needed for config loading
+# Uncomment if you use video similarity analysis (SSIM/MSE):
+# scikit-image>=0.22.0
