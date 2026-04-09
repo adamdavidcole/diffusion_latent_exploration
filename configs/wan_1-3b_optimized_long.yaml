@@ -2,7 +2,7 @@
 
 # Model-specific settings
 model_settings:
-  seed: 1000                    # Random seed for reproducibility
+  seed: 100                    # Random seed for reproducibility
   sampler: "unipc"             # Scheduler type (unipc recommended for WAN)
   cfg_scale: 6.5               # Classifier-free guidance scale
   steps: 20                    # Number of inference steps
@@ -55,7 +55,7 @@ latent_analysis_settings:
 
 # Attention map analysis settings
 attention_analysis_settings:
-  store_attention: false                     # Enable attention map storage
+  store_attention: true                     # Enable attention map storage
   tokenizer_name: "google/umt5-xxl"        # T5 tokenizer used by WAN pipeline
   storage_format: "numpy"                  # "numpy" or "torch"
   compress_attention: true                 # Use gzip compression
@@ -67,7 +67,7 @@ attention_analysis_settings:
   store_per_block: false                   # Store individual transformer blocks
   store_individual_tokens: false          # Store individual token attention
   attention_threshold: null               # Filter out weak attention values
-  spatial_downsample_factor: 2             # Downsample spatial dimensions 2x
+  spatial_downsample_factor: 1             # Downsample spatial dimensions 1x
 
   # NEW: Aggregated storage - creates step-averaged attention maps
   store_aggregated_attention: true
