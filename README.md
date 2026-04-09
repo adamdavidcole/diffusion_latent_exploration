@@ -5,15 +5,13 @@ A comprehensive tool for generating video sets using WAN video models (1.3B and 
 ## Features
 
 - **Multi-Model Support**: Compatible with WAN 1.3B and WAN 14B models
-- **Advanced Memory Management**: Optimized for large models with intelligent memory allocation
 - **Stable Configuration Management**: Define and reuse consistent generation settings (seed, sampler, CFG, etc.)
 - **Prompt Variations**: Create prompts with variable keywords for systematic content generation
 - **Batch Processing**: Generate multiple videos per prompt variation
 - **Organized Output**: Automatically organize results in structured subfolders
-- **Progress Tracking**: Monitor generation progress and handle errors gracefully
-- **GPU Memory Optimization**: Automatic memory management for CUDA devices
-- **🆕 Latent Trajectory Analysis**: Store and analyze latent representations during diffusion to study model geometry and potential biases
-- **🆕 Attention Map Storage**: Capture and analyze cross-attention patterns between text tokens and spatial regions during generation
+- **Latent Trajectory Analysis**: Store and analyze latent representations during diffusion to study model geometry and potential biases
+- **Attention Map Storage**: Capture and analyze cross-attention patterns between text tokens and spatial regions during generation
+- **Attention Map Manipulation**: "Bend" cross-attention maps during generation to expand the generative possibilities of the model. 
 
 ## Project Structure
 
@@ -44,12 +42,7 @@ python main.py --config configs/default.yaml --template "a romantic kiss between
 
 ### Using WAN 14B Model (Requires GPU with 48GB+ VRAM)
 ```bash
-python main.py --config configs/wan_14b_optimized.yaml --template "a simple test video"
-```
-
-### With Custom Settings
-```bash
-python main.py --config configs/romantic_scenes.yaml --videos-per-variation 5 --output-dir outputs/romantic_batch_1
+python main.py --config configs/wan_14b_optimized.yaml --template "a romantic kiss between [two people|two men|two women|a man and a woman]"
 ```
 
 ### 🆕 With Latent Trajectory Analysis
@@ -61,13 +54,13 @@ python main.py --template "a [romantic|platonic] kiss between [two people|two me
 python analyze_latent_trajectories.py --batch-dir outputs/your_batch_20250804_123456
 ```
 
-### 🆕 With Attention Map Analysis
+### 🆕 With Attention Map Storage
 ```bash
 # Generate videos while capturing attention maps for specific tokens
-python main.py --template "a beautiful (flower:2.5) in a garden" --store-attention
+python main.py --template "a beautiful (flower) in a garden" --store-attention
 
 # Generate with template variations tracking different tokens per variation
-python main.py --template "a beautiful [(flower:2.5) near a tree|(tree:3) next to a flower]" --store-attention
+python main.py --template "a beautiful [(flower) | (tree)] in a park" --store-attention
 ```
 
 ### Available Configurations

@@ -440,12 +440,12 @@ class AttentionStorage:
         self.logger = logging.getLogger(__name__)
         
         # Log streaming aggregation configuration
-        self.logger.info(f"\ud83d\udce6 Attention storage initialized:")
+        self.logger.info(f"Attention storage initialized:")
         self.logger.info(f"   Streaming aggregation: {'ENABLED' if self.use_streaming_aggregation else 'DISABLED'}")
         self.logger.info(f"   Aggregation device: {self.aggregation_device}")
         self.logger.info(f"   Store per-block: {self.store_per_block}, Store per-head: {self.store_per_head}")
         if self.use_streaming_aggregation and not (self.store_per_block or self.store_per_head):
-            self.logger.info(f"   \u2705 Will use MEMORY-EFFICIENT streaming path (avoids torch.stack)")
+            self.logger.info(f"   [OK] Will use MEMORY-EFFICIENT streaming path (avoids torch.stack)")
         
         # Storage tracking
         self.current_video_id = None

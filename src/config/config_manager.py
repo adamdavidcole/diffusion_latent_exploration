@@ -307,7 +307,7 @@ class ConfigManager:
         
         attention_analysis_settings = AttentionAnalysisSettings(
             store_attention=attention_data.get('store_attention', False),
-            tokenizer_name=attention_data.get('tokenizer_name', 'microsoft/WAN-2B-v2'),
+            tokenizer_name=attention_data.get('tokenizer_name', 'google/umt5-xxl'),
             storage_format=attention_data.get('storage_format', 'numpy'),
             compress_attention=attention_data.get('compress_attention', True),
             storage_interval=attention_data.get('storage_interval', 5),
