@@ -2,14 +2,14 @@
 
 # Model-specific settings
 model_settings:
-  seed: 999                    # Random seed for reproducibility
+  seed: 100                    # Random seed for reproducibility
   sampler: "unipc"           # Scheduler type (unipc recommended for WAN)
   cfg_scale: 6.5             # Classifier-free guidance scale
-  steps: 25                  # Number of inference steps
+  steps: 20                 # Number of inference steps
   eta: 0.0                   # Scheduler eta parameter
   clip_skip: 1               # CLIP skip layers
-  model_id: "Wan-AI/Wan2.1-T2V-14B-Diffusers"  # Hugging Face model ID
-  device: "cuda:1"             # Device to use: "auto", "cuda:0", "cuda:1", "cpu", etc.
+  model_id: "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"  # Hugging Face model ID
+  device: "auto"             # Device to use: "auto", "cuda:0", "cuda:1", "cpu", etc.
   # Available models: Wan-AI/Wan2.1-T2V-14B-Diffusers, Wan-AI/Wan2.1-T2V-1.3B-Diffusers
 
 # Memory optimization settings (for large models)
@@ -24,8 +24,8 @@ memory_settings:
 video_settings:
   width: 848                 # Video width (must be divisible by 8)
   height: 480                # Video height (must be divisible by 8)
-  fps: 12                    # Frames per second
-  duration: 5.0              # Video duration in seconds
+  fps: 16                    # Frames per second
+  duration: 4.0              # Video duration in seconds
   frames: null               # Total frames (calculated from fps * duration if null)
 
 # Batch settings
