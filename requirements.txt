@@ -13,9 +13,11 @@
 # torchaudio
 
 # HuggingFace model stack
-diffusers>=0.30.0
-transformers>=4.40.0
-accelerate>=0.30.0
+# These three are tightly coupled — pin to known-working versions.
+# diffusers 0.34.0 requires transformers <4.56 (FLAX_WEIGHTS_NAME removed in newer versions).
+diffusers==0.34.0
+transformers==4.55.2
+accelerate==1.10.0
 
 # Video / image I/O
 opencv-python>=4.8.0
