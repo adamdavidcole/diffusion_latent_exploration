@@ -1,0 +1,208 @@
+# Phase 1 Test Configuration - ALL TOKENS Bending Test
+# Tests that bending actually affects output by applying to ALL tokens
+
+# Model settings - using smallest model for fast testing
+model_settings:
+  seed: 42
+  sampler: "unipc"
+  cfg_scale: 4.5
+  steps: 10
+  model_id: "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
+  device: "cuda:0"
+
+# Memory settings
+memory_settings:
+  enable_memory_optimization: true
+  clear_cache_between_videos: true
+  reload_model_for_large_models: false
+  use_gradient_checkpointing: true
+  enable_memory_efficient_attention: true
+
+# Video settings - small/fast for testing
+# video_settings:
+#   width: 512
+#   height: 512
+#   fps: 8
+#   duration: 2.0
+video_settings:
+  duration: null
+  fps: 16
+  frames: 25
+  height: 368
+  width: 640
+
+# Batch settings
+videos_per_variation: 2
+output_dir: "outputs"
+batch_name: "attention_quick_sweep"
+use_timestamp: true
+
+prompt_settings:
+  enable_weighting: false                   # DISABLE auto-weighting (using manual weights instead)
+  variation_weight: 1.0                     # Not used when enable_weighting is false
+  base_weight: 1.0                          # Standard weight for base prompt
+  
+  # Advanced weighted embeddings (WORKING SYSTEM)
+  use_weighted_embeddings: true             # Enable WAN-specific weighted embeddings
+  embedding_method: "multiply"              # "multiply", "interpolation", or "norm_preserving"
+
+
+# Global attention bending settings - REQUIRED for apply_to_output to work
+attention_bending_settings:
+  enabled: true  # Must be true for apply_to_output to be checked
+  apply_to_output: true  # PHASE 2: Actually affect generation (not just visualization)
+  apply_before_softmax: false
+  configs: []  # Variations will override this with per-video configs
+
+# Attention Bending Variations - Testing with ALL tokens
+attention_bending_variations:
+  enabled: true
+  generate_baseline: true
+  renormalize: true
+  
+  operations:
+    # # Operation 1: Scale (5 × 2 × 2 = 20 variations) - CONFIRMED WORKING
+    - operation: scale
+      parameter_name: scale_factor
+      range: [0.75, 1.25]
+      steps: 2  # [0.75, 0.875, 1.0, 1.125, 1.25]
+    #   target_token: "ALL"
+      # strength: 1.0
+    #   padding_mode: "border"
+    #   apply_to_timesteps:
+    #     - "0-5"    # Early steps
+    #     - "5-10"   # Late steps
+    #   apply_to_layers:
+    #     - "ALL"      # All layers
+    #     - [14, 15]   # Specific layers
+    
+    # # Operation 2: Rotate (3 × 2 = 6 variations)
+    - operation: rotate
+      parameter_name: angle
+      range: [30, 90]
+      steps: 3  # [0, 45, 90] degrees
+    #   target_token: 
+    #     - "ALL"
+    #     - "kiss"  # Apply only to the kiss token
+    #   strength: 1.0
+    #   padding_mode: "border"
+    #   apply_to_timesteps:
+    #     - "0-5"
+    #     - "5-10"
+    #   apply_to_layers:
+    #     - "ALL"
+    #     - [14, 15]
+    
+    # Operation 3: Flip Horizontal - TESTING
+    # - operation: flip
+    #   parameter_name: flip_horizontal
+    #   target_token: "ALL"
+    #   strength: 1.0
+
+    # # Operation 4: Flip Vertical - TESTING
+    - operation: flip
+      parameter_name: flip_vertical
+    #   target_token: "ALL"
+    #   # apply_to_timesteps:
+    #   #   - "ALL"
+    #   #   - "0-5"
+    #   strength: 1.0
+
+    
+    # Operation 5: Translate X (4 variations)
+    - operation: translate
+      parameter_name: translate_x
+      range: [-0.25, 0.25]
+      steps: 2  # [-0.3, 0.0, 0.3] normalized
+    #   target_token: "ALL"
+    #   strength: 1.0
+    #   padding_mode: "border"
+      # apply_to_timesteps:
+      #   - "0-5"
+      #   - "5-10"
+      # apply_to_layers:
+      #   - "ALL"
+        # - [14, 15]
+    
+    # Operation 6: Translate Y (4 variations)
+    - operation: translate
+      parameter_name: translate_y
+      range: [-0.5, 0.5]
+      steps: 2  # [-0.3, 0.0, 0.3] normalized
+    #   target_token: "ALL"
+    #   strength: 1.0
+    #   padding_mode: "border"
+    #   apply_to_timesteps:
+    #     - "ALL"
+    #     - "0-5"
+      # apply_to_layers:
+      #   - "ALL"
+        # - [14, 15]
+    - operation: amplify
+      parameter_name: amplify_factor
+      range: [0.75,1.15]
+      steps: 3  # [0.5, 1.0, 1.5, 2.0] - 50% weaker, baseline, 50% stronger, 100% stronger
+      target_token: 
+        - "ALL"
+      #   - "kiss"  # Apply only to the kiss token
+      strength: 1.0
+      # apply_to_timesteps:
+        # - "ALL"
+        # - "0-5"
+      renormalize: false
+
+# Operation: Blur - Softens attention patterns (low-pass spatial filter)
+# Larger sigma = more blur
+    - operation: blur
+      parameter_name: sigma
+      range: [0.5, 3.0]
+      steps: 2  # [0.5, 1.75, 3.0] - slight blur, medium blur, heavy blur
+    #   target_token: "ALL"
+    #   strength: 1.0
+    #   apply_to_timesteps:
+    #     - "ALL"
+    #     - "0-5"
+
+# Operation: Sharpen - Enhances attention edges (high-pass spatial filter)
+# Larger sharpen_amount = more sharpening
+    - operation: sharpen
+      parameter_name: sharpen_amount
+      range: [0.5, 2.0]
+      steps: 2  # [0.5, 1.25, 2.0] - slight sharpen, medium sharpen, strong sharpen
+    #   target_token: "ALL"
+    #   strength: 1.0
+    #   apply_to_timesteps:
+    #     - "ALL"
+    #     - "0-5"
+  
+
+# Disable storage to speed up testing
+# attention_analysis_settings:
+#   store_attention: true
+#   store_aggregated_attention: true
+attention_analysis_settings:
+  aggregated_storage_format: numpy
+  attention_threshold: null
+  auto_generate_per_video: false
+  auto_generate_videos: false
+  compress_attention: true
+  spatial_downsample_factor: 1
+  storage_dtype: float16
+  storage_format: numpy
+  storage_interval: 1
+  store_aggregated_attention: false
+  store_attention: true
+  store_individual_tokens: true  # Store attention for target tokens (kiss, people)
+  store_per_block: false
+  store_per_head: false
+  tokenizer_name: google/umt5-xxl
+  visualization_params:
+    colormap: hot
+    figsize:
+    - 12
+    - 8
+    overlay_alpha: 0.6
+    static_duration: 3.0
+
+latent_analysis_settings:
+  store_latents: false
