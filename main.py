@@ -151,13 +151,6 @@ Examples:
     parser.add_argument('--decode-latents', action='store_true',
                        help='Automatically run decode_latent_steps.py after generation completes')
     
-    # Attention map analysis
-    parser.add_argument('--store-attention', action='store_true',
-                       help='Store attention maps for tokens in parentheses in prompts (e.g., "(kiss)" in "romantic (kiss)")')
-    
-    parser.add_argument('--decode-attention', action='store_true',
-                       help='Automatically run decode_attention_steps.py after generation completes')
-    
     # Logging and output
     parser.add_argument('--log-level', type=str, 
                        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],

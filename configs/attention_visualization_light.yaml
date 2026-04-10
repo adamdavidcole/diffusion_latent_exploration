@@ -64,7 +64,7 @@ attention_bending_variations:
 attention_analysis_settings:
   aggregated_storage_format: numpy
   attention_threshold: null
-  auto_generate_per_video: true
+  auto_generate_per_video: false
   auto_generate_videos: false
   compress_attention: true
   spatial_downsample_factor: 1

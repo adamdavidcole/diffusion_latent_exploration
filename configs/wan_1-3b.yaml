@@ -75,7 +75,7 @@ attention_analysis_settings:
   
   # NEW: Auto-visualization - automatically generates attention videos after generation
   auto_generate_videos: false        # Generate videos after entire batch completes
-  auto_generate_per_video: true     # Generate videos immediately after each video completes
+  auto_generate_per_video: false     # Generate videos immediately after each video completes
   
   # NEW: Visualization parameters
   visualization_params:
