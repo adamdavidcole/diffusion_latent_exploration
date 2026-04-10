@@ -212,21 +212,21 @@ cd webapp/react-frontend
 npm install
 ```
 
-**Run all three** (from the repo root):
+**Run** (from the repo root):
 ```bash
-# Terminal 1 — nginx media server (port 8888)
-# Serves the outputs/ directory as /media/ — required for video/image thumbnails
-cd webapp && nginx -p $PWD -c nginx.conf
-
-# Terminal 2 — Flask backend (port 5000)
+# Terminal 1 — Flask backend (port 5000)
 cd webapp/backend && python app.py
 
-# Terminal 3 — Vite dev server (port 5173)
+# Terminal 2 — Vite dev server (port 5174)
 cd webapp/react-frontend && npm run dev
 ```
 
-Open `http://localhost:5173` in your browser.
+Open `http://localhost:5174` in your browser.
 
-> **Stopping nginx**: `nginx -p $PWD -c nginx.conf -s stop` (run from the `webapp/` directory)
-
-> **nginx logs**: `webapp/logs/error.log` and `webapp/logs/access.log`
+> **For large media collections (thousands of videos/thumbnails):** Flask's file serving can be slow. nginx handles this much more efficiently:
+> ```bash
+> # Install nginx if needed: sudo apt install nginx
+> cd webapp && nginx -p $PWD -c nginx.conf
+> VITE_MEDIA_SERVER=http://127.0.0.1:8888 npm run dev  # from webapp/react-frontend
+> ```
+> Stop nginx when done: `cd webapp && nginx -p $PWD -c nginx.conf -s stop`
