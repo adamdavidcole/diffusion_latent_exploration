@@ -2153,18 +2153,12 @@ class BatchVideoGenerator:
                     self.logger.error(f"❌ Invalid video_id format - aborting attention video generation")
                     return  # ABORT - invalid format
             else:
-                self.logger.error(f"❌ CRITICAL: video_id '{video_id}' does not contain '_vid' - invalid format")
-                self.logger.error(f"❌ Aborting attention video generation")
-                return  # ABORT - old format not supported for per-video generation
-            
+                # New format (e.g. p000_b001_s000): no vid number to parse; proceed without overlay
+                self.logger.info(f"New-format video_id '{video_id}' — proceeding without overlay")
+
             # Get the tokens for this video from the attention storage directory structure
-            # Handle nested directory structure: prompt_000/vid001/
-            if '_vid' in video_id:
-                prompt_part, vid_part = video_id.split('_vid', 1)
-                video_attention_dir = attention_storage.storage_dir / prompt_part / f"vid{vid_part}"
-            else:
-                # Fallback to old format if no '_vid' found
-                video_attention_dir = attention_storage.storage_dir / video_id
+            # Use attention_storage's own path resolver which handles both old and new formats
+            video_attention_dir = attention_storage._get_video_dir_path(video_id)
             
             # Find token directories
             video_tokens = {}
@@ -2240,12 +2234,8 @@ class BatchVideoGenerator:
                         )
                     
                     # Check if any output was created (static, attention-only, or overlay)
-                    # Files are created in the nested structure: attention_videos/prompt_000/vid001/token_flower/
-                    if '_vid' in video_id:
-                        prompt_part, vid_part = video_id.split('_vid', 1)
-                        nested_output_dir = attention_videos_dir / prompt_part / f"vid{vid_part}" / f"token_{token_name}"
-                    else:
-                        nested_output_dir = attention_videos_dir / video_id / f"token_{token_name}"
+                    # Files are created in the nested structure mirroring attention storage paths
+                    nested_output_dir = attention_videos_dir / video_attention_dir.parent.name / video_attention_dir.name / f"token_{token_name}"
                     
                     possible_outputs = [
                         nested_output_dir / "aggregate_attention.mp4",
