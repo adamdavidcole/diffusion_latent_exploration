@@ -285,6 +285,16 @@ def generate_videos_with_bending(
                 branch_char = "└" if is_last_bending else "├"
                 if result.success:
                     logger.info(f"  {branch_char}─ ✓ SUCCESS: Generated in {result.generation_time:.1f}s")
+
+                    # Generate attention videos immediately if enabled and attention was stored
+                    if (attention_storage and result.attention_storage_summary and
+                            getattr(config.attention_analysis_settings, 'auto_generate_per_video', False)):
+                        from src.generators.video_generator import BatchVideoGenerator
+                        prompt_dir = batch_dirs["videos"] / f"prompt_{prompt_idx:03d}"
+                        batch_gen = BatchVideoGenerator(video_generator)
+                        batch_gen._generate_attention_videos_for_single_video(
+                            attention_storage, video_id, prompt_dir, original_video_path=output_path
+                        )
                 else:
                     logger.error(f"  {branch_char}─ ✗ FAILED: {result.error_message}")
                 

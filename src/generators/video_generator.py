@@ -2097,10 +2097,11 @@ class BatchVideoGenerator:
         
         return report
     
-    def _generate_attention_videos_for_single_video(self, 
+    def _generate_attention_videos_for_single_video(self,
                                                    attention_storage: 'AttentionStorage',
                                                    video_id: str,
-                                                   video_output_dir: Path):
+                                                   video_output_dir: Path,
+                                                   original_video_path: Path = None):
         """Generate attention videos immediately after a single video completes."""
         try:
             from src.visualization.attention_analyzer import AttentionAnalyzer
@@ -2131,10 +2132,14 @@ class BatchVideoGenerator:
             )
             
             # Find the original video file for overlay - STRICT matching only
-            original_video_path = None
-            
-            # Extract video number from video_id and find matching video file
-            if '_vid' in video_id:
+            # If caller passed the path directly, verify it exists; otherwise search by video_id
+            if original_video_path is not None:
+                if not Path(original_video_path).exists():
+                    self.logger.warning(f"⚠️ Passed original_video_path {original_video_path} not found, generating without overlay")
+                    original_video_path = None
+                else:
+                    self.logger.info(f"✅ Using provided video path for overlay: {original_video_path}")
+            elif '_vid' in video_id:
                 try:
                     vid_num = video_id.split('_vid')[1]  # Extract vid number (e.g., "002" from "prompt_000_vid002") 
                     vid_int = int(vid_num)
