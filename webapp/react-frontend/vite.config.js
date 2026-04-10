@@ -13,8 +13,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
-       '/media': {
-        target: 'http://127.0.0.1:8888',
+      '/media': {
+        // Default: Flask serves media directly (no nginx needed).
+        // For large collections, start nginx (see webapp/nginx.conf) and set:
+        //   VITE_MEDIA_SERVER=http://127.0.0.1:8888 npm run dev
+        target: process.env.VITE_MEDIA_SERVER || 'http://127.0.0.1:5000',
         changeOrigin: true,
         secure: false,
       }

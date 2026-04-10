@@ -194,7 +194,17 @@ pip install -r requirements.txt
 
 The web interface has a Flask backend and a React/Vite frontend.
 
-**Backend** — already covered by `requirements.txt` (Flask, Flask-CORS, PyYAML).
+
+**Prep**
+```bash
+python scripts/generate_thumbnails.py
+```
+
+**Backend** 
+```bash
+cd webapp
+npm install
+```
 
 **Frontend** (requires Node.js 18+):
 ```bash
@@ -202,13 +212,21 @@ cd webapp/react-frontend
 npm install
 ```
 
-**Run both** (from the repo root):
+**Run all three** (from the repo root):
 ```bash
-# Terminal 1 — Flask backend (port 5000)
+# Terminal 1 — nginx media server (port 8888)
+# Serves the outputs/ directory as /media/ — required for video/image thumbnails
+cd webapp && nginx -p $PWD -c nginx.conf
+
+# Terminal 2 — Flask backend (port 5000)
 cd webapp/backend && python app.py
 
-# Terminal 2 — Vite dev server (port 5173)
+# Terminal 3 — Vite dev server (port 5173)
 cd webapp/react-frontend && npm run dev
 ```
 
 Open `http://localhost:5173` in your browser.
+
+> **Stopping nginx**: `nginx -p $PWD -c nginx.conf -s stop` (run from the `webapp/` directory)
+
+> **nginx logs**: `webapp/logs/error.log` and `webapp/logs/access.log`

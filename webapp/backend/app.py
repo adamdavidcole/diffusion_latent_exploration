@@ -1616,6 +1616,11 @@ def create_app():
     analyzer = VideoAnalyzer(app.config['VIDEO_OUTPUTS_DIR'])
     
     # Routes
+    @app.route('/media/<path:filename>')
+    def serve_media(filename):
+        """Serve output files directly from Flask (fallback when nginx is not running)."""
+        return send_from_directory(outputs_path, filename)
+
     @app.route('/')
     def index():
         """Serve the React application"""
@@ -1852,4 +1857,4 @@ if __name__ == '__main__':
     print("Open http://localhost:5000 in your browser")
     print("="*50)
     
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5001, debug=True)
