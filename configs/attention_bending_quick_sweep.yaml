@@ -52,7 +52,6 @@ attention_bending_settings:
   enabled: true  # Must be true for apply_to_output to be checked
   apply_to_output: true  # PHASE 2: Actually affect generation (not just visualization)
   apply_before_softmax: false
-  configs: []  # Variations will override this with per-video configs
 
 # Attention Bending Variations - Testing with ALL tokens
 attention_bending_variations:

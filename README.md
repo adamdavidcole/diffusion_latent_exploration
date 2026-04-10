@@ -1,17 +1,14 @@
 # WAN Video Generation Project
 
-A comprehensive tool for generating video sets using WAN video models (1.3B and 14B) with configurable settings, prompt variations, optimized memory management, and **latent trajectory analysis** for studying diffusion model geometry.
+A research toolkit for systematic video generation and XAI analysis using WAN diffusion models (1.3B and 14B). Generate grids of videos across prompt variations, capture and visualize cross-attention maps, manipulate attention during generation, and explore latent space geometry — all configured via YAML and viewable through a built-in web UI.
 
 ## Features
 
-- **Multi-Model Support**: Compatible with WAN 1.3B and WAN 14B models
-- **Stable Configuration Management**: Define and reuse consistent generation settings (seed, sampler, CFG, etc.)
-- **Prompt Variations**: Create prompts with variable keywords for systematic content generation
-- **Batch Processing**: Generate multiple videos per prompt variation
-- **Organized Output**: Automatically organize results in structured subfolders
-- **Latent Trajectory Analysis**: Store and analyze latent representations during diffusion to study model geometry and potential biases
-- **Attention Map Storage**: Capture and analyze cross-attention patterns between text tokens and spatial regions during generation
-- **Attention Map Manipulation**: "Bend" cross-attention maps during generation to expand the generative possibilities of the model. 
+- **Prompt Variations**: Create sequence of prompts with variable keywords for systematic content generation with organized results in structured subfolders.
+- **Latent Trajectory Analysis**: Store and analyze latent representations during diffusion to study latent space geometry.
+- **Attention Map Storage**: Capture and analyze cross-attention patterns between text tokens and spatial regions during generation.
+- **Attention Map Manipulation**: "Bend" cross-attention maps during generation to expand the generative possibilities of the model.
+- **Visualization**: Web UI interface to visualize grids of latent space variations, attention maps, and attention bending outputs. See a high level overview of generation process, or dig down into details of attention.
 
 ## Project Structure
 
@@ -29,61 +26,120 @@ A comprehensive tool for generating video sets using WAN video models (1.3B and 
 ├── webapp/                # Web interface for experiment management
 ├── docs/                  # Documentation
 ├── requirements.txt       # Python dependencies
-├── main.py               # Main entry point
-└── analyze_latent_trajectories.py  # Latent analysis script
+└── main.py                # Main entry point
 ```
 
 ## Usage
 
-### Basic Usage with WAN 1.3B
+### Video Generation with Prompt Variations
+
+Use templates to generate grids of videos with slight prompt variations. This is useful for evaluating how certain identities or demographics are represented under stable conditions. For example, the template `"a romantic kiss between [two people|two men|two women|a man and a woman]"` generates one video per seed for each of:
+
+1. a romantic kiss between two people
+2. a romantic kiss between two men
+3. a romantic kiss between two women
+4. a romantic kiss between a man and a woman
+
+#### WAN 1.3B (recommended starting point — ~8 GB VRAM)
 ```bash
-python main.py --config configs/default.yaml --template "a romantic kiss between [two people|two men|two women|a man and a woman]"
+python main.py --config configs/wan_1-3b_optimized_long.yaml \
+  --template "a romantic kiss between [two people|two men|two women|a man and a woman]"
 ```
 
-### Using WAN 14B Model (Requires GPU with 48GB+ VRAM)
+#### WAN 14B (requires 48 GB+ VRAM)
 ```bash
-python main.py --config configs/wan_14b_optimized.yaml --template "a romantic kiss between [two people|two men|two women|a man and a woman]"
+python main.py --config configs/wan_14b_optimized_long.yaml \
+  --template "a romantic kiss between [two people|two men|two women|a man and a woman]"
 ```
 
-### 🆕 With Latent Trajectory Analysis
-```bash
-# Generate videos while storing latent representations for analysis
-python main.py --template "a [romantic|platonic] kiss between [two people|two men|two women]" --store-latents
+---
 
-# Analyze stored latents to study diffusion geometry
-python analyze_latent_trajectories.py --batch-dir outputs/your_batch_20250804_123456
+### Latent Trajectory Analysis
+
+Store latent representations at each diffusion step, then analyze them to latent space geometry.
+
+```bash
+# Step 1 — generate videos and store latents
+python main.py --config configs/wan_1-3b_optimized_long.yaml \
+  --template "a romantic kiss between [two people|two men]" \
+  --store-latents
+
+# Step 2 — decode latents to videos for visual inspection
+python scripts/decode_latent_steps.py <path_to_batch_folder>
+
+# Step 3 — run trajectory analysis
+python analyze_latent_trajectories.py --batch-dir <path_to_batch_folder>
 ```
 
-### 🆕 With Attention Map Storage
-```bash
-# Generate videos while capturing attention maps for specific tokens
-python main.py --template "a beautiful (flower) in a garden" --store-attention --decode-attention
+---
 
-# Generate with template variations tracking different tokens per variation
-python main.py --template "a beautiful [(flower) | (tree)] in a park" --store-attention --decode-attention
+### Attention Map Visualization
+
+Wrap any token in parentheses in your template to capture cross-attention maps for it at each diffusion step. Use one of the provided attention configs to control storage settings.
+
+#### Step 1 — Generate with an attention config
+
+**Light** (per-step averages only — recommended starting point):
+```bash
+python main.py --config configs/attention_visualization_light.yaml \
+  --template "a beautiful (flower) in a garden"
 ```
+
+**Comprehensive** (per-step, per-layer, and per-head — generates many output videos):
+```bash
+python main.py --config configs/attention_visualization_comprehensive.yaml \
+  --template "a beautiful (cat) in a garden"
+```
+
+The only difference between the two configs is `store_per_block` and `store_per_head` in the `attention_analysis_settings` section. Note that "Comprehensive" attention map generation can easily reach the tens of thousands of video outputs.
+
+#### Step 2 — Decode attention maps to videos
+```bash
+python scripts/decode_attention_steps.py <path_to_batch_folder>
+```
+
+---
+
+### Attention Bending
+
+Modify cross-attention mechanism during generation to modulate the model behavior. See `configs/attention_bending_quick_sweep.yaml` for a full working example:
+
+```bash
+python main.py --config configs/attention_bending_quick_sweep.yaml \
+  --template "a (cat) playing in a (garden)"
+```
+
+---
 
 ### Available Configurations
-- `configs/default.yaml` - Standard WAN 1.3B settings
-- `configs/wan_14b_optimized.yaml` - Optimized for WAN 14B with memory management
-- `configs/fast_test.yaml` - Quick testing configuration
-- `configs/high_quality.yaml` - High-quality generation settings
-- `configs/latent_analysis_example.yaml` - 🆕 Example config with latent storage enabled
+
+| Config | Description |
+|--------|-------------|
+| `configs/default.yaml` | Minimal defaults |
+| `configs/wan_1-3b_optimized_short.yaml` | WAN 1.3B, short videos |
+| `configs/wan_1-3b_optimized_long.yaml` | WAN 1.3B, longer videos with attention storage |
+| `configs/wan_14b_optimized_short.yaml` | WAN 14B, optimized memory |
+| `configs/wan_14b_optimized_long.yaml` | WAN 14B, longer videos |
+| `configs/attention_visualization_light.yaml` | Attention maps, averages only |
+| `configs/attention_visualization_comprehensive.yaml` | Attention maps, per-layer and per-head |
+| `configs/attention_bending_quick_sweep.yaml` | Attention bending example |
+| `configs/attention_bending_comprehensive_sweep.yaml` | Advanced Attention bending example |
 
 
-
+---
 
 ## Configuration
 
-See configuration files in `configs/` directory for options including:
-- **Model settings**: Model ID, seed, sampler, CFG scale, inference steps
-- **Video parameters**: Resolution (width/height), fps, frame count, duration
-- **Memory optimization**: GPU memory management, model reloading, cache clearing
-- **Output organization**: Directory structure and file naming preferences
+All generation parameters are set in YAML config files under `configs/`. Key sections:
 
-### Memory Requirements
-- **WAN 1.3B**: Requires ~8GB VRAM
-- **WAN 14B**: Requires 48GB+ VRAM (optimized for A100/A6000 GPUs)
+- **`model_settings`** — model ID, seed, sampler, CFG scale, inference steps
+- **`video_settings`** — resolution (width/height), fps, frame count
+- **`memory_settings`** — GPU memory management, cache clearing
+- **`latent_analysis_settings`** — latent storage options
+- **`attention_analysis_settings`** — attention capture and storage options
+- **`attention_bending_settings` and `attention_bending_variations`** - enable attention bending and define modulation rules
+
+---
 
 ## Requirements
 
@@ -97,7 +153,7 @@ See configuration files in `configs/` directory for options including:
 
 ## Installation
 
-### 1. Create a conda environment (recommended)
+### 1. Create a conda environment
 
 ```bash
 conda create -n wan python=3.12
@@ -106,10 +162,10 @@ conda activate wan
 
 ### 2. Install PyTorch with CUDA
 
-PyTorch must be installed with the index URL that matches your CUDA driver version. Check your driver with `nvidia-smi`, then pick the right command below:
+PyTorch must be installed with the index URL matching your CUDA driver version. Check your driver with `nvidia-smi`, then use the appropriate command:
 
 ```bash
-# CUDA 12.9 (current — tested configuration)
+# CUDA 12.9 (tested configuration)
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu129
 
 # CUDA 12.6
@@ -119,8 +175,7 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
 ```
 
-Verify the install:
-
+Verify:
 ```bash
 python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
 ```
@@ -135,7 +190,7 @@ pip install -r requirements.txt
 > - UMAP trajectory visualizations: `pip install umap-learn`
 > - Video similarity analysis (SSIM/MSE): `pip install scikit-image`
 
-### 4. (Optional) Set up the web interface
+### 4. (Optional) Web interface
 
 The web interface has a Flask backend and a React/Vite frontend.
 
@@ -147,15 +202,13 @@ cd webapp/react-frontend
 npm install
 ```
 
-**Run both together** (from the repo root):
+**Run both** (from the repo root):
 ```bash
 # Terminal 1 — Flask backend (port 5000)
-cd webapp/backend
-python app.py
+cd webapp/backend && python app.py
 
 # Terminal 2 — Vite dev server (port 5173)
-cd webapp/react-frontend
-npm run dev
+cd webapp/react-frontend && npm run dev
 ```
 
-Then open `http://localhost:5173` in your browser.
+Open `http://localhost:5173` in your browser.
