@@ -116,10 +116,8 @@ python main.py --config configs/attention_bending_quick_sweep.yaml \
 | Config | Description |
 |--------|-------------|
 | `configs/default.yaml` | Minimal defaults |
-| `configs/wan_1-3b_optimized_short.yaml` | WAN 1.3B, short videos |
-| `configs/wan_1-3b_optimized_long.yaml` | WAN 1.3B, longer videos with attention storage |
-| `configs/wan_14b_optimized_short.yaml` | WAN 14B, optimized memory |
-| `configs/wan_14b_optimized_long.yaml` | WAN 14B, longer videos |
+| `configs/wan_1-3b.yaml` | WAN 1.3B with attention and latent storage |
+| `configs/wan_14b.yaml` | WAN 14B with attention and latent storage|
 | `configs/attention_visualization_light.yaml` | Attention maps, averages only |
 | `configs/attention_visualization_comprehensive.yaml` | Attention maps, per-layer and per-head |
 | `configs/attention_bending_quick_sweep.yaml` | Attention bending example |
@@ -195,7 +193,7 @@ pip install -r requirements.txt
 The web interface has a Flask backend and a React/Vite frontend.
 
 
-**Prep**
+#### Preperation
 ```bash
 python scripts/generate_thumbnails.py
 ```
@@ -212,7 +210,7 @@ cd webapp/react-frontend
 npm install
 ```
 
-**Run** (from the repo root):
+#### Run (from the repo root):
 ```bash
 # Terminal 1 — Flask backend (port 5000)
 cd webapp/backend && python app.py
